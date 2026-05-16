@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 const navLinks = [
   { label: "About Us", href: "/about" },
   { label: "Courses",  href: "/courses" },
-  { label: "Tutors",   href: "/tutors" },
   { label: "Reviews",  href: "/reviews" },
+  { label: "Contact",  href: "/contact" },
 ];
 
 export default function Navbar() {

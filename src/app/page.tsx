@@ -1,6 +1,5 @@
 import HeroSection from "@/components/home/HeroSection";
 import WhyChooseUs from "@/components/home/WhyChooseUs";
-import FeaturedCourses from "@/components/home/FeaturedCourses";
 import TutorHighlights from "@/components/home/TutorHighlights";
 import HowItWorks from "@/components/home/HowItWorks";
 import TimezoneFeature from "@/components/home/TimezoneFeature";
@@ -14,7 +13,6 @@ export default function HomePage() {
     <>
       <HeroSection />
       <WhyChooseUs />
-      <FeaturedCourses />
       <TutorHighlights />
       <HowItWorks />
       <TimezoneFeature />
