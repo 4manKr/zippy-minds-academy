@@ -4,12 +4,12 @@ import { useState } from "react";
 import { Star, ChevronLeft, ChevronRight, Quote } from "lucide-react";
 
 const reviews = [
-  { id: 1, name: "Sarah Mitchell", country: "🇬🇧 United Kingdom", avatar: "SM", subject: "Mathematics", grade: "Grade 10", text: "My daughter's grades went from a C to an A in just 3 months! The tutor Dr. Priya is absolutely brilliant — patient, knowledgeable, and very encouraging. Highly recommend Zippy Minds to every UK parent!", rating: 5 },
-  { id: 2, name: "James Anderson", country: "🇺🇸 United States", avatar: "JA", subject: "Physics", grade: "Grade 11", text: "The timezone flexibility is incredible. We're in California and our tutor seamlessly adjusts to PST. My son's SAT Physics score improved by 120 points. Worth every penny!", rating: 5 },
-  { id: 3, name: "Preethi Ramachandran", country: "🇸🇬 Singapore", avatar: "PR", subject: "English", grade: "Grade 8", text: "Ananya's English classes transformed my child's writing skills completely. The booking process is so smooth — I love how it shows slots in Singapore time automatically!", rating: 5 },
-  { id: 4, name: "Mohammed Al-Rashid", country: "🇦🇪 UAE", avatar: "MA", subject: "Chemistry", grade: "Grade 12", text: "Excellent platform! The free demo was a game-changer — we knew within 30 minutes that Dr. Vikram was the perfect fit. My son got 94% in CBSE Chemistry!", rating: 5 },
-  { id: 5, name: "Emily Chen", country: "🇦🇺 Australia", avatar: "EC", subject: "Biology", grade: "Grade 11", text: "Found Zippy Minds after trying 3 other platforms. The quality of tutors here is on another level. Dr. Meera made complex topics so simple. My daughter scored an A* in IB!", rating: 5 },
-  { id: 6, name: "David Williams", country: "🇨🇦 Canada", avatar: "DW", subject: "Computer Science", grade: "Grade 10", text: "Arjun's coding classes are amazing! My son went from zero to building his own web app in 6 months. The platform is smooth, sessions are punctual, and the quality is outstanding.", rating: 5 },
+  { id: 1, name: "Sarah Mitchell",        country: "🇬🇧 United Kingdom", avatar: "SM", subject: "Phonics",          age: "Age 5", text: "My daughter could barely recognise letters — now she's reading full sentences in just 2 months! Ms. Ananya is so patient and wonderful with young kids. Highly recommend Zippy Minds to every parent!", rating: 5 },
+  { id: 2, name: "James Anderson",        country: "🇺🇸 United States",  avatar: "JA", subject: "Mathematics",      age: "Age 9", text: "The timezone flexibility is incredible. We're in California and the sessions fit perfectly into our evenings. My son's maths confidence has shot up — he now loves solving problems!", rating: 5 },
+  { id: 3, name: "Preethi Ramachandran", country: "🇸🇬 Singapore",      avatar: "PR", subject: "Public Speaking",  age: "Age 10", text: "My shy child now stands up and speaks at school assemblies! The Public Speaking sessions with Ms. Kavya have been life-changing. Booking was effortless in Singapore time.", rating: 5 },
+  { id: 4, name: "Mohammed Al-Rashid",   country: "🇦🇪 UAE",            avatar: "MA", subject: "English Grammar",  age: "Age 8", text: "Excellent platform! The free demo was a game-changer. We knew within 30 minutes that Ms. Priya was the perfect fit. My son's English composition has improved dramatically!", rating: 5 },
+  { id: 5, name: "Emily Chen",           country: "🇦🇺 Australia",      avatar: "EC", subject: "Coding",           age: "Age 12", text: "Found Zippy Minds after trying 3 other platforms. The Coding classes with Mr. Arjun are on another level. My daughter built her own game in Scratch within weeks — she's hooked!", rating: 5 },
+  { id: 6, name: "David Williams",       country: "🇨🇦 Canada",         avatar: "DW", subject: "Life Skills",      age: "Age 11", text: "The Life Skills sessions are fantastic — my son is more organised, confident, and has better social skills at school. Sessions are punctual and Mr. Rohan is brilliant with kids.", rating: 5 },
 ];
 
 export default function ReviewsCarousel() {
@@ -56,7 +56,7 @@ export default function ReviewsCarousel() {
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-gray-900 text-sm">{review.name}</p>
                   <p className="text-xs text-gray-500">{review.country}</p>
-                  <p className="text-xs text-gray-400">{review.subject} · {review.grade}</p>
+                  <p className="text-xs text-gray-400">{review.subject} · {review.age}</p>
                 </div>
                 <div className="flex shrink-0">
                   {[1,2,3,4,5].map((s) => <Star key={s} size={12} fill="gold" stroke="gold" />)}

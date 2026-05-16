@@ -4,10 +4,10 @@ import Link from "next/link";
 import { Star, ArrowRight, MapPin, BookOpen, Award } from "lucide-react";
 
 const tutors = [
-  { id: 1, name: "Dr. Priya Sharma", subject: "Mathematics & Physics", experience: "8 years", rating: 4.9, reviews: 342, location: "Bangalore", students: 450, initials: "PS", color: "from-blue-400 to-brand-blue", subjects: ["Calculus", "Algebra", "Mechanics"] },
-  { id: 2, name: "Rahul Verma", subject: "Physics & Chemistry", experience: "6 years", rating: 4.8, reviews: 287, location: "Delhi", students: 380, initials: "RV", color: "from-purple-400 to-brand-purple", subjects: ["IB Physics", "A-Level", "IGCSE"] },
-  { id: 3, name: "Ananya Singh", subject: "English & Literature", experience: "10 years", rating: 4.9, reviews: 512, location: "Mumbai", students: 620, initials: "AS", color: "from-cyan-400 to-brand-cyan", subjects: ["IELTS", "Creative Writing", "Grammar"] },
-  { id: 4, name: "Dr. Vikram Nair", subject: "Chemistry & Biology", experience: "12 years", rating: 4.7, reviews: 198, location: "Chennai", students: 290, initials: "VN", color: "from-emerald-400 to-emerald-600", subjects: ["Organic Chemistry", "Biology", "IB"] },
+  { id: 1, name: "Ms. Ananya Singh",  subject: "Phonics & English Grammar", experience: "10 years", rating: 4.9, reviews: 512, location: "Mumbai",    students: 620, initials: "AS", color: "from-pink-400 to-rose-500",     subjects: ["Phonics", "Reading", "Grammar"] },
+  { id: 2, name: "Mr. Rahul Verma",   subject: "Mathematics",               experience: "9 years",  rating: 4.9, reviews: 634, location: "Bangalore",  students: 890, initials: "RV", color: "from-purple-400 to-brand-purple", subjects: ["Arithmetic", "Algebra", "Problem Solving"] },
+  { id: 3, name: "Ms. Kavya Nair",    subject: "Public Speaking & Writing",  experience: "7 years",  rating: 4.8, reviews: 278, location: "Delhi",      students: 380, initials: "KN", color: "from-orange-400 to-yellow-400",  subjects: ["Confidence", "Debate", "Essay Writing"] },
+  { id: 4, name: "Mr. Arjun Mehta",   subject: "Coding & Science",           experience: "5 years",  rating: 4.9, reviews: 341, location: "Pune",       students: 480, initials: "AM", color: "from-indigo-400 to-blue-600",    subjects: ["Scratch", "Python", "Science Concepts"] },
 ];
 
 export default function TutorHighlights() {

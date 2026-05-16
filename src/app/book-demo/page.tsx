@@ -19,19 +19,18 @@ const steps = [
 
 // Tutor pool — backend will pick the best available match
 const tutorPool: Record<string, { name: string; initials: string; color: string; rating: number; experience: string; monthlyPrice: number }> = {
-  Mathematics:        { name: "Dr. Priya Sharma",  initials: "PS", color: "from-blue-400 to-brand-blue",     rating: 4.9, experience: "8 years",  monthlyPrice: 299 },
-  Physics:            { name: "Rahul Verma",        initials: "RV", color: "from-purple-400 to-brand-purple", rating: 4.8, experience: "6 years",  monthlyPrice: 269 },
-  Chemistry:          { name: "Dr. Vikram Nair",    initials: "VN", color: "from-emerald-400 to-emerald-600", rating: 4.7, experience: "12 years", monthlyPrice: 289 },
-  Biology:            { name: "Dr. Meera Patel",    initials: "MP", color: "from-pink-400 to-rose-500",       rating: 4.8, experience: "9 years",  monthlyPrice: 269 },
-  English:            { name: "Ananya Singh",       initials: "AS", color: "from-cyan-400 to-brand-cyan",     rating: 4.9, experience: "10 years", monthlyPrice: 249 },
-  Hindi:              { name: "Kavita Sharma",      initials: "KS", color: "from-yellow-400 to-orange-400",   rating: 4.7, experience: "7 years",  monthlyPrice: 219 },
-  "Computer Science": { name: "Arjun Mehta",        initials: "AM", color: "from-orange-400 to-red-500",      rating: 4.9, experience: "5 years",  monthlyPrice: 319 },
-  Economics:          { name: "Rohan Gupta",        initials: "RG", color: "from-teal-400 to-cyan-600",       rating: 4.6, experience: "8 years",  monthlyPrice: 249 },
-  Science:            { name: "Dr. Priya Sharma",   initials: "PS", color: "from-blue-400 to-brand-blue",     rating: 4.9, experience: "8 years",  monthlyPrice: 269 },
-  History:            { name: "Sunita Rao",         initials: "SR", color: "from-indigo-400 to-brand-blue",   rating: 4.8, experience: "7 years",  monthlyPrice: 219 },
-  Geography:          { name: "Sunita Rao",         initials: "SR", color: "from-indigo-400 to-brand-blue",   rating: 4.8, experience: "7 years",  monthlyPrice: 219 },
-  Accountancy:        { name: "Rohan Gupta",        initials: "RG", color: "from-teal-400 to-cyan-600",       rating: 4.6, experience: "8 years",  monthlyPrice: 249 },
-  "Business Studies": { name: "Rohan Gupta",        initials: "RG", color: "from-teal-400 to-cyan-600",       rating: 4.6, experience: "8 years",  monthlyPrice: 249 },
+  "Phonics":                { name: "Ms. Ananya Singh",  initials: "AS", color: "from-pink-400 to-rose-500",       rating: 4.9, experience: "10 years", monthlyPrice: 199 },
+  "English Grammar":        { name: "Ms. Priya Sharma",  initials: "PS", color: "from-blue-400 to-blue-600",       rating: 4.8, experience: "8 years",  monthlyPrice: 219 },
+  "Mathematics":            { name: "Mr. Rahul Verma",   initials: "RV", color: "from-purple-400 to-purple-600",   rating: 4.9, experience: "9 years",  monthlyPrice: 229 },
+  "Public Speaking":        { name: "Ms. Kavya Nair",    initials: "KN", color: "from-orange-400 to-yellow-400",   rating: 4.8, experience: "7 years",  monthlyPrice: 219 },
+  "Writing & Communication":{ name: "Ms. Sunita Rao",    initials: "SR", color: "from-teal-400 to-cyan-500",       rating: 4.7, experience: "6 years",  monthlyPrice: 199 },
+  "Coding":                 { name: "Mr. Arjun Mehta",   initials: "AM", color: "from-indigo-400 to-blue-600",     rating: 4.9, experience: "5 years",  monthlyPrice: 249 },
+  "Science":                { name: "Dr. Meera Patel",   initials: "MP", color: "from-green-400 to-emerald-500",   rating: 4.8, experience: "9 years",  monthlyPrice: 229 },
+  "Life Skills":            { name: "Mr. Rohan Gupta",   initials: "RG", color: "from-yellow-400 to-orange-400",   rating: 4.7, experience: "8 years",  monthlyPrice: 199 },
+  "Hindi":                  { name: "Ms. Kavita Sharma", initials: "KS", color: "from-red-400 to-orange-500",      rating: 4.7, experience: "7 years",  monthlyPrice: 199 },
+  "General Knowledge":      { name: "Mr. Vikram Nair",   initials: "VN", color: "from-cyan-400 to-teal-500",       rating: 4.6, experience: "6 years",  monthlyPrice: 199 },
+  "Creative Arts":          { name: "Ms. Divya Iyer",    initials: "DI", color: "from-fuchsia-400 to-pink-500",    rating: 4.8, experience: "5 years",  monthlyPrice: 199 },
+  "Social Studies":         { name: "Ms. Rekha Pillai",  initials: "RP", color: "from-amber-400 to-orange-400",    rating: 4.7, experience: "6 years",  monthlyPrice: 199 },
 };
 
 const DEFAULT_TUTOR = { name: "Available Tutor", initials: "AT", color: "from-brand-blue to-brand-purple", rating: 4.8, experience: "5+ years", monthlyPrice: 249 };

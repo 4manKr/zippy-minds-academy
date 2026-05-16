@@ -17,14 +17,14 @@ export default function CTABanner() {
             </div>
 
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6 leading-tight">
-              Give your child the{" "}
-              <span className="text-brand-cyan">academic edge</span>{" "}
-              they deserve
+              Learn Smart.{" "}
+              <span className="text-yellow-300">Speak Confident.</span>{" "}
+              <span className="text-teal-300">Shape Tomorrow.</span>
             </h2>
 
             <p className="text-white/80 text-lg mb-10 max-w-xl mx-auto">
               Join 10,000+ families worldwide who&apos;ve transformed their children&apos;s
-              learning with Zippy Minds Academy. Start with a free demo — no commitment.
+              learning with Zippy Minds Academy — Phonics, English, Maths, Coding & more. Start with a free demo.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

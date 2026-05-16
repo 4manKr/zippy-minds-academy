@@ -3,55 +3,93 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Search, Star, Clock, Users, Filter, BookOpen, ArrowRight } from "lucide-react";
+import { SUBJECT_COLORS } from "@/lib/utils";
 
 const allCourses = [
-  { id: 1, title: "Advanced Mathematics", subject: "Mathematics", grade: "Grade 9-12", tutor: "Dr. Priya Sharma", price: 25, rating: 4.9, reviews: 234, duration: "60 min", students: 1200, emoji: "📐", difficulty: "Advanced", category: "Mathematics" },
-  { id: 2, title: "IGCSE Physics Mastery", subject: "Physics", grade: "Grade 10-12", tutor: "Rahul Verma", price: 22, rating: 4.8, reviews: 189, duration: "60 min", students: 890, emoji: "⚡", difficulty: "Advanced", category: "Science" },
-  { id: 3, title: "English Literature & Writing", subject: "English", grade: "Grade 6-12", tutor: "Ananya Singh", price: 18, rating: 4.9, reviews: 312, duration: "45 min", students: 1540, emoji: "📖", difficulty: "Intermediate", category: "English" },
-  { id: 4, title: "Chemistry for IB/A-Level", subject: "Chemistry", grade: "Grade 11-12", tutor: "Dr. Vikram Nair", price: 28, rating: 4.7, reviews: 156, duration: "60 min", students: 670, emoji: "🧪", difficulty: "Advanced", category: "Science" },
-  { id: 5, title: "Computer Science & Coding", subject: "Computer Science", grade: "Grade 7-12", tutor: "Arjun Mehta", price: 30, rating: 4.9, reviews: 278, duration: "60 min", students: 1100, emoji: "💻", difficulty: "Intermediate", category: "Technology" },
-  { id: 6, title: "Biology & Life Sciences", subject: "Biology", grade: "Grade 8-12", tutor: "Dr. Meera Patel", price: 22, rating: 4.8, reviews: 198, duration: "60 min", students: 760, emoji: "🔬", difficulty: "Intermediate", category: "Science" },
-  { id: 7, title: "Foundation Mathematics", subject: "Mathematics", grade: "Grade 1-5", tutor: "Sunita Rao", price: 15, rating: 4.8, reviews: 445, duration: "30 min", students: 2100, emoji: "➕", difficulty: "Beginner", category: "Mathematics" },
-  { id: 8, title: "Hindi Language Mastery", subject: "Hindi", grade: "Grade 1-10", tutor: "Kavita Sharma", price: 15, rating: 4.7, reviews: 267, duration: "45 min", students: 980, emoji: "🇮🇳", difficulty: "Beginner", category: "Languages" },
-  { id: 9, title: "Economics & Business Studies", subject: "Economics", grade: "Grade 11-12", tutor: "Rohan Gupta", price: 20, rating: 4.6, reviews: 134, duration: "60 min", students: 540, emoji: "📊", difficulty: "Advanced", category: "Commerce" },
+  {
+    id: 1, subject: "Phonics", title: "Phonics Foundations", ageGroup: "Ages 3–7",
+    tutor: "Ms. Ananya Singh", price: 199, rating: 4.9, reviews: 512,
+    duration: "30 min/session", students: 2100,
+    tagline: "Build strong reading and speaking foundations",
+    tags: ["Letter Sounds", "Blending", "Sight Words"],
+  },
+  {
+    id: 2, subject: "English Grammar", title: "English Grammar Mastery", ageGroup: "Ages 6–12",
+    tutor: "Ms. Priya Sharma", price: 219, rating: 4.8, reviews: 389,
+    duration: "45 min/session", students: 1540,
+    tagline: "Learn better, express better — every day",
+    tags: ["Grammar", "Vocabulary", "Comprehension"],
+  },
+  {
+    id: 3, subject: "Mathematics", title: "Mathematics Excellence", ageGroup: "Ages 5–15",
+    tutor: "Mr. Rahul Verma", price: 229, rating: 4.9, reviews: 634,
+    duration: "45 min/session", students: 1890,
+    tagline: "Understand concepts, solve with confidence",
+    tags: ["Arithmetic", "Algebra", "Problem Solving"],
+  },
+  {
+    id: 4, subject: "Public Speaking", title: "Speak Up & Shine", ageGroup: "Ages 7–15",
+    tutor: "Ms. Kavya Nair", price: 219, rating: 4.8, reviews: 278,
+    duration: "30 min/session", students: 980,
+    tagline: "Speak up, stand out, be confident",
+    tags: ["Confidence", "Debate", "Presentation"],
+  },
+  {
+    id: 5, subject: "Coding", title: "Kids Coding Adventures", ageGroup: "Ages 8–15",
+    tutor: "Mr. Arjun Mehta", price: 249, rating: 4.9, reviews: 341,
+    duration: "45 min/session", students: 1120,
+    tagline: "Build apps, games & the future",
+    tags: ["Scratch", "Python", "Web Dev"],
+  },
+  {
+    id: 6, subject: "Writing & Communication", title: "Creative Writing Stars", ageGroup: "Ages 6–12",
+    tutor: "Ms. Sunita Rao", price: 199, rating: 4.7, reviews: 267,
+    duration: "30 min/session", students: 870,
+    tagline: "Write clearly, think creatively",
+    tags: ["Story Writing", "Essays", "Journaling"],
+  },
+  {
+    id: 7, subject: "Science", title: "Science Explorers", ageGroup: "Ages 8–15",
+    tutor: "Dr. Meera Patel", price: 229, rating: 4.8, reviews: 198,
+    duration: "45 min/session", students: 760,
+    tagline: "Discover, experiment & wonder",
+    tags: ["Biology", "Physics", "Chemistry"],
+  },
+  {
+    id: 8, subject: "Life Skills", title: "Future-Ready Life Skills", ageGroup: "Ages 6–15",
+    tutor: "Mr. Rohan Gupta", price: 199, rating: 4.7, reviews: 189,
+    duration: "30 min/session", students: 650,
+    tagline: "Leadership, mindset & real-world readiness",
+    tags: ["Leadership", "Mindset", "Social Skills"],
+  },
 ];
 
-const categories = ["All", "Mathematics", "Science", "English", "Technology", "Languages", "Commerce"];
-const difficulties = ["All", "Beginner", "Intermediate", "Advanced"];
-
-const gradientMap: Record<number, string> = {
-  1: "from-blue-500 to-brand-blue",
-  2: "from-purple-500 to-brand-purple",
-  3: "from-cyan-400 to-brand-cyan",
-  4: "from-emerald-400 to-emerald-600",
-  5: "from-orange-400 to-red-500",
-  6: "from-pink-400 to-rose-500",
-  7: "from-yellow-400 to-orange-400",
-  8: "from-indigo-400 to-brand-blue",
-  9: "from-teal-400 to-cyan-600",
-};
+const categories = ["All", "Phonics", "English Grammar", "Mathematics", "Public Speaking", "Coding", "Writing & Communication", "Science", "Life Skills"];
 
 export default function CoursesPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
-  const [difficulty, setDifficulty] = useState("All");
 
   const filtered = allCourses.filter((c) => {
-    const matchSearch = c.title.toLowerCase().includes(search.toLowerCase()) || c.subject.toLowerCase().includes(search.toLowerCase());
-    const matchCat = category === "All" || c.category === category;
-    const matchDiff = difficulty === "All" || c.difficulty === difficulty;
-    return matchSearch && matchCat && matchDiff;
+    const matchSearch =
+      c.title.toLowerCase().includes(search.toLowerCase()) ||
+      c.subject.toLowerCase().includes(search.toLowerCase()) ||
+      c.tagline.toLowerCase().includes(search.toLowerCase());
+    const matchCat = category === "All" || c.subject === category;
+    return matchSearch && matchCat;
   });
 
   return (
     <div className="min-h-screen bg-gray-50 pt-20">
       {/* Header */}
-      <div className="gradient-bg py-16">
+      <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-teal-500 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
           <span className="badge bg-white/10 border border-white/20 text-white mb-4 inline-block">Our Courses</span>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">Explore All Courses</h1>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            Learn Smart. <span className="text-yellow-300">Grow Fast.</span>
+          </h1>
           <p className="text-white/70 text-lg max-w-xl mx-auto">
-            Browse 100+ courses across all subjects, taught by India&apos;s finest educators.
+            Fun & interactive 1-to-1 classes for young minds — ages 3 to 15, from anywhere in the world.
           </p>
         </div>
       </div>
@@ -64,21 +102,33 @@ export default function CoursesPage() {
               <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search courses or subjects..."
+                placeholder="Search courses..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="input-field pl-11"
               />
             </div>
-            <div className="flex gap-3">
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="input-field py-2.5 px-4 w-auto">
-                {categories.map((c) => <option key={c}>{c}</option>)}
-              </select>
-              <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="input-field py-2.5 px-4 w-auto">
-                {difficulties.map((d) => <option key={d}>{d}</option>)}
-              </select>
-            </div>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="input-field py-2.5 px-4 md:w-auto">
+              {categories.map((c) => <option key={c}>{c}</option>)}
+            </select>
           </div>
+        </div>
+
+        {/* Category pills */}
+        <div className="flex flex-wrap gap-2 mb-8">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategory(cat)}
+              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${
+                category === cat
+                  ? "bg-brand-blue text-white shadow-sm"
+                  : "bg-white text-gray-600 border border-gray-200 hover:border-brand-blue hover:text-brand-blue"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
 
         {/* Results count */}
@@ -87,44 +137,66 @@ export default function CoursesPage() {
             Showing <span className="font-semibold text-gray-900">{filtered.length}</span> courses
           </p>
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Filter size={15} /> Sort by: Best rated
+            <Filter size={15} /> Best rated
           </div>
         </div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filtered.map((course) => (
-            <Link key={course.id} href={`/courses/${course.id}`} className="group bg-white rounded-3xl overflow-hidden shadow-card card-hover border border-gray-100">
-              <div className={`h-44 bg-gradient-to-br ${gradientMap[course.id] || "from-brand-blue to-brand-purple"} flex items-center justify-center relative`}>
-                <span className="text-7xl opacity-80 group-hover:scale-110 transition-transform duration-500">{course.emoji}</span>
-                <div className="absolute top-4 left-4">
-                  <span className={`badge text-xs ${course.difficulty === "Beginner" ? "bg-green-100 text-green-700" : course.difficulty === "Intermediate" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>
-                    {course.difficulty}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filtered.map((course) => {
+            const colors = SUBJECT_COLORS[course.subject] ?? SUBJECT_COLORS["Science"];
+            return (
+              <Link
+                key={course.id}
+                href={`/courses/${course.id}`}
+                className="group bg-white rounded-3xl overflow-hidden shadow-card card-hover border border-gray-100"
+              >
+                {/* Thumbnail */}
+                <div className={`h-40 bg-gradient-to-br ${colors.gradient} flex items-center justify-center relative`}>
+                  <span className="text-6xl group-hover:scale-110 transition-transform duration-500">
+                    {colors.icon}
                   </span>
-                </div>
-                <div className="absolute top-4 right-4">
-                  <span className="badge bg-white/90 text-brand-blue font-bold">${course.price}/hr</span>
-                </div>
-              </div>
-              <div className="p-6">
-                <span className="badge-gray text-xs mb-2 inline-block">{course.subject} · {course.grade}</span>
-                <h3 className="font-bold text-gray-900 text-lg mb-1 group-hover:text-brand-blue transition-colors">{course.title}</h3>
-                <p className="text-sm text-gray-500 mb-4">by {course.tutor}</p>
-                <div className="flex items-center justify-between text-sm text-gray-500 mb-4 pt-3 border-t border-gray-50">
-                  <div className="flex items-center gap-1">
-                    <Star size={13} fill="gold" stroke="gold" />
-                    <span className="font-semibold text-gray-900">{course.rating}</span>
-                    <span className="text-xs">({course.reviews})</span>
+                  <div className="absolute top-3 right-3">
+                    <span className="badge bg-white/90 text-gray-700 font-semibold text-xs">{course.ageGroup}</span>
                   </div>
-                  <div className="flex items-center gap-1"><Clock size={13} /> {course.duration}</div>
-                  <div className="flex items-center gap-1"><Users size={13} /> {course.students.toLocaleString()}</div>
+                  <div className="absolute bottom-3 left-3">
+                    <span className="badge bg-white font-bold text-brand-blue text-xs">${course.price}/mo</span>
+                  </div>
                 </div>
-                <button className="w-full btn-primary justify-center text-sm py-2.5">
-                  <BookOpen size={15} /> Enroll Now
-                </button>
-              </div>
-            </Link>
-          ))}
+
+                {/* Content */}
+                <div className="p-5">
+                  <span className={`badge text-xs mb-2 inline-block ${colors.bg} ${colors.text}`}>
+                    {course.subject}
+                  </span>
+                  <h3 className="font-bold text-gray-900 text-base mb-1 group-hover:text-brand-blue transition-colors leading-snug">
+                    {course.title}
+                  </h3>
+                  <p className="text-xs text-gray-400 mb-3 leading-snug">{course.tagline}</p>
+                  <p className="text-xs text-gray-500 mb-3">by <span className="font-medium">{course.tutor}</span></p>
+
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {course.tags.map((tag) => (
+                      <span key={tag} className="badge-gray text-xs">{tag}</span>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-gray-400 mb-4 pt-3 border-t border-gray-50">
+                    <div className="flex items-center gap-1">
+                      <Star size={11} fill="gold" stroke="gold" />
+                      <span className="font-bold text-gray-800">{course.rating}</span>
+                      <span>({course.reviews})</span>
+                    </div>
+                    <div className="flex items-center gap-1"><Clock size={11} /> {course.duration}</div>
+                  </div>
+
+                  <button className="w-full btn-primary justify-center text-xs py-2.5">
+                    <BookOpen size={13} /> Book Free Demo
+                  </button>
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
         {filtered.length === 0 && (
