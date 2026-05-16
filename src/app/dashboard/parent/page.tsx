@@ -1,250 +1,245 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import {
-  LayoutDashboard, Calendar, BookOpen, CreditCard, Bell, User,
-  LogOut, Video, Clock, ChevronRight, Star, TrendingUp, CheckCircle,
-  XCircle, AlertCircle, Menu, X, Plus
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Star, ChevronRight, Plus, Settings, LogOut, LayoutDashboard, Calendar, BookOpen, CreditCard, HelpCircle, CheckCircle } from "lucide-react";
 
-const sidebarLinks = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard/parent", active: true },
-  { icon: Calendar, label: "Upcoming Sessions", href: "/dashboard/parent/sessions" },
-  { icon: BookOpen, label: "My Courses", href: "/dashboard/parent/courses" },
-  { icon: CreditCard, label: "Payments", href: "/dashboard/parent/payments" },
-  { icon: Bell, label: "Notifications", href: "/dashboard/parent/notifications", badge: 3 },
-  { icon: TrendingUp, label: "Child Progress", href: "/dashboard/parent/progress" },
-  { icon: User, label: "Profile", href: "/dashboard/parent/profile" },
+const navItems = [
+  { icon: LayoutDashboard, label: "Dashboard",      href: "/dashboard/parent" },
+  { icon: Calendar,        label: "Schedule",        href: "#", active: true },
+  { icon: BookOpen,        label: "Learning Center", href: "#" },
+  { icon: CreditCard,      label: "Payments",        href: "#" },
+  { icon: HelpCircle,      label: "Support",         href: "#" },
 ];
 
-const upcomingSessions = [
-  { id: 1, subject: "Mathematics", tutor: "Dr. Priya Sharma", date: "Today", time: "4:00 PM IST", duration: "60 min", status: "confirmed", initials: "PS", color: "from-blue-400 to-brand-blue", zoomLink: "#" },
-  { id: 2, subject: "Physics", tutor: "Rahul Verma", date: "Tomorrow", time: "6:00 PM IST", duration: "60 min", status: "confirmed", initials: "RV", color: "from-purple-400 to-brand-purple", zoomLink: "#" },
-  { id: 3, subject: "English", tutor: "Ananya Singh", date: "May 22", time: "5:00 PM IST", duration: "45 min", status: "pending", initials: "AS", color: "from-cyan-400 to-brand-cyan", zoomLink: null },
+const tutors = [
+  { name: "Ms. Ananya Rao",  role: "Phonics Specialist",    rating: 4.9, reviews: 120, active: true },
+  { name: "Mr. Rahul Sharma",role: "Mathematics Coach",      rating: 4.8, reviews: 85 },
+  { name: "Dr. Priya Singh", role: "Vedic Maths Expert",    rating: 5.0, reviews: 200 },
 ];
 
-const notifications = [
-  { id: 1, type: "confirmed", text: "Dr. Priya confirmed your session for today at 4:00 PM", time: "2h ago" },
-  { id: 2, type: "payment", text: "Payment of $25 processed successfully for Math session", time: "1d ago" },
-  { id: 3, type: "reminder", text: "Upcoming session with Rahul Verma tomorrow at 6 PM", time: "5h ago" },
+const slots = {
+  Mon: ["Booked", "Booked"],
+  Tue: ["4:00 PM", "5:00 PM"],
+  Wed: ["4:30 PM", "6:00 PM"],
+  Thu: ["5:00 PM"],
+  Fri: ["Booked", "6:30 PM"],
+  Sat: ["10 AM", "11 AM"],
+  Sun: ["Off"],
+};
+
+const SELECTED = "4:30 PM";
+const SELECTED_DAY = "Wed";
+
+const bookingSummary = [
+  { label: "Session Type", value: "1-on-1 Phonics" },
+  { label: "Duration",     value: "30 Mins" },
+  { label: "Date",         value: "Wed, May 21" },
+  { label: "Time",         value: "4:30 PM" },
 ];
 
-const stats = [
-  { label: "Total Sessions", value: "24", icon: Calendar, color: "blue", change: "+3 this month" },
-  { label: "Hours Learned", value: "36h", icon: Clock, color: "purple", change: "+5h this week" },
-  { label: "Courses Enrolled", value: "3", icon: BookOpen, color: "cyan", change: "Active" },
-  { label: "Avg. Rating Given", value: "4.9", icon: Star, color: "yellow", change: "Excellent" },
-];
+export default function ParentDashboardBooking() {
+  const [selectedTutor, setSelectedTutor] = useState(0);
+  const [selectedSlot, setSelectedSlot]   = useState(SELECTED);
+  const [confirmed, setConfirmed]         = useState(false);
 
-export default function ParentDashboard() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-100 shadow-sm transition-transform duration-300 flex flex-col",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      )}>
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
-          <div className="relative w-10 h-10">
-            <Image src="/zippy-logo.jpeg" alt="Zippy Minds" fill className="object-contain rounded-lg" />
+  if (confirmed) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-surface-container-lowest rounded-3xl shadow-card-hover border border-outline-variant p-10 text-center">
+          <div className="w-16 h-16 bg-secondary-container rounded-full flex items-center justify-center mx-auto mb-5 text-3xl">✅</div>
+          <h2 className="font-display text-2xl font-bold text-on-surface mb-2">Session Confirmed!</h2>
+          <p className="text-on-surface-variant text-sm mb-6">
+            Way to go! You&apos;ve just taken the first step toward making your child a future-ready explorer.
+          </p>
+          <div className="bg-surface-container rounded-2xl p-5 text-sm text-left mb-5 space-y-2">
+            {bookingSummary.map(({ label, value }) => (
+              <div key={label} className="flex justify-between">
+                <span className="text-on-surface-variant">{label}</span>
+                <span className="font-semibold text-on-surface">{value}</span>
+              </div>
+            ))}
           </div>
-          <div>
-            <p className="font-bold text-gray-900 text-sm leading-tight">Zippy Minds</p>
-            <p className="text-xs text-gray-400">Parent Portal</p>
+          <div className="space-y-3">
+            <Link href="/dashboard/parent" className="btn-primary w-full justify-center py-3">Go to Dashboard <ChevronRight size={16} /></Link>
+            <button className="w-full btn-yellow py-3 justify-center text-sm">Add to Calendar</button>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Nav links */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          {sidebarLinks.map(({ icon: Icon, label, href, active, badge }) => (
-            <Link
-              key={href}
-              href={href}
-              className={active ? "sidebar-link-active" : "sidebar-link"}
-            >
-              <Icon size={18} />
-              <span className="flex-1">{label}</span>
-              {badge && (
-                <span className="w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold">
-                  {badge}
-                </span>
-              )}
-            </Link>
-          ))}
+  return (
+    <div className="min-h-screen bg-surface flex">
+      {/* ── Sidebar ── */}
+      <aside className="h-screen w-64 fixed left-0 top-0 hidden lg:flex flex-col bg-surface-container-low border-r border-outline-variant py-6 gap-1">
+        <div className="px-6 mb-6">
+          <h1 className="font-display font-bold text-primary text-lg leading-none">Zippy Explorer</h1>
+          <p className="text-xs text-on-surface-variant mt-0.5">Level 4 Learner</p>
+        </div>
+
+        <nav className="flex flex-col flex-grow gap-0.5">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.label} href={item.href} className={item.active ? "sidebar-link-active" : "sidebar-link"}>
+                <Icon size={18} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* User info */}
-        <div className="p-4 border-t border-gray-100">
-          <div className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-gray-50 cursor-pointer">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-blue to-brand-purple flex items-center justify-center text-white font-bold text-sm">
-              JD
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">John Doe</p>
-              <p className="text-xs text-gray-400 truncate">Parent Account</p>
-            </div>
-            <LogOut size={16} className="text-gray-400 shrink-0" />
-          </div>
+        <div className="mt-auto px-4 pb-4 space-y-1">
+          <button className="w-full bg-primary text-on-primary font-bold rounded-full py-3 shadow-md squishy-hover flex items-center justify-center gap-2 text-sm">
+            <Plus size={16} /> Book New Session
+          </button>
+          <Link href="#" className="sidebar-link"><Settings size={18} /> Settings</Link>
+          <Link href="/" className="sidebar-link"><LogOut size={18} /> Sign Out</Link>
         </div>
       </aside>
 
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
+      {/* ── Main ── */}
+      <main className="flex-grow lg:ml-64 px-4 md:px-8 lg:px-12 py-10">
+        {/* Breadcrumb + header */}
+        <div className="mb-8">
+          <nav className="flex items-center gap-1.5 text-xs text-on-surface-variant mb-2 uppercase tracking-wider font-semibold">
+            <span>Courses</span>
+            <ChevronRight size={12} />
+            <span>Phonics</span>
+          </nav>
+          <h2 className="font-display text-3xl md:text-4xl font-extrabold text-primary">Phonics — Ages 3–7</h2>
+          <p className="text-on-surface-variant mt-2 max-w-2xl">
+            Personalized 1-on-1 session focused on letter sounds, blending, and reading foundations with India&apos;s top-rated experts.
+          </p>
+        </div>
 
-      {/* Main content */}
-      <div className="flex-1 lg:ml-64 min-h-screen">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100">
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-            <div>
-              <h1 className="font-bold text-gray-900">Good afternoon, John! 👋</h1>
-              <p className="text-xs text-gray-500">Your child&apos;s learning journey at a glance</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="relative p-2 rounded-xl hover:bg-gray-50 border border-gray-200">
-              <Bell size={18} className="text-gray-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-            <Link href="/book-demo" className="btn-primary text-sm py-2">
-              <Plus size={16} /> Book Demo
-            </Link>
-          </div>
-        </header>
+        {/* Bento grid */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
 
-        <main className="p-6 space-y-8">
-          {/* Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div key={stat.label} className="stat-card">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center",
-                      stat.color === "blue" ? "bg-blue-50 text-brand-blue" :
-                      stat.color === "purple" ? "bg-purple-50 text-brand-purple" :
-                      stat.color === "cyan" ? "bg-cyan-50 text-brand-cyan" :
-                      "bg-yellow-50 text-yellow-600"
-                    )}>
-                      <Icon size={20} />
+          {/* Tutor selection */}
+          <section className="md:col-span-3 flex flex-col gap-4">
+            <h3 className="font-display font-bold text-on-surface flex items-center gap-2 text-base">
+              🔍 Choose Tutor
+            </h3>
+            <div className="flex flex-col gap-3">
+              {tutors.map((t, i) => (
+                <button
+                  key={t.name}
+                  onClick={() => setSelectedTutor(i)}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${
+                    selectedTutor === i
+                      ? "border-primary bg-surface-container-lowest shadow-card ring-4 ring-primary/5"
+                      : "border-outline-variant bg-surface-container-lowest hover:border-primary/50"
+                  }`}
+                >
+                  {selectedTutor === i && <div className="w-1 h-full bg-primary absolute left-0 top-0 rounded-l-xl" />}
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-primary-fixed flex items-center justify-center font-bold text-primary shrink-0">
+                      {t.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-on-surface text-sm">{t.name}</p>
+                      <p className="text-xs text-on-surface-variant">{t.role}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Star size={12} fill="#fdd000" stroke="#fdd000" />
+                        <span className="text-xs text-secondary font-semibold">{t.rating} ({t.reviews})</span>
+                      </div>
                     </div>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-sm text-gray-500">{stat.label}</p>
-                  <p className="text-xs text-green-600 mt-1">{stat.change}</p>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Upcoming sessions */}
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-card">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-50">
-              <h2 className="font-bold text-gray-900 text-lg">Upcoming Sessions</h2>
-              <Link href="/dashboard/parent/sessions" className="text-sm text-brand-blue hover:underline">View all</Link>
+                </button>
+              ))}
             </div>
-            <div className="divide-y divide-gray-50">
-              {upcomingSessions.map((session) => (
-                <div key={session.id} className="px-6 py-4 flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${session.color} flex items-center justify-center text-white font-bold shrink-0`}>
-                    {session.initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900">{session.subject}</p>
-                    <p className="text-sm text-gray-500">with {session.tutor}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{session.date} · {session.time} · {session.duration}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className={cn(
-                      "badge text-xs",
-                      session.status === "confirmed" ? "badge-green" : "badge-yellow"
-                    )}>
-                      {session.status === "confirmed" ? <CheckCircle size={11} className="inline mr-1" /> : <AlertCircle size={11} className="inline mr-1" />}
-                      {session.status}
-                    </span>
-                    {session.status === "confirmed" && session.zoomLink && (
-                      <a href={session.zoomLink} className="flex items-center gap-1 bg-brand-blue text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90">
-                        <Video size={13} /> Join
-                      </a>
-                    )}
-                  </div>
+          </section>
+
+          {/* Calendar */}
+          <section className="md:col-span-6 bg-surface-container-lowest rounded-2xl p-6 shadow-card border border-outline-variant">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-display font-bold text-on-surface flex items-center gap-2 text-base">
+                📅 Available Slots
+              </h3>
+              <div className="flex items-center gap-2">
+                <button className="p-1.5 hover:bg-surface-container rounded-full transition-colors"><ChevronRight size={16} className="rotate-180" /></button>
+                <span className="text-sm font-semibold text-on-surface-variant">May 19–25, 2025</span>
+                <button className="p-1.5 hover:bg-surface-container rounded-full transition-colors"><ChevronRight size={16} /></button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {Object.entries(slots).map(([day, times]) => (
+                <div key={day} className="flex flex-col gap-2">
+                  <span className="text-[10px] font-bold text-on-surface-variant uppercase text-center mb-1">{day}</span>
+                  {times.map((t) => {
+                    const isBooked = t === "Booked" || t === "Off";
+                    const isSelected = t === selectedSlot && day === SELECTED_DAY;
+                    return (
+                      <button
+                        key={t}
+                        disabled={isBooked}
+                        onClick={() => !isBooked && setSelectedSlot(t)}
+                        className={`p-1.5 text-[10px] font-bold rounded text-center transition-all ${
+                          isBooked
+                            ? "bg-surface-container text-on-surface-variant/40 cursor-not-allowed"
+                            : isSelected
+                            ? "bg-secondary-container text-on-secondary-fixed border-2 border-secondary shadow-sm scale-105"
+                            : "border-2 border-primary-fixed text-primary hover:bg-primary/5"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
                 </div>
               ))}
             </div>
-          </div>
 
-          <div className="grid lg:grid-cols-2 gap-6">
-            {/* Notifications */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-card">
-              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-50">
-                <h2 className="font-bold text-gray-900 text-lg">Notifications</h2>
-                <span className="badge-red">3 new</span>
+            <div className="mt-6 pt-4 border-t border-outline-variant flex items-center justify-between text-xs text-on-surface-variant">
+              <span>All times in your local timezone (IST)</span>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-primary-fixed inline-block" /> Available</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-secondary-container border border-secondary inline-block" /> Selected</span>
               </div>
-              <div className="divide-y divide-gray-50">
-                {notifications.map((n) => (
-                  <div key={n.id} className="px-6 py-4 flex items-start gap-3">
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5",
-                      n.type === "confirmed" ? "bg-green-100" :
-                      n.type === "payment" ? "bg-blue-100" : "bg-yellow-100"
-                    )}>
-                      {n.type === "confirmed" ? <CheckCircle size={14} className="text-green-600" /> :
-                       n.type === "payment" ? <CreditCard size={14} className="text-blue-600" /> :
-                       <Bell size={14} className="text-yellow-600" />}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-700">{n.text}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
-                    </div>
+            </div>
+          </section>
+
+          {/* Booking summary */}
+          <section className="md:col-span-3 flex flex-col gap-4">
+            <div className="bg-surface-container p-5 rounded-2xl border border-outline-variant">
+              <h3 className="font-display font-bold text-on-surface mb-4 text-base">Booking Summary</h3>
+              <div className="space-y-3 text-sm border-b border-outline-variant/30 pb-4 mb-4">
+                {bookingSummary.map(({ label, value }) => (
+                  <div key={label} className="flex justify-between">
+                    <span className="text-on-surface-variant">{label}</span>
+                    <span className="font-semibold text-on-surface">{value}</span>
                   </div>
                 ))}
               </div>
+              <div className="bg-surface-container-lowest p-4 rounded-xl border-t-4 border-secondary mb-4">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm text-on-surface-variant">Subtotal</span>
+                  <span className="text-sm font-semibold">FREE</span>
+                </div>
+                <div className="flex justify-between items-center text-primary font-bold">
+                  <span className="font-display text-base">Total</span>
+                  <span className="font-display text-base">FREE Demo</span>
+                </div>
+              </div>
+              <button onClick={() => setConfirmed(true)} className="btn-yellow w-full justify-center py-4 text-sm rounded-2xl">
+                Confirm Demo Slot 📅
+              </button>
+              <p className="text-center text-xs text-on-surface-variant mt-3">No payment required for demo session.</p>
             </div>
 
-            {/* Quick actions */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-card">
-              <div className="px-6 py-5 border-b border-gray-50">
-                <h2 className="font-bold text-gray-900 text-lg">Quick Actions</h2>
-              </div>
-              <div className="p-6 grid grid-cols-2 gap-3">
-                {[
-                  { icon: Calendar, label: "Book New Demo", href: "/book-demo", color: "blue" },
-                  { icon: BookOpen, label: "Browse Courses", href: "/courses", color: "purple" },
-                  { icon: User, label: "Find Tutors", href: "/tutors", color: "cyan" },
-                  { icon: CreditCard, label: "View Payments", href: "/dashboard/parent/payments", color: "green" },
-                ].map(({ icon: Icon, label, href, color }) => (
-                  <Link
-                    key={label}
-                    href={href}
-                    className={cn(
-                      "flex flex-col items-center gap-2 p-4 rounded-2xl border-2 border-dashed text-sm font-medium transition-all hover:border-solid hover:-translate-y-0.5",
-                      color === "blue" ? "border-blue-200 text-brand-blue hover:bg-blue-50" :
-                      color === "purple" ? "border-purple-200 text-brand-purple hover:bg-purple-50" :
-                      color === "cyan" ? "border-cyan-200 text-brand-cyan hover:bg-cyan-50" :
-                      "border-green-200 text-green-600 hover:bg-green-50"
-                    )}
-                  >
-                    <Icon size={22} />
-                    {label}
-                  </Link>
-                ))}
+            <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 flex items-start gap-3">
+              <CheckCircle size={22} className="text-primary shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-semibold text-sm text-primary">Future-Ready Guarantee</h4>
+                <p className="text-xs text-on-surface-variant mt-0.5">Our tutors are vetted for excellence and child safety.</p>
               </div>
             </div>
-          </div>
-        </main>
-      </div>
+          </section>
+        </div>
+      </main>
     </div>
   );
 }
