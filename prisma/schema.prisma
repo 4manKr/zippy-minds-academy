@@ -8,16 +8,17 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  phone     String?
-  role      String   @default("PARENT")
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  phone          String?
+  role           String   @default("PARENT")
+  password       String
+  approvalStatus String   @default("APPROVED") // PENDING | APPROVED | REJECTED (for TUTOR role)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  bookings  Booking[]
+  bookings Booking[]
 }
 
 model Booking {
@@ -37,9 +38,9 @@ model Booking {
   notes         String   @default("")
   monthlyPrice  Int
   status        String   @default("PENDING")
-  zoomLink      String?          // parent/student join URL
-  zoomStartUrl  String?          // tutor host URL
-  zoomMeetingId String?          // Zoom meeting ID (for updates/cancellation)
+  zoomLink      String?
+  zoomStartUrl  String?
+  zoomMeetingId String?
   createdAt     DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id])
@@ -61,4 +62,33 @@ model OtpCode {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  from      String
+  email     String
+  subject   String
+  message   String
+  priority  String   @default("medium")  // low | medium | high
+  status    String   @default("open")    // open | closed
+  reply     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String   @default("")
+  price       Int      @default(199)
+  status      String   @default("active")  // active | inactive
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PlatformSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
 }
