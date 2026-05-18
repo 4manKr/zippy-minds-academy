@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   CheckCircle, ChevronRight, User, BookOpen, Calendar,
-  Clock, Globe, ArrowRight, Star, Sparkles, Zap,
+  Clock, Globe, ArrowRight, Star, Sparkles, Zap, Video,
 } from "lucide-react";
 import { SUBJECTS, GRADES, TIMEZONES } from "@/lib/utils";
 
@@ -46,8 +46,29 @@ const timeSlots = [
   { id: 9, time: "7:00 PM",  available: true  },
 ];
 
-const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const dates    = [19, 20, 21, 22, 23, 24, 25];
+const DAY_NAMES   = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_FULL  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function buildCalendarDates() {
+  const today = new Date();
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    return {
+      dayShort:  DAY_NAMES[d.getDay()],
+      dateNum:   d.getDate(),
+      monthShort: MONTH_SHORT[d.getMonth()],
+      fullDate:  `${MONTH_FULL[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`,
+    };
+  });
+}
+
+interface BookingResult {
+  zoomLink?:  string | null;
+  zoomReady?: boolean;
+  booking?:   { id: string; date?: string; timeSlot?: string };
+}
 
 export default function BookDemoPage() {
   const [step, setStep]               = useState<Step>(1);
@@ -56,11 +77,17 @@ export default function BookDemoPage() {
   const [bookingError, setBookingError] = useState("");
   const [otpPhase, setOtpPhase]       = useState<"idle" | "sent" | "verifying">("idle");
   const [otp, setOtp]                 = useState("");
+  const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
+
+  // Build dynamic calendar dates once (client-side only to avoid SSR mismatch)
+  const calendarDates = useMemo(() => buildCalendarDates(), []);
+
   const [form, setForm] = useState({
     parentName: "", parentEmail: "",
     childName: "", childAge: "", grade: "",
     timezone: "Asia/Kolkata", subject: "",
-    selectedDate: 20, selectedSlot: null as number | null,
+    selectedDateIdx: 0,       // index into calendarDates
+    selectedSlot: null as number | null,
     notes: "",
   });
 
@@ -70,14 +97,16 @@ export default function BookDemoPage() {
     if (detected) setForm((f) => ({ ...f, timezone: detected }));
   }, []);
 
-  const assignedTutor      = tutorPool[form.subject] ?? DEFAULT_TUTOR;
-  const selectedSlotLabel  = timeSlots.find((s) => s.id === form.selectedSlot)?.time ?? "Not selected";
-  const tzLabel            = TIMEZONES.find((t) => t.value === form.timezone)?.label ?? form.timezone;
+  const selectedDateEntry   = calendarDates[form.selectedDateIdx];
+  const selectedDateLabel   = selectedDateEntry?.fullDate ?? "";
+  const assignedTutor       = tutorPool[form.subject] ?? DEFAULT_TUTOR;
+  const selectedSlotLabel   = timeSlots.find((s) => s.id === form.selectedSlot)?.time ?? "Not selected";
+  const tzLabel             = TIMEZONES.find((t) => t.value === form.timezone)?.label ?? form.timezone;
 
   const nextStep = () => setStep((s) => Math.min(4, s + 1) as Step);
   const prevStep = () => setStep((s) => Math.max(1, s - 1) as Step);
 
-  // Step 1: send OTP to parent email
+  // Step 4 phase 1: send OTP
   const handleSendOtp = async () => {
     if (!form.parentEmail) { setBookingError("Please enter your email address."); return; }
     setConfirming(true);
@@ -98,7 +127,7 @@ export default function BookDemoPage() {
     }
   };
 
-  // Step 2: verify OTP + create booking
+  // Step 4 phase 2: verify OTP + create booking
   const handleConfirm = async () => {
     if (!otp || otp.length < 6) { setBookingError("Enter the 6-digit code sent to your email."); return; }
     setConfirming(true);
@@ -113,12 +142,17 @@ export default function BookDemoPage() {
           childName: form.childName, childAge: form.childAge, grade: form.grade,
           timezone: form.timezone, subject: form.subject,
           tutorName: assignedTutor.name, tutorInitials: assignedTutor.initials,
-          date: `May ${form.selectedDate}, 2025`, timeSlot: selectedSlotLabel,
+          date: selectedDateLabel, timeSlot: selectedSlotLabel,
           notes: form.notes, monthlyPrice: assignedTutor.monthlyPrice,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      setBookingResult({
+        zoomLink:  data.booking?.zoomLink ?? null,
+        zoomReady: data.zoomReady ?? false,
+        booking:   data.booking,
+      });
       setConfirmed(true);
     } catch (e: unknown) {
       setOtpPhase("sent");
@@ -138,8 +172,24 @@ export default function BookDemoPage() {
           </div>
           <h2 className="font-display text-2xl font-bold text-on-surface mb-2">Demo Booked! 🎉</h2>
           <p className="text-on-surface-variant mb-6 text-sm">
-            We&apos;ve auto-assigned the best available tutor. You&apos;ll receive a Zoom link within 2 hours.
+            {bookingResult?.zoomReady
+              ? "Your Zoom session link is ready! Click below to join when it's time."
+              : "We'll send your Zoom link to your email within 2 hours."}
           </p>
+
+          {/* Zoom link — shown immediately if generated */}
+          {bookingResult?.zoomLink && (
+            <a
+              href={bookingResult.zoomLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl font-bold text-white mb-4 transition-all hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: "#2D8CFF" }}
+            >
+              <Video size={20} />
+              Join Zoom Session
+            </a>
+          )}
 
           <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-5 flex items-center gap-4 text-left">
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${assignedTutor.color} flex items-center justify-center text-white font-bold font-display shrink-0`}>
@@ -162,10 +212,10 @@ export default function BookDemoPage() {
             {[
               { label: "Student",      value: form.childName || "Your child" },
               { label: "Subject",      value: form.subject || "—" },
-              { label: "Date",         value: `May ${form.selectedDate}, 2025` },
+              { label: "Date",         value: selectedDateLabel },
               { label: "Time",         value: selectedSlotLabel },
               { label: "Session Type", value: "FREE Demo (30 min)" },
-              { label: "Status",       value: "⏳ Pending confirmation" },
+              { label: "Status",       value: bookingResult?.zoomReady ? "✅ Confirmed" : "⏳ Pending confirmation" },
             ].map(({ label, value }) => (
               <div key={label} className="flex justify-between">
                 <span className="text-on-surface-variant">{label}</span>
@@ -335,16 +385,18 @@ export default function BookDemoPage() {
                 {" · "}Slots shown for your assigned tutor&apos;s availability
               </p>
 
+              {/* Date picker — dynamic, shows day + date + month */}
               <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                {weekDays.map((day, i) => (
-                  <button key={day} onClick={() => setForm({ ...form, selectedDate: dates[i], selectedSlot: null })}
+                {calendarDates.map((d, i) => (
+                  <button key={d.fullDate} onClick={() => setForm({ ...form, selectedDateIdx: i, selectedSlot: null })}
                     className={`flex flex-col items-center p-3 rounded-2xl min-w-[60px] transition-all ${
-                      form.selectedDate === dates[i]
+                      form.selectedDateIdx === i
                         ? "bg-primary text-on-primary shadow-sm"
                         : "bg-surface-container hover:bg-surface-container-high text-on-surface-variant"
                     }`}>
-                    <span className="text-xs font-medium">{day}</span>
-                    <span className="text-lg font-bold mt-1">{dates[i]}</span>
+                    <span className="text-xs font-medium">{d.dayShort}</span>
+                    <span className="text-lg font-bold mt-0.5">{d.dateNum}</span>
+                    <span className="text-[10px] font-medium mt-0.5 opacity-80">{d.monthShort}</span>
                   </button>
                 ))}
               </div>
@@ -399,7 +451,7 @@ export default function BookDemoPage() {
                   { label: "Student",      value: form.childName || "Not provided" },
                   { label: "Grade",        value: form.grade || "Not selected" },
                   { label: "Subject",      value: form.subject || "Not selected" },
-                  { label: "Date",         value: `May ${form.selectedDate}, 2025` },
+                  { label: "Date",         value: selectedDateLabel },
                   { label: "Time",         value: selectedSlotLabel },
                   { label: "Timezone",     value: tzLabel },
                   { label: "Session",      value: "FREE Demo (30 minutes)" },
