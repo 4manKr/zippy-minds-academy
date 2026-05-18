@@ -20,8 +20,8 @@ export default function TermsPage() {
           { title: "9. Governing Law", body: "These terms are governed by Indian law. Disputes shall be resolved through binding arbitration under the Arbitration and Conciliation Act, 1996, New Delhi." },
         ].map(({ title, body }) => (
           <section key={title} className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-3">{title}</h2>
-            <p className="text-gray-500 leading-relaxed">{body}</p>
+            <h2 className="text-xl font-bold text-on-surface mb-3">{title}</h2>
+            <p className="text-on-surface-variant leading-relaxed">{body}</p>
           </section>
         ))}
       </div>

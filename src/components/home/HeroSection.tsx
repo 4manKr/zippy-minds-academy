@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CheckCircle } from "lucide-react";
+import { ArrowRight, CheckCircle, Zap } from "lucide-react";
 
 const featureCards = [
   { icon: "🎓", title: "Top 1% Tutors",   desc: "Rigorous selection from premier Indian institutions.", color: "border-primary" },
@@ -11,54 +11,42 @@ const featureCards = [
   { icon: "🏆", title: "Results Driven",   desc: "Focus on confidence and core subject mastery.",     color: "border-primary-container" },
 ];
 
-const checks = ["Free Demo Session", "Ages 3–15", "Any Timezone", "100% Online"];
+const avatarEmojis = ["🧑🏻", "👧🏽", "🧒🏿", "👦🏼", "👧🏻"];
 
 export default function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-surface pt-8 pb-20">
-      {/* Floating decorative elements */}
-      <div className="absolute top-16 right-16 text-secondary-container opacity-40 text-7xl animate-float select-none pointer-events-none" style={{ animationDelay: "1s" }}>🚀</div>
-      <div className="absolute bottom-32 left-12 text-tertiary opacity-30 text-5xl animate-float select-none pointer-events-none" style={{ animationDelay: "2s" }}>✦</div>
-      <div className="absolute top-1/3 left-1/4 text-primary opacity-20 text-4xl animate-float select-none pointer-events-none" style={{ animationDelay: "0.5s" }}>⚡</div>
-      <div className="absolute top-20 left-[40%] text-tertiary-fixed opacity-50 text-3xl animate-float select-none pointer-events-none" style={{ animationDelay: "1.5s" }}>⭐</div>
-
+    <section className="relative overflow-hidden bg-surface pt-6 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center min-h-[82vh]">
 
           {/* ── Left ── */}
-          <div className="space-y-6 text-center lg:text-left">
+          <div className="space-y-7 text-center lg:text-left">
+
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 bg-secondary-container/20 text-secondary border border-secondary-container/40 rounded-full px-4 py-2 text-sm font-semibold">
-              <span>✅</span> The Future of Global Learning
+            <div className="inline-flex items-center gap-2 bg-white border border-outline-variant rounded-full px-4 py-2 text-sm font-semibold text-on-surface-variant shadow-sm">
+              <CheckCircle size={15} className="text-primary shrink-0" />
+              The Future of Global Learning
+              <Zap size={14} className="text-secondary-container fill-secondary-container shrink-0" />
             </div>
 
             {/* Headline */}
-            <div>
-              <h1 className="font-display text-4xl sm:text-5xl md:text-6xl font-extrabold text-primary leading-tight tracking-tight">
+            <div className="space-y-1">
+              <h1 className="font-display text-[2.8rem] sm:text-5xl md:text-[3.5rem] lg:text-[3.8rem] font-extrabold text-primary leading-[1.1] tracking-tight">
                 Future-Ready Kids,
               </h1>
-              <h2 className="font-display text-4xl sm:text-5xl md:text-6xl font-extrabold text-tertiary leading-tight tracking-tight">
+              <h2 className="font-display text-[2.8rem] sm:text-5xl md:text-[3.5rem] lg:text-[3.8rem] font-extrabold text-tertiary leading-[1.1] tracking-tight">
                 One Class at a Time.
               </h2>
             </div>
 
-            <p className="text-on-surface-variant text-lg leading-relaxed max-w-xl mx-auto lg:mx-0">
+            {/* Description */}
+            <p className="text-on-surface-variant text-lg leading-relaxed max-w-lg mx-auto lg:mx-0">
               Empower your child with 1-on-1 personalized sessions led by expert tutors.
               We build confidence through interactive learning that kids actually love.
             </p>
 
-            {/* Checks */}
-            <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
-              {checks.map((item) => (
-                <div key={item} className="flex items-center gap-1.5 text-sm text-on-surface-variant font-medium">
-                  <CheckCircle size={15} className="text-primary shrink-0" />
-                  {item}
-                </div>
-              ))}
-            </div>
-
             {/* CTAs */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-2">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Link href="/book-demo" className="btn-yellow text-base px-8 py-4 justify-center">
                 Book a Demo <ArrowRight size={20} />
               </Link>
@@ -68,60 +56,69 @@ export default function HeroSection() {
             </div>
 
             {/* Social proof */}
-            <div className="flex items-center gap-3 justify-center lg:justify-start pt-2">
-              <div className="flex -space-x-2">
-                {["🧑🏻", "👧🏽", "🧒🏿", "👦🏼", "👧🏻"].map((em, i) => (
-                  <div key={i} className="w-9 h-9 rounded-full bg-surface-container-high border-2 border-white flex items-center justify-center text-base">
+            <div className="flex items-center gap-3 justify-center lg:justify-start">
+              <div className="flex -space-x-2.5">
+                {avatarEmojis.map((em, i) => (
+                  <div key={i} className="w-9 h-9 rounded-full bg-surface-container-high border-2 border-white flex items-center justify-center text-base shadow-sm">
                     {em}
                   </div>
                 ))}
               </div>
-              <p className="text-sm font-semibold text-on-surface-variant">Trusted by <span className="text-primary font-bold">10,000+</span> Parents Worldwide</p>
+              <p className="text-sm font-semibold text-on-surface-variant">
+                Trusted by <span className="text-primary font-bold">5,000+</span> Parents Worldwide
+              </p>
             </div>
           </div>
 
           {/* ── Right ── */}
-          <div className="relative hidden lg:block">
-            {/* Decorative back layers */}
-            <div className="absolute -top-4 -right-4 w-full h-full bg-secondary-container rounded-3xl rotate-3 -z-10" />
-            <div className="absolute -bottom-4 -left-4 w-full h-full bg-tertiary-fixed/40 rounded-3xl -rotate-3 -z-20" />
+          <div className="relative hidden lg:flex items-center justify-center py-10">
+            {/* Yellow backing card — offset top-right */}
+            <div className="absolute top-4 right-0 w-[88%] h-[88%] bg-secondary-container rounded-3xl z-0" />
 
-            {/* Hero card */}
-            <div className="relative rounded-3xl overflow-hidden shadow-card-hover border-4 border-white/60">
-              <div className="bg-gradient-to-br from-primary-fixed to-surface-container-high aspect-[4/3] flex items-center justify-center relative">
+            {/* Main image card */}
+            <div className="relative z-10 w-[88%] rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
+              <div className="aspect-[4/3] relative" style={{ background: "linear-gradient(135deg, #1a3fa8 0%, #2d5be3 50%, #6c4ec4 100%)" }}>
+                {/* Hero photo — save /public/hero-child.jpg to activate */}
                 <Image
-                  src="/zippy-logo.jpeg"
-                  alt="Zippy Minds Academy"
-                  width={200}
-                  height={200}
-                  className="object-contain drop-shadow-2xl rounded-2xl"
+                  src="/hero-child.jpg"
+                  alt="Child learning online with Zippy Minds"
+                  fill
+                  className="object-cover object-top"
                   priority
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                 />
-                {/* Live session badge */}
+
+                {/* Subtle gradient fade at bottom so the card blends into the Live badge */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+                {/* Live Session floating card */}
                 <div className="absolute bottom-5 left-5 right-5">
-                  <div className="glass rounded-2xl px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="bg-primary text-white p-1.5 rounded-xl">
-                        <span className="text-xs">📹</span>
+                  <div className="bg-white/85 backdrop-blur-md rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-xl border border-white/60">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 bg-[#2d8cff] rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
+                          <path d="M15 10l4.553-2.277A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14v-4zM3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
+                        </svg>
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-on-surface leading-none">Live Session</p>
-                        <p className="text-[10px] text-on-surface-variant">Active Now</p>
+                        <p className="text-sm font-bold text-on-surface leading-none">Live Session</p>
+                        <p className="text-xs text-on-surface-variant mt-0.5">Active Now</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-2 w-2 rounded-full bg-error animate-pulse" />
-                      <span className="text-error font-bold text-[11px]">REC</span>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-red-500 font-bold text-sm tracking-wide">REC</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
         </div>
 
-        {/* ── Feature cards grid ── */}
-        <div className="mt-20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* ── Feature cards ── */}
+        <div className="mt-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {featureCards.map((f) => (
             <div key={f.title} className={`bg-surface-container-lowest p-6 rounded-3xl shadow-card border-t-4 ${f.color} card-hover`}>
               <span className="text-3xl mb-3 block">{f.icon}</span>

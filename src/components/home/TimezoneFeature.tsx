@@ -3,12 +3,12 @@
 import { Globe, Clock, CheckCircle } from "lucide-react";
 
 const timezones = [
-  { flag: "🇮🇳", country: "India (IST)", time: "9:00 AM", tutorTime: "Available" },
-  { flag: "🇬🇧", country: "UK (GMT)", time: "3:30 AM", parentTime: "Your time" },
-  { flag: "🇺🇸", country: "USA (EST)", time: "10:30 PM", parentTime: "Your time" },
-  { flag: "🇦🇺", country: "Australia (AEST)", time: "1:30 PM", parentTime: "Your time" },
-  { flag: "🇸🇬", country: "Singapore (SGT)", time: "11:30 AM", parentTime: "Your time" },
-  { flag: "🇦🇪", country: "Dubai (GST)", time: "7:30 AM", parentTime: "Your time" },
+  { flag: "🇮🇳", country: "India (IST)",        time: "9:00 AM",   tutorTime: "Available"  },
+  { flag: "🇬🇧", country: "UK (GMT)",            time: "3:30 AM",   parentTime: "Your time" },
+  { flag: "🇺🇸", country: "USA (EST)",           time: "10:30 PM",  parentTime: "Your time" },
+  { flag: "🇦🇺", country: "Australia (AEST)",    time: "1:30 PM",   parentTime: "Your time" },
+  { flag: "🇸🇬", country: "Singapore (SGT)",     time: "11:30 AM",  parentTime: "Your time" },
+  { flag: "🇦🇪", country: "Dubai (GST)",         time: "7:30 AM",   parentTime: "Your time" },
 ];
 
 const features = [
@@ -27,40 +27,40 @@ export default function TimezoneFeature() {
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left */}
           <div>
-            <span className="badge-cyan mb-4 inline-block">Global Scheduling</span>
+            <span className="badge-blue mb-4 inline-block">Global Scheduling</span>
             <h2 className="section-heading mb-6">
               Book sessions in{" "}
               <span className="gradient-text">your timezone</span>
             </h2>
-            <p className="text-lg text-gray-500 mb-8 leading-relaxed">
+            <p className="text-lg text-on-surface-variant mb-8 leading-relaxed">
               Our intelligent scheduling system automatically converts tutor
               availability into your local time. No confusion, no mistakes, no late arrivals.
             </p>
             <ul className="space-y-3 mb-10">
               {features.map((f) => (
                 <li key={f} className="flex items-start gap-3">
-                  <CheckCircle size={20} className="text-brand-cyan shrink-0 mt-0.5" />
-                  <span className="text-gray-600">{f}</span>
+                  <CheckCircle size={20} className="text-secondary shrink-0 mt-0.5" />
+                  <span className="text-on-surface-variant">{f}</span>
                 </li>
               ))}
             </ul>
-            <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-blue to-brand-purple flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-4 p-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/20">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-tertiary flex items-center justify-center shrink-0">
                 <Globe size={22} className="text-white" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900">Available in 50+ countries</p>
-                <p className="text-sm text-gray-500">Parents from UK, US, Australia, Gulf, Singapore & more</p>
+                <p className="font-semibold text-on-surface">Available in 50+ countries</p>
+                <p className="text-sm text-on-surface-variant">Parents from UK, US, Australia, Gulf, Singapore & more</p>
               </div>
             </div>
           </div>
 
           {/* Right — Timezone clock visual */}
           <div className="relative">
-            <div className="bg-gradient-to-br from-gray-900 to-brand-blue/90 rounded-3xl p-8 text-white shadow-card-hover">
+            <div className="bg-gradient-to-br from-on-surface to-primary/90 rounded-3xl p-8 text-white shadow-card-hover">
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                  <Clock size={20} className="text-brand-cyan" />
+                  <Clock size={20} className="text-secondary-container" />
                 </div>
                 <div>
                   <p className="font-bold">Smart Timezone Scheduler</p>
@@ -82,7 +82,7 @@ export default function TimezoneFeature() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-brand-cyan">{tz.time}</p>
+                      <p className="font-bold text-secondary-container">{tz.time}</p>
                     </div>
                   </div>
                 ))}
@@ -94,7 +94,7 @@ export default function TimezoneFeature() {
             </div>
 
             {/* Decorative element */}
-            <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-brand-purple/20 rounded-full blur-2xl" />
+            <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-tertiary/20 rounded-full blur-2xl" />
           </div>
         </div>
       </div>

@@ -1,8 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Star, ChevronRight, Plus, Settings, LogOut, LayoutDashboard, Calendar, BookOpen, CreditCard, HelpCircle, CheckCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Star, ChevronRight, Plus, Settings, LogOut, LayoutDashboard, Calendar, BookOpen, CreditCard, HelpCircle, CheckCircle, Video, Clock } from "lucide-react";
+
+interface Booking {
+  id: string; childName: string; subject: string; tutorName: string;
+  date: string; timeSlot: string; status: string; monthlyPrice: number;
+  zoomLink?: string | null;
+}
+interface UserInfo { name: string; email: string; role: string; }
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard",      href: "/dashboard/parent" },
@@ -39,9 +47,22 @@ const bookingSummary = [
 ];
 
 export default function ParentDashboardBooking() {
+  const router = useRouter();
   const [selectedTutor, setSelectedTutor] = useState(0);
   const [selectedSlot, setSelectedSlot]   = useState(SELECTED);
   const [confirmed, setConfirmed]         = useState(false);
+  const [user, setUser]                   = useState<UserInfo | null>(null);
+  const [bookings, setBookings]           = useState<Booking[]>([]);
+
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.json()).then(d => { if (d.user) setUser(d.user); });
+    fetch("/api/bookings").then(r => r.json()).then(d => { if (d.bookings) setBookings(d.bookings); });
+  }, []);
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/auth/login");
+  };
 
   if (confirmed) {
     return (
@@ -74,8 +95,8 @@ export default function ParentDashboardBooking() {
       {/* ── Sidebar ── */}
       <aside className="h-screen w-64 fixed left-0 top-0 hidden lg:flex flex-col bg-surface-container-low border-r border-outline-variant py-6 gap-1">
         <div className="px-6 mb-6">
-          <h1 className="font-display font-bold text-primary text-lg leading-none">Zippy Explorer</h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">Level 4 Learner</p>
+          <h1 className="font-display font-bold text-primary text-lg leading-none">{user?.name ?? "Zippy Explorer"}</h1>
+          <p className="text-xs text-on-surface-variant mt-0.5">{user?.email ?? "Parent Account"}</p>
         </div>
 
         <nav className="flex flex-col flex-grow gap-0.5">
@@ -95,7 +116,7 @@ export default function ParentDashboardBooking() {
             <Plus size={16} /> Book New Session
           </button>
           <Link href="#" className="sidebar-link"><Settings size={18} /> Settings</Link>
-          <Link href="/" className="sidebar-link"><LogOut size={18} /> Sign Out</Link>
+          <button onClick={handleLogout} className="sidebar-link w-full text-left"><LogOut size={18} /> Sign Out</button>
         </div>
       </aside>
 
@@ -239,6 +260,52 @@ export default function ParentDashboardBooking() {
             </div>
           </section>
         </div>
+
+        {/* ── Real Bookings from DB ── */}
+        {bookings.length > 0 && (
+          <div className="mt-8">
+            <h3 className="font-display font-bold text-on-surface text-lg mb-4 flex items-center gap-2">
+              <Calendar size={20} className="text-primary" /> Your Booked Sessions
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {bookings.map((b) => (
+                <div key={b.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-bold text-on-surface text-sm">{b.subject}</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">for {b.childName}</p>
+                    </div>
+                    <span className={`badge text-xs font-bold ${
+                      b.status === "CONFIRMED" ? "badge-green" :
+                      b.status === "PENDING"   ? "badge-yellow" : "badge-gray"
+                    }`}>
+                      {b.status}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 text-xs text-on-surface-variant mb-4">
+                    <div className="flex items-center gap-2"><Calendar size={12} className="text-primary" /> {b.date}</div>
+                    <div className="flex items-center gap-2"><Clock size={12} className="text-primary" /> {b.timeSlot}</div>
+                    <div className="flex items-center gap-2"><Video size={12} className="text-primary" /> Tutor: {b.tutorName}</div>
+                  </div>
+                  {b.zoomLink ? (
+                    <a
+                      href={b.zoomLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full bg-[#2D8CFF] hover:bg-[#1a7ae8] text-white font-bold text-xs py-2.5 rounded-xl transition-all"
+                    >
+                      <Video size={14} /> Join Zoom Session
+                    </a>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 w-full bg-surface-container text-on-surface-variant text-xs py-2.5 rounded-xl">
+                      <Clock size={13} /> Zoom link pending confirmation
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

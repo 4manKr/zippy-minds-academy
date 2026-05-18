@@ -19,8 +19,8 @@ export default function PrivacyPage() {
           { title: "8. Contact", body: "For privacy concerns, contact our Data Protection Officer at privacy@zippymindsacademy.com or by post to our registered office in New Delhi, India." },
         ].map(({ title, body }) => (
           <section key={title} className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-3">{title}</h2>
-            <p className="text-gray-500 leading-relaxed">{body}</p>
+            <h2 className="text-xl font-bold text-on-surface mb-3">{title}</h2>
+            <p className="text-on-surface-variant leading-relaxed">{body}</p>
           </section>
         ))}
       </div>

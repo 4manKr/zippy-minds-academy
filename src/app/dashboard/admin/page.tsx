@@ -28,7 +28,7 @@ import { Calendar } from "lucide-react";
 const platformStats = [
   { label: "Total Users", value: "12,450", icon: Users, color: "blue", change: "+234 this week" },
   { label: "Active Sessions", value: "1,284", icon: Clock, color: "purple", change: "+89 today" },
-  { label: "Revenue (Month)", value: "$48,920", icon: DollarSign, color: "green", change: "+$4,200 vs last" },
+  { label: "Revenue (Month)", value: "₹38,50,000", icon: DollarSign, color: "green", change: "+₹3,35,000 vs last" },
   { label: "Tutor Approvals", value: "4 pending", icon: AlertTriangle, color: "yellow", change: "Action needed" },
 ];
 
@@ -40,10 +40,10 @@ const pendingTutors = [
 ];
 
 const recentTransactions = [
-  { id: 1, parent: "Sarah M.", tutor: "Dr. Priya S.", amount: 25, subject: "Mathematics", status: "success", date: "May 19" },
-  { id: 2, parent: "James A.", tutor: "Rahul V.", amount: 22, subject: "Physics", status: "success", date: "May 19" },
-  { id: 3, parent: "Emily C.", tutor: "Dr. Meera P.", amount: 22, subject: "Biology", status: "refunded", date: "May 18" },
-  { id: 4, parent: "Mohammed A.", tutor: "Dr. Vikram N.", amount: 28, subject: "Chemistry", status: "success", date: "May 18" },
+  { id: 1, parent: "Sarah M.", tutor: "Dr. Priya S.", amount: 1999, subject: "Mathematics", status: "success", date: "May 19" },
+  { id: 2, parent: "James A.", tutor: "Rahul V.", amount: 1799, subject: "Physics", status: "success", date: "May 19" },
+  { id: 3, parent: "Emily C.", tutor: "Dr. Meera P.", amount: 1799, subject: "Biology", status: "refunded", date: "May 18" },
+  { id: 4, parent: "Mohammed A.", tutor: "Dr. Vikram N.", amount: 2299, subject: "Chemistry", status: "success", date: "May 18" },
 ];
 
 export default function AdminDashboard() {
@@ -55,7 +55,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-surface-container-lowest flex">
       {/* Sidebar */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-50 w-64 bg-gray-950 transition-transform duration-300 flex flex-col",
@@ -104,26 +104,26 @@ export default function AdminDashboard() {
 
       {/* Main */}
       <div className="flex-1 lg:ml-64 min-h-screen">
-        <header className="sticky top-0 z-30 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+        <header className="sticky top-0 z-30 bg-surface-container-lowest border-b border-outline-variant/20 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-2 rounded-lg hover:bg-surface-container">
               {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
             <div>
-              <h1 className="font-bold text-gray-900 flex items-center gap-2">
-                <Shield size={18} className="text-red-500" /> Platform Overview
+              <h1 className="font-bold text-on-surface flex items-center gap-2">
+                <Shield size={18} className="text-error" /> Platform Overview
               </h1>
-              <p className="text-xs text-gray-500">Real-time admin dashboard · May 19, 2025</p>
+              <p className="text-xs text-on-surface-variant">Real-time admin dashboard</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative hidden md:block">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
               <input type="text" placeholder="Search users, sessions..." className="input-field pl-9 py-2 w-64 text-sm" />
             </div>
-            <button className="relative p-2 rounded-xl hover:bg-gray-50 border border-gray-200">
-              <Bell size={18} className="text-gray-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+            <button className="relative p-2 rounded-xl hover:bg-surface-container border border-outline-variant/30">
+              <Bell size={18} className="text-on-surface-variant" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full" />
             </button>
           </div>
         </header>
@@ -137,66 +137,66 @@ export default function AdminDashboard() {
                 <div key={stat.label} className="stat-card">
                   <div className={cn(
                     "w-10 h-10 rounded-xl flex items-center justify-center mb-3",
-                    stat.color === "blue" ? "bg-blue-50 text-brand-blue" :
-                    stat.color === "purple" ? "bg-purple-50 text-brand-purple" :
+                    stat.color === "blue" ? "bg-primary/10 text-primary" :
+                    stat.color === "purple" ? "bg-tertiary-fixed/50 text-tertiary" :
                     stat.color === "green" ? "bg-green-50 text-green-600" :
-                    "bg-yellow-50 text-yellow-600"
+                    "bg-secondary-container/30 text-secondary"
                   )}>
                     <Icon size={20} />
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                  <p className="text-sm text-gray-500">{stat.label}</p>
-                  <p className={`text-xs mt-1 ${stat.color === "yellow" ? "text-yellow-600" : "text-green-600"}`}>{stat.change}</p>
+                  <p className="text-2xl font-bold text-on-surface">{stat.value}</p>
+                  <p className="text-sm text-on-surface-variant">{stat.label}</p>
+                  <p className={`text-xs mt-1 ${stat.color === "yellow" ? "text-secondary" : "text-green-600"}`}>{stat.change}</p>
                 </div>
               );
             })}
           </div>
 
           {/* Tutor Approvals */}
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-card">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-50">
+          <div className="bg-surface-container-lowest rounded-3xl border border-outline-variant/20 shadow-card">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant/10">
               <div className="flex items-center gap-3">
-                <h2 className="font-bold text-gray-900 text-lg">Pending Tutor Approvals</h2>
+                <h2 className="font-bold text-on-surface text-lg">Pending Tutor Approvals</h2>
                 <span className="badge-yellow">4 pending</span>
               </div>
-              <Link href="/dashboard/admin/tutors" className="text-sm text-brand-blue hover:underline">View all</Link>
+              <Link href="/dashboard/admin/tutors" className="text-sm text-primary hover:underline">View all</Link>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50 text-left">
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tutor</th>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject</th>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Experience</th>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Documents</th>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Applied</th>
-                    <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <tr className="bg-surface-container text-left">
+                    <th className="px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Tutor</th>
+                    <th className="px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Subject</th>
+                    <th className="px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Experience</th>
+                    <th className="px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Documents</th>
+                    <th className="px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Applied</th>
+                    <th className="px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-outline-variant/10">
                   {pendingTutors.map((tutor) => {
                     const action = tutorActions[tutor.id];
                     return (
-                      <tr key={tutor.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={tutor.id} className="hover:bg-surface-container transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-blue to-brand-purple flex items-center justify-center text-white font-bold text-sm">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-tertiary flex items-center justify-center text-white font-bold text-sm">
                               {tutor.name[0]}
                             </div>
                             <div>
-                              <p className="font-semibold text-gray-900 text-sm">{tutor.name}</p>
-                              <p className="text-xs text-gray-400">{tutor.location}</p>
+                              <p className="font-semibold text-on-surface text-sm">{tutor.name}</p>
+                              <p className="text-xs text-on-surface-variant">{tutor.location}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{tutor.subject}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{tutor.exp}</td>
+                        <td className="px-6 py-4 text-sm text-on-surface-variant">{tutor.subject}</td>
+                        <td className="px-6 py-4 text-sm text-on-surface-variant">{tutor.exp}</td>
                         <td className="px-6 py-4">
                           <span className={`badge text-xs ${tutor.docs ? "badge-green" : "badge-red"}`}>
                             {tutor.docs ? "✓ Complete" : "✗ Missing"}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">{tutor.applied}</td>
+                        <td className="px-6 py-4 text-sm text-on-surface-variant">{tutor.applied}</td>
                         <td className="px-6 py-4">
                           {action === null ? (
                             <div className="flex items-center gap-2">
@@ -206,7 +206,7 @@ export default function AdminDashboard() {
                               <button onClick={() => handleTutor(tutor.id, "approved")} className="p-1.5 rounded-lg border border-green-200 text-green-500 hover:bg-green-50">
                                 <CheckCircle size={16} />
                               </button>
-                              <button className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
+                              <button className="p-1.5 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container">
                                 <Eye size={16} />
                               </button>
                             </div>
@@ -225,31 +225,31 @@ export default function AdminDashboard() {
           </div>
 
           {/* Recent transactions */}
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-card">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-50">
-              <h2 className="font-bold text-gray-900 text-lg">Recent Transactions</h2>
-              <Link href="/dashboard/admin/payments" className="text-sm text-brand-blue hover:underline">View all</Link>
+          <div className="bg-surface-container-lowest rounded-3xl border border-outline-variant/20 shadow-card">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-outline-variant/10">
+              <h2 className="font-bold text-on-surface text-lg">Recent Transactions</h2>
+              <Link href="/dashboard/admin/payments" className="text-sm text-primary hover:underline">View all</Link>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Parent</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tutor</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Subject</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <tr className="bg-surface-container">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-on-surface-variant uppercase">Parent</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-on-surface-variant uppercase">Tutor</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-on-surface-variant uppercase">Subject</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-on-surface-variant uppercase">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-on-surface-variant uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-on-surface-variant uppercase">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-outline-variant/10">
                   {recentTransactions.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{tx.parent}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{tx.tutor}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{tx.subject}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-900">${tx.amount}</td>
-                      <td className="px-6 py-4 text-sm text-gray-400">{tx.date}</td>
+                    <tr key={tx.id} className="hover:bg-surface-container transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-on-surface">{tx.parent}</td>
+                      <td className="px-6 py-4 text-sm text-on-surface-variant">{tx.tutor}</td>
+                      <td className="px-6 py-4 text-sm text-on-surface-variant">{tx.subject}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-on-surface">₹{tx.amount}</td>
+                      <td className="px-6 py-4 text-sm text-on-surface-variant">{tx.date}</td>
                       <td className="px-6 py-4">
                         <span className={`badge text-xs ${tx.status === "success" ? "badge-green" : "badge-red"}`}>
                           {tx.status === "success" ? "✓ Success" : "↩ Refunded"}

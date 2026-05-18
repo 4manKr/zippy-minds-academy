@@ -15,7 +15,7 @@ const navItems = [
 const stats = [
   { icon: Timer,      label: "Hours Taught",    value: "1,240", color: "border-primary",           iconColor: "text-primary" },
   { icon: Users,      label: "Active Students", value: "85",    color: "border-tertiary",          iconColor: "text-tertiary" },
-  { icon: CreditCard, label: "Total Earnings",  value: "$4,280",color: "border-secondary-container",iconColor: "text-secondary" },
+  { icon: CreditCard, label: "Total Earnings",  value: "₹3,20,000",color: "border-secondary-container",iconColor: "text-secondary" },
   { icon: Star,       label: "Avg. Rating",     value: "4.9/5", color: "border-primary-container", iconColor: "text-primary-container" },
 ];
 

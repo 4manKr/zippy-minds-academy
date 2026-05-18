@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Search, Star, Clock, Users, Filter, BookOpen, ArrowRight } from "lucide-react";
+import { Search, Star, Clock, Filter, BookOpen } from "lucide-react";
 import { SUBJECT_COLORS } from "@/lib/utils";
 
 const allCourses = [
@@ -66,6 +66,13 @@ const allCourses = [
 
 const categories = ["All", "Phonics", "English Grammar", "Mathematics", "Public Speaking", "Coding", "Writing & Communication", "Science", "Life Skills"];
 
+const heroStats = [
+  { value: "8", label: "Subjects" },
+  { value: "500+", label: "Expert Tutors" },
+  { value: "10K+", label: "Students" },
+  { value: "50+", label: "Countries" },
+];
+
 export default function CoursesPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
@@ -80,63 +87,99 @@ export default function CoursesPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-20">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-teal-500 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
-          <span className="badge bg-white/10 border border-white/20 text-white mb-4 inline-block">Our Courses</span>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            Learn Smart. <span className="text-yellow-300">Grow Fast.</span>
+    <div className="min-h-screen bg-surface">
+      {/* Hero */}
+      <div className="bg-primary pt-24 pb-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16 text-center text-on-primary pb-12">
+          <span className="badge bg-white/10 border border-white/20 text-white mb-4 inline-block text-xs font-semibold uppercase tracking-wide">Our Courses</span>
+          <h1 className="font-display text-4xl md:text-5xl font-extrabold mb-4">
+            Learn Smart.{" "}
+            <span className="text-secondary-container">Grow Fast.</span>
           </h1>
-          <p className="text-white/70 text-lg max-w-xl mx-auto">
-            Fun & interactive 1-to-1 classes for young minds — ages 3 to 15, from anywhere in the world.
+          <p className="text-on-primary/80 text-lg max-w-xl mx-auto mb-8">
+            Fun &amp; interactive 1-to-1 classes for young minds — ages 3 to 15, from anywhere in the world.
           </p>
-        </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Filters */}
-        <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-5 mb-8">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search courses..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="input-field pl-11"
-              />
-            </div>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="input-field py-2.5 px-4 md:w-auto">
-              {categories.map((c) => <option key={c}>{c}</option>)}
-            </select>
+          {/* Stats strip */}
+          <div className="flex flex-wrap justify-center gap-6 mb-10">
+            {heroStats.map((s) => (
+              <div key={s.label} className="text-center">
+                <p className="font-display text-3xl font-extrabold text-secondary-container">{s.value}</p>
+                <p className="text-on-primary/70 text-xs font-medium mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Subject emoji pills */}
+          <div className="flex flex-wrap justify-center gap-2">
+            {[
+              { emoji: "🔤", label: "Phonics" },
+              { emoji: "📚", label: "English" },
+              { emoji: "➗", label: "Maths" },
+              { emoji: "🎤", label: "Speaking" },
+              { emoji: "💻", label: "Coding" },
+              { emoji: "✏️", label: "Writing" },
+              { emoji: "🔬", label: "Science" },
+              { emoji: "🌟", label: "Life Skills" },
+            ].map((s) => (
+              <span key={s.label} className="inline-flex items-center gap-1.5 bg-white/10 border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+                {s.emoji} {s.label}
+              </span>
+            ))}
           </div>
         </div>
 
-        {/* Category pills */}
-        <div className="flex flex-wrap gap-2 mb-8">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategory(cat)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${
-                category === cat
-                  ? "bg-brand-blue text-white shadow-sm"
-                  : "bg-white text-gray-600 border border-gray-200 hover:border-brand-blue hover:text-brand-blue"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
+        {/* Wave divider */}
+        <div className="h-8 bg-surface-container-low" style={{ clipPath: "ellipse(55% 100% at 50% 100%)" }} />
+      </div>
 
+      {/* Search + filter bar */}
+      <div className="bg-surface-container-low border-b border-outline-variant/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16 py-6">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-card border border-outline-variant p-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                <input
+                  type="text"
+                  placeholder="Search courses by name or subject..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="input-field pl-11"
+                />
+              </div>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className="input-field py-2.5 px-4 md:w-52">
+                {categories.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Category pills */}
+          <div className="flex flex-wrap gap-2 mt-4">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${
+                  category === cat
+                    ? "bg-primary text-on-primary shadow-sm"
+                    : "bg-surface-container-lowest text-on-surface-variant border border-outline-variant hover:border-primary hover:text-primary"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16 py-12">
         {/* Results count */}
         <div className="flex items-center justify-between mb-6">
-          <p className="text-gray-500 text-sm">
-            Showing <span className="font-semibold text-gray-900">{filtered.length}</span> courses
+          <p className="text-on-surface-variant text-sm">
+            Showing <span className="font-semibold text-on-surface">{filtered.length}</span> courses
           </p>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-on-surface-variant">
             <Filter size={15} /> Best rated
           </div>
         </div>
@@ -149,7 +192,7 @@ export default function CoursesPage() {
               <Link
                 key={course.id}
                 href={`/courses/${course.id}`}
-                className="group bg-white rounded-3xl overflow-hidden shadow-card card-hover border border-gray-100"
+                className="group bg-surface-container-lowest rounded-3xl overflow-hidden shadow-card card-hover border border-outline-variant"
               >
                 {/* Thumbnail */}
                 <div className={`h-40 bg-gradient-to-br ${colors.gradient} flex items-center justify-center relative`}>
@@ -157,10 +200,10 @@ export default function CoursesPage() {
                     {colors.icon}
                   </span>
                   <div className="absolute top-3 right-3">
-                    <span className="badge bg-white/90 text-gray-700 font-semibold text-xs">{course.ageGroup}</span>
+                    <span className="badge bg-white/90 text-on-surface font-semibold text-xs">{course.ageGroup}</span>
                   </div>
                   <div className="absolute bottom-3 left-3">
-                    <span className="badge bg-white font-bold text-brand-blue text-xs">${course.price}/mo</span>
+                    <span className="badge bg-white font-bold text-primary text-xs">₹{course.price}/mo</span>
                   </div>
                 </div>
 
@@ -169,11 +212,11 @@ export default function CoursesPage() {
                   <span className={`badge text-xs mb-2 inline-block ${colors.bg} ${colors.text}`}>
                     {course.subject}
                   </span>
-                  <h3 className="font-bold text-gray-900 text-base mb-1 group-hover:text-brand-blue transition-colors leading-snug">
+                  <h3 className="font-display font-bold text-on-surface text-base mb-1 group-hover:text-primary transition-colors leading-snug">
                     {course.title}
                   </h3>
-                  <p className="text-xs text-gray-400 mb-3 leading-snug">{course.tagline}</p>
-                  <p className="text-xs text-gray-500 mb-3">by <span className="font-medium">{course.tutor}</span></p>
+                  <p className="text-xs text-on-surface-variant mb-3 leading-snug">{course.tagline}</p>
+                  <p className="text-xs text-on-surface-variant mb-3">by <span className="font-medium text-on-surface">{course.tutor}</span></p>
 
                   <div className="flex flex-wrap gap-1 mb-3">
                     {course.tags.map((tag) => (
@@ -181,16 +224,16 @@ export default function CoursesPage() {
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between text-xs text-gray-400 mb-4 pt-3 border-t border-gray-50">
+                  <div className="flex items-center justify-between text-xs text-on-surface-variant mb-4 pt-3 border-t border-outline-variant/30">
                     <div className="flex items-center gap-1">
-                      <Star size={11} fill="gold" stroke="gold" />
-                      <span className="font-bold text-gray-800">{course.rating}</span>
+                      <Star size={11} fill="#fdd000" stroke="#fdd000" />
+                      <span className="font-bold text-on-surface">{course.rating}</span>
                       <span>({course.reviews})</span>
                     </div>
                     <div className="flex items-center gap-1"><Clock size={11} /> {course.duration}</div>
                   </div>
 
-                  <button className="w-full btn-primary justify-center text-xs py-2.5">
+                  <button className="w-full btn-yellow justify-center text-xs py-2.5">
                     <BookOpen size={13} /> Book Free Demo
                   </button>
                 </div>
@@ -202,8 +245,8 @@ export default function CoursesPage() {
         {filtered.length === 0 && (
           <div className="text-center py-20">
             <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">No courses found</h3>
-            <p className="text-gray-500">Try adjusting your search or filter criteria.</p>
+            <h3 className="font-display text-xl font-bold text-on-surface mb-2">No courses found</h3>
+            <p className="text-on-surface-variant">Try adjusting your search or filter criteria.</p>
           </div>
         )}
       </div>

@@ -42,3 +42,5 @@ next-env.d.ts
 
 # Claude Code local config (may contain API keys)
 .claude/
+
+/src/generated/prisma

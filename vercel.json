@@ -1,0 +1,15 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npx prisma generate && next build",
+  "installCommand": "npm install",
+  "env": {
+    "TURSO_DATABASE_URL":  "@turso_database_url",
+    "TURSO_AUTH_TOKEN":    "@turso_auth_token",
+    "SESSION_SECRET":      "@session_secret",
+    "RESEND_API_KEY":      "@resend_api_key",
+    "FROM_EMAIL":          "@from_email",
+    "ZOOM_ACCOUNT_ID":     "@zoom_account_id",
+    "ZOOM_CLIENT_ID":      "@zoom_client_id",
+    "ZOOM_CLIENT_SECRET":  "@zoom_client_secret"
+  }
+}

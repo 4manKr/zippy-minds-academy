@@ -132,7 +132,7 @@ export default function FeaturedCourses() {
                   <span className="badge bg-white text-on-surface-variant font-semibold text-xs shadow-sm">{course.ageGroup}</span>
                 </div>
                 <div className="absolute bottom-3 left-3">
-                  <span className="badge bg-primary text-on-primary font-bold text-xs">${course.price}/mo</span>
+                  <span className="badge bg-primary text-on-primary font-bold text-xs">₹{course.price}/mo</span>
                 </div>
               </div>
 

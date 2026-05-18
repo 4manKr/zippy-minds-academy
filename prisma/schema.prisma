@@ -1,0 +1,64 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  role      String   @default("PARENT")
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings  Booking[]
+}
+
+model Booking {
+  id            String   @id @default(cuid())
+  userId        String?
+  parentName    String
+  parentEmail   String
+  childName     String
+  childAge      String
+  grade         String
+  timezone      String
+  subject       String
+  tutorName     String
+  tutorInitials String
+  date          String
+  timeSlot      String
+  notes         String   @default("")
+  monthlyPrice  Int
+  status        String   @default("PENDING")
+  zoomLink      String?          // parent/student join URL
+  zoomStartUrl  String?          // tutor host URL
+  zoomMeetingId String?          // Zoom meeting ID (for updates/cancellation)
+  createdAt     DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

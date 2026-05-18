@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 const navLinks = [
   { label: "About Us", href: "/about" },
   { label: "Courses",  href: "/courses" },
-  { label: "Reviews",  href: "/reviews" },
   { label: "Contact",  href: "/contact" },
 ];
 
@@ -24,12 +23,9 @@ export default function Navbar() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <div className="relative w-9 h-9 md:w-10 md:h-10">
-            <Image src="/zippy-logo.jpeg" alt="Zippy Minds Academy" fill className="object-contain rounded-lg" priority />
+          <div className="relative w-12 h-12 md:w-14 md:h-14">
+            <Image src="/zippy-logo.jpeg" alt="Zippy Minds Academy" fill className="object-contain" priority />
           </div>
-          <span className="font-display font-extrabold text-base md:text-lg text-primary tracking-tight leading-none">
-            Zippy Minds Academy
-          </span>
         </Link>
 
         {/* Desktop Nav */}
@@ -51,12 +47,15 @@ export default function Navbar() {
         </nav>
 
         {/* Desktop CTA */}
-        <div className="hidden md:flex items-center gap-3">
-          <Link href="/auth/login" className="text-sm font-semibold text-primary px-4 py-2 hover:bg-primary/5 rounded-xl transition-all">
+        <div className="hidden md:flex items-center gap-2">
+          <Link href="/auth/login" className="text-sm font-semibold text-primary px-4 py-2 hover:bg-primary/5 rounded-xl transition-all border border-primary/20">
             Login
           </Link>
-          <Link href="/book-demo" className="bg-secondary-container text-on-secondary-fixed font-bold text-sm px-5 py-2.5 rounded-full shadow-sm squishy-hover">
-            Enroll Now
+          <Link href="/auth/signup" className="text-sm font-semibold text-on-surface-variant px-4 py-2 hover:bg-surface-container rounded-xl transition-all border border-outline-variant">
+            Sign Up
+          </Link>
+          <Link href="/book-demo" className="bg-secondary-container text-on-secondary-fixed font-bold text-sm px-5 py-2.5 rounded-full shadow-sm squishy-hover ml-1">
+            Book Free Demo
           </Link>
         </div>
 
@@ -86,9 +85,14 @@ export default function Navbar() {
               </Link>
             ))}
             <div className="pt-3 space-y-2 border-t border-outline-variant mt-3">
-              <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="block w-full text-center btn-secondary py-2.5 text-sm">
-                Login
-              </Link>
+              <div className="grid grid-cols-2 gap-2">
+                <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="block w-full text-center btn-secondary py-2.5 text-sm">
+                  Login
+                </Link>
+                <Link href="/auth/signup" onClick={() => setMobileOpen(false)} className="block w-full text-center py-2.5 text-sm font-semibold border border-outline-variant text-on-surface-variant rounded-2xl hover:bg-surface-container transition-all">
+                  Sign Up
+                </Link>
+              </div>
               <Link href="/book-demo" onClick={() => setMobileOpen(false)} className="block w-full text-center btn-yellow py-2.5 text-sm justify-center">
                 Book Free Demo
               </Link>
