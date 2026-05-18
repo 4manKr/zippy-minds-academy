@@ -128,6 +128,56 @@ const statements = [
     ('ps5','emailNotifications','true'),
     ('ps6','autoApprove','false'),
     ('ps7','maintenanceMode','false')`],
+
+  // ── Resource table ────────────────────────────────────────────────────────
+  ["Resource table", `CREATE TABLE IF NOT EXISTS "Resource" (
+    "id"        TEXT NOT NULL PRIMARY KEY,
+    "title"     TEXT NOT NULL,
+    "type"      TEXT NOT NULL DEFAULT 'PDF',
+    "subject"   TEXT NOT NULL,
+    "size"      TEXT NOT NULL DEFAULT '',
+    "icon"      TEXT NOT NULL DEFAULT '📄',
+    "url"       TEXT NOT NULL DEFAULT '',
+    "status"    TEXT NOT NULL DEFAULT 'active',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`],
+
+  // ── VideoLesson table ─────────────────────────────────────────────────────
+  ["VideoLesson table", `CREATE TABLE IF NOT EXISTS "VideoLesson" (
+    "id"        TEXT NOT NULL PRIMARY KEY,
+    "title"     TEXT NOT NULL,
+    "subject"   TEXT NOT NULL,
+    "duration"  TEXT NOT NULL DEFAULT '',
+    "thumbnail" TEXT NOT NULL DEFAULT '📹',
+    "videoUrl"  TEXT NOT NULL DEFAULT '',
+    "views"     INTEGER NOT NULL DEFAULT 0,
+    "status"    TEXT NOT NULL DEFAULT 'active',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`],
+
+  // ── Seed study resources ──────────────────────────────────────────────────
+  ["Seed resources", `INSERT OR IGNORE INTO "Resource" ("id","title","type","subject","size","icon","url","status") VALUES
+    ('r1','Phonics Workbook — Level 1','PDF','Phonics','2.4 MB','📄','','active'),
+    ('r2','Number Patterns Practice Sheet','PDF','Mathematics','1.1 MB','📄','','active'),
+    ('r3','Grammar Rules Cheat Sheet','PDF','English Grammar','0.8 MB','📄','','active'),
+    ('r4','Reading Comprehension Pack','PDF','English Grammar','3.2 MB','📄','','active'),
+    ('r5','Science Experiments at Home','PDF','Science','1.7 MB','📄','','active'),
+    ('r6','Multiplication Tables Poster','Image','Mathematics','0.5 MB','🖼️','','active'),
+    ('r7','Sight Words Flash Cards','PDF','Phonics','1.2 MB','📄','','active'),
+    ('r8','Creative Writing Prompts','PDF','English Grammar','0.9 MB','📄','','active')`],
+
+  // ── Seed video lessons ────────────────────────────────────────────────────
+  ["Seed videos", `INSERT OR IGNORE INTO "VideoLesson" ("id","title","subject","duration","thumbnail","videoUrl","views","status") VALUES
+    ('v1','Introduction to Letter Sounds','Phonics','12:30','🔤','',2100,'active'),
+    ('v2','Blending CVC Words','Phonics','15:45','🔤','',1800,'active'),
+    ('v3','Place Value Explained Simply','Mathematics','18:20','🔢','',3400,'active'),
+    ('v4','Parts of Speech — Fun Way','English Grammar','14:10','📝','',2700,'active'),
+    ('v5','Solar System for Kids','Science','20:00','🔬','',4100,'active'),
+    ('v6','Creative Story Writing Tips','English Grammar','11:55','✍️','',1500,'active'),
+    ('v7','Addition and Subtraction Tricks','Mathematics','16:40','🔢','',2200,'active'),
+    ('v8','Rhyming Words and Word Families','Phonics','13:15','🔤','',1900,'active')`],
 ];
 
 console.log("🔄 Pushing schema to Turso...\n");

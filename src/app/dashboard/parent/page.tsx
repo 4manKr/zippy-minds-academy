@@ -34,25 +34,17 @@ interface Ticket {
   status: string; reply?: string | null; createdAt: string;
 }
 
-/* ─── Static content (resources, videos — intentionally static) ─────────── */
+/* ─── DB-backed content types ───────────────────────────────────────────── */
 
-const RESOURCES = [
-  { title: "Phonics Workbook — Level 1",     type: "PDF",   subject: "Phonics",         size: "2.4 MB", icon: "📄" },
-  { title: "Number Patterns Practice Sheet", type: "PDF",   subject: "Mathematics",     size: "1.1 MB", icon: "📄" },
-  { title: "Grammar Rules Cheat Sheet",      type: "PDF",   subject: "English Grammar", size: "0.8 MB", icon: "📄" },
-  { title: "Reading Comprehension Pack",     type: "PDF",   subject: "English Grammar", size: "3.2 MB", icon: "📄" },
-  { title: "Science Experiments at Home",    type: "PDF",   subject: "Science",         size: "1.7 MB", icon: "📄" },
-  { title: "Multiplication Tables Poster",   type: "Image", subject: "Mathematics",     size: "0.5 MB", icon: "🖼️" },
-];
+interface Resource {
+  id: string; title: string; type: string; subject: string;
+  size: string; icon: string; url: string; status: string;
+}
 
-const VIDEO_LESSONS = [
-  { title: "Introduction to Letter Sounds", subject: "Phonics",         duration: "12:30", thumb: "🔤", views: "2.1k" },
-  { title: "Blending CVC Words",            subject: "Phonics",         duration: "15:45", thumb: "🔤", views: "1.8k" },
-  { title: "Place Value Explained Simply",  subject: "Mathematics",     duration: "18:20", thumb: "🔢", views: "3.4k" },
-  { title: "Parts of Speech — Fun Way",     subject: "English Grammar", duration: "14:10", thumb: "📝", views: "2.7k" },
-  { title: "Solar System for Kids",         subject: "Science",         duration: "20:00", thumb: "🔬", views: "4.1k" },
-  { title: "Creative Story Writing Tips",   subject: "English Grammar", duration: "11:55", thumb: "✍️", views: "1.5k" },
-];
+interface VideoLesson {
+  id: string; title: string; subject: string; duration: string;
+  thumbnail: string; videoUrl: string; views: number; status: string;
+}
 
 const FAQS = [
   { q: "How do I join my Zoom session?",           a: "Click the 'Join Zoom' button next to your confirmed session. The link is active 10 minutes before the session starts." },
@@ -112,6 +104,8 @@ export default function ParentDashboard() {
   const [user, setUser]               = useState<UserInfo | null>(null);
   const [bookings, setBookings]       = useState<Booking[]>([]);
   const [tickets, setTickets]         = useState<Ticket[]>([]);
+  const [resources, setResources]     = useState<Resource[]>([]);
+  const [videos, setVideos]           = useState<VideoLesson[]>([]);
   const [loading, setLoading]         = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -144,15 +138,18 @@ export default function ParentDashboard() {
       fetch("/api/auth/profile").then(r => r.json()),
       fetch("/api/bookings").then(r => r.json()),
       fetch("/api/parent/support").then(r => r.json()),
-    ]).then(([profileData, bookingData, ticketData]) => {
+      fetch("/api/parent/resources").then(r => r.json()),
+      fetch("/api/parent/videos").then(r => r.json()),
+    ]).then(([profileData, bookingData, ticketData, resourceData, videoData]) => {
       if (profileData.user) {
         setUser(profileData.user);
         setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
       }
-      if (bookingData.bookings)  setBookings(bookingData.bookings);
-      if (ticketData.tickets)    setTickets(ticketData.tickets);
+      if (bookingData.bookings)    setBookings(bookingData.bookings);
+      if (ticketData.tickets)      setTickets(ticketData.tickets);
+      if (resourceData.resources)  setResources(resourceData.resources);
+      if (videoData.videos)        setVideos(videoData.videos);
     }).catch(() => {
-      // If not authenticated, redirect
       router.push("/auth/login");
     }).finally(() => setLoading(false));
   }, [router]);
@@ -722,9 +719,10 @@ export default function ParentDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <h3 className="font-display font-bold text-on-surface text-base flex items-center gap-2">
                   <BookMarked size={18} className="text-primary" /> Study Resources
+                  <span className="text-xs font-normal text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">{resources.length} files</span>
                 </h3>
                 <div className="flex gap-2 overflow-x-auto pb-1">
-                  {["All", "Phonics", "Mathematics", "English Grammar", "Science"].map(f => (
+                  {["All", ...Array.from(new Set(resources.map(r => r.subject)))].map(f => (
                     <button key={f} onClick={() => setSubjectFilter(f)}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-all ${
                         subjectFilter === f ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
@@ -732,49 +730,77 @@ export default function ParentDashboard() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {RESOURCES.filter(r => subjectFilter === "All" || r.subject === subjectFilter).map(r => (
-                  <div key={r.title} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-4 flex items-start gap-3 hover:shadow-card-hover transition-shadow">
-                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-xl shrink-0">{r.icon}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-on-surface leading-snug">{r.title}</p>
-                      <p className="text-xs text-on-surface-variant mt-0.5">{r.subject} · {r.type} · {r.size}</p>
+              {resources.length === 0 ? (
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-8 text-center">
+                  <p className="text-3xl mb-3">📚</p>
+                  <p className="text-sm text-on-surface-variant">Study materials will appear here once uploaded by your tutor.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {resources.filter(r => subjectFilter === "All" || r.subject === subjectFilter).map(r => (
+                    <div key={r.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-4 flex items-start gap-3 hover:shadow-card-hover transition-shadow">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-xl shrink-0">{r.icon}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-on-surface leading-snug">{r.title}</p>
+                        <p className="text-xs text-on-surface-variant mt-0.5">{r.subject} · {r.type}{r.size ? ` · ${r.size}` : ""}</p>
+                      </div>
+                      {r.url ? (
+                        <a href={r.url} target="_blank" rel="noopener noreferrer"
+                          className="shrink-0 p-2 rounded-xl bg-surface-container hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all">
+                          <Download size={15} />
+                        </a>
+                      ) : (
+                        <span className="shrink-0 p-2 rounded-xl bg-surface-container text-on-surface-variant/40 cursor-not-allowed" title="No file uploaded yet">
+                          <Download size={15} />
+                        </span>
+                      )}
                     </div>
-                    <button className="shrink-0 p-2 rounded-xl bg-surface-container hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-all">
-                      <Download size={15} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* Video Lessons */}
             <section>
               <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
                 <PlayCircle size={18} className="text-primary" /> Video Lessons
+                <span className="text-xs font-normal text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">{videos.length} videos</span>
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {VIDEO_LESSONS.filter(v => subjectFilter === "All" || v.subject === subjectFilter).map(v => (
-                  <div key={v.title} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card overflow-hidden hover:shadow-card-hover transition-shadow group cursor-pointer">
-                    <div className="h-32 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center relative">
-                      <span className="text-5xl">{v.thumb}</span>
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
-                        <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
-                          <PlayCircle size={24} className="text-primary" />
+              {videos.length === 0 ? (
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-8 text-center">
+                  <p className="text-3xl mb-3">🎬</p>
+                  <p className="text-sm text-on-surface-variant">Video lessons will appear here once published by your tutor.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {videos.filter(v => subjectFilter === "All" || v.subject === subjectFilter).map(v => (
+                    <div key={v.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card overflow-hidden hover:shadow-card-hover transition-shadow group cursor-pointer"
+                      onClick={() => v.videoUrl ? window.open(v.videoUrl, "_blank") : undefined}>
+                      <div className="h-32 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center relative">
+                        <span className="text-5xl">{v.thumbnail}</span>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
+                          <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                            <PlayCircle size={24} className="text-primary" />
+                          </div>
+                        </div>
+                        {v.duration && (
+                          <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs font-bold px-2 py-0.5 rounded-md">{v.duration}</span>
+                        )}
+                        {!v.videoUrl && (
+                          <span className="absolute top-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">Coming soon</span>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <p className="text-sm font-semibold text-on-surface leading-snug">{v.title}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-on-surface-variant">{v.subject}</span>
+                          <span className="text-xs text-on-surface-variant">{v.views.toLocaleString()} views</span>
                         </div>
                       </div>
-                      <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs font-bold px-2 py-0.5 rounded-md">{v.duration}</span>
                     </div>
-                    <div className="p-4">
-                      <p className="text-sm font-semibold text-on-surface leading-snug">{v.title}</p>
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-on-surface-variant">{v.subject}</span>
-                        <span className="text-xs text-on-surface-variant">{v.views} views</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* Daily tip */}

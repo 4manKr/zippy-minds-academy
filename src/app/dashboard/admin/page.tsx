@@ -9,10 +9,10 @@ import {
   CheckCircle, XCircle, Clock, DollarSign, Eye, Search,
   AlertTriangle, Settings, MessageSquare, Calendar, Bell,
   Trash2, TrendingUp, Send, ToggleLeft, ToggleRight, Plus, Edit2, Zap,
-  MapPin, RefreshCw, Save,
+  MapPin, RefreshCw, Save, PlayCircle, FileText, Download,
 } from "lucide-react";
 
-type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings";
+type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; createdAt:string; }
@@ -21,6 +21,8 @@ interface DBCourse  { id:string; name:string; description:string; price:number; 
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
 interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; }
+interface DBResource { id:string; title:string; type:string; subject:string; size:string; icon:string; url:string; status:string; }
+interface DBVideo   { id:string; title:string; subject:string; duration:string; thumbnail:string; videoUrl:string; views:number; status:string; }
 
 // mock payments (no payment table yet)
 const mockPayments = [
@@ -46,6 +48,8 @@ export default function AdminDashboard() {
   const [tickets,   setTickets]   = useState<DBTicket[]>([]);
   const [analytics, setAnalytics] = useState<Analytics|null>(null);
   const [dbSettings,setDbSettings]= useState<Settings>({ siteName:"", contactEmail:"", phone:"", zoomEnabled:"true", emailNotifications:"true", autoApprove:"false", maintenanceMode:"false" });
+  const [resources,  setResources]  = useState<DBResource[]>([]);
+  const [videos,     setVideos]     = useState<DBVideo[]>([]);
   const [loading,   setLoading]   = useState<Record<string,boolean>>({});
 
   // UI state
@@ -60,13 +64,19 @@ export default function AdminDashboard() {
   const [settingsSaved,  setSettingsSaved]  = useState(false);
   const [newCourse,      setNewCourse]      = useState({ name:"", description:"", price:"199" });
   const [addingCourse,   setAddingCourse]   = useState(false);
+  // Content management
+  const [contentTab,     setContentTab]     = useState<"resources"|"videos">("resources");
+  const [newResource,    setNewResource]    = useState({ title:"", type:"PDF", subject:"", size:"", icon:"📄", url:"" });
+  const [addingResource, setAddingResource] = useState(false);
+  const [newVideo,       setNewVideo]       = useState({ title:"", subject:"", duration:"", thumbnail:"📹", videoUrl:"" });
+  const [addingVideo,    setAddingVideo]    = useState(false);
 
   const setLoad = (key: string, v: boolean) => setLoading(p=>({...p,[key]:v}));
 
   // ── Fetch helpers ─────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoad("init", true);
-    const [u,s,t,c,tk,an,st] = await Promise.all([
+    const [u,s,t,c,tk,an,st,res,vid] = await Promise.all([
       fetch("/api/admin/users").then(r=>r.json()),
       fetch("/api/admin/sessions").then(r=>r.json()),
       fetch("/api/admin/tutors").then(r=>r.json()),
@@ -74,14 +84,18 @@ export default function AdminDashboard() {
       fetch("/api/admin/support").then(r=>r.json()),
       fetch("/api/admin/analytics").then(r=>r.json()),
       fetch("/api/admin/settings").then(r=>r.json()),
+      fetch("/api/admin/resources").then(r=>r.json()),
+      fetch("/api/admin/videos").then(r=>r.json()),
     ]);
-    if (u.users)    setUsers(u.users);
-    if (s.bookings) setSessions(s.bookings);
-    if (t.tutors)   setTutors(t.tutors);
-    if (c.courses)  setCourses(c.courses);
-    if (tk.tickets) setTickets(tk.tickets);
-    if (an.monthly) setAnalytics(an);
-    if (st.settings) setDbSettings(s2 => ({ ...s2, ...st.settings }));
+    if (u.users)      setUsers(u.users);
+    if (s.bookings)   setSessions(s.bookings);
+    if (t.tutors)     setTutors(t.tutors);
+    if (c.courses)    setCourses(c.courses);
+    if (tk.tickets)   setTickets(tk.tickets);
+    if (an.monthly)   setAnalytics(an);
+    if (st.settings)  setDbSettings(s2 => ({ ...s2, ...st.settings }));
+    if (res.resources) setResources(res.resources);
+    if (vid.videos)    setVideos(vid.videos);
     setLoad("init", false);
   }, []);
 
@@ -132,6 +146,50 @@ export default function AdminDashboard() {
     setTickets(t => t.map(x => x.id===ticketId ? {...x,status} : x));
   };
 
+  // ── Content: add resource ────────────────────────────────────────────────
+  const handleAddResource = async () => {
+    if (!newResource.title.trim() || !newResource.subject.trim()) return;
+    setLoad("addResource", true);
+    const res = await fetch("/api/admin/resources", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newResource) });
+    const data = await res.json();
+    if (data.resource) { setResources(r=>[data.resource,...r]); setNewResource({ title:"", type:"PDF", subject:"", size:"", icon:"📄", url:"" }); setAddingResource(false); }
+    setLoad("addResource", false);
+  };
+
+  const handleResourceToggle = async (resourceId:string, currentStatus:string) => {
+    const status = currentStatus==="active"?"inactive":"active";
+    await fetch("/api/admin/resources", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ resourceId, status }) });
+    setResources(r=>r.map(x=>x.id===resourceId?{...x,status}:x));
+  };
+
+  const handleDeleteResource = async (resourceId:string) => {
+    if (!confirm("Delete this resource?")) return;
+    await fetch("/api/admin/resources", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ resourceId }) });
+    setResources(r=>r.filter(x=>x.id!==resourceId));
+  };
+
+  // ── Content: add video ────────────────────────────────────────────────────
+  const handleAddVideo = async () => {
+    if (!newVideo.title.trim() || !newVideo.subject.trim()) return;
+    setLoad("addVideo", true);
+    const res = await fetch("/api/admin/videos", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(newVideo) });
+    const data = await res.json();
+    if (data.video) { setVideos(v=>[data.video,...v]); setNewVideo({ title:"", subject:"", duration:"", thumbnail:"📹", videoUrl:"" }); setAddingVideo(false); }
+    setLoad("addVideo", false);
+  };
+
+  const handleVideoToggle = async (videoId:string, currentStatus:string) => {
+    const status = currentStatus==="active"?"inactive":"active";
+    await fetch("/api/admin/videos", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ videoId, status }) });
+    setVideos(v=>v.map(x=>x.id===videoId?{...x,status}:x));
+  };
+
+  const handleDeleteVideo = async (videoId:string) => {
+    if (!confirm("Delete this video?")) return;
+    await fetch("/api/admin/videos", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ videoId }) });
+    setVideos(v=>v.filter(x=>x.id!==videoId));
+  };
+
   // ── Save settings ─────────────────────────────────────────────────────────
   const handleSaveSettings = async () => {
     setLoad("settings", true);
@@ -156,6 +214,7 @@ export default function AdminDashboard() {
     { id:"users",     icon:Users,           label:"Users",     badge:users.length||undefined },
     { id:"tutors",    icon:GraduationCap,   label:"Tutor Approvals", badge:pendingTutors.length||undefined },
     { id:"courses",   icon:BookOpen,        label:"Courses"                           },
+    { id:"content",   icon:PlayCircle,      label:"Content Library"                   },
     { id:"sessions",  icon:Calendar,        label:"Sessions"                          },
     { id:"payments",  icon:CreditCard,      label:"Payments"                          },
     { id:"analytics", icon:BarChart3,       label:"Analytics"                         },
@@ -165,8 +224,9 @@ export default function AdminDashboard() {
 
   const sectionTitle: Record<Section,string> = {
     overview:"Platform Overview", users:"User Management", tutors:"Tutor Approvals",
-    courses:"Course Management", sessions:"Session Management", payments:"Payment Transactions",
-    analytics:"Analytics & Insights", support:"Support Tickets", settings:"Platform Settings",
+    courses:"Course Management", content:"Content Library", sessions:"Session Management",
+    payments:"Payment Transactions", analytics:"Analytics & Insights",
+    support:"Support Tickets", settings:"Platform Settings",
   };
 
   const isLoading = loading["init"];
@@ -673,6 +733,191 @@ export default function AdminDashboard() {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* ══ CONTENT LIBRARY ══ */}
+          {section==="content" && (
+            <div className="space-y-4">
+              {/* Tabs */}
+              <div className="flex gap-2 border-b border-gray-200">
+                {(["resources","videos"] as const).map(tab=>(
+                  <button key={tab} onClick={()=>setContentTab(tab)}
+                    className={`px-5 py-3 text-sm font-semibold capitalize border-b-2 transition-all ${contentTab===tab?"border-blue-600 text-blue-600":"border-transparent text-gray-500 hover:text-gray-800"}`}>
+                    {tab==="resources" ? `📄 Study Resources (${resources.length})` : `🎬 Video Lessons (${videos.length})`}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── RESOURCES tab ── */}
+              {contentTab==="resources" && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                    <h2 className="font-bold text-gray-900">Study Resources ({resources.length})</h2>
+                    <button onClick={()=>setAddingResource(a=>!a)}
+                      className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                      <Plus size={15}/> Add Resource
+                    </button>
+                  </div>
+
+                  {addingResource && (
+                    <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/50">
+                      <p className="text-sm font-semibold text-gray-800 mb-3">New Resource</p>
+                      <div className="flex flex-wrap gap-3 items-end">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Title *</label>
+                          <input value={newResource.title} onChange={e=>setNewResource(p=>({...p,title:e.target.value}))} placeholder="e.g. Phonics Workbook Level 2" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-52"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Subject *</label>
+                          <select value={newResource.subject} onChange={e=>setNewResource(p=>({...p,subject:e.target.value}))} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-40">
+                            <option value="">Select…</option>
+                            {["Phonics","Mathematics","English Grammar","Science","General"].map(s=><option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Type</label>
+                          <select value={newResource.type} onChange={e=>setNewResource(p=>({...p,type:e.target.value}))} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none w-24">
+                            {["PDF","Image","Link"].map(t=><option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Icon (emoji)</label>
+                          <input value={newResource.icon} onChange={e=>setNewResource(p=>({...p,icon:e.target.value}))} placeholder="📄" className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-16 text-center focus:outline-none"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">File URL</label>
+                          <input value={newResource.url} onChange={e=>setNewResource(p=>({...p,url:e.target.value}))} placeholder="https://…" className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Size</label>
+                          <input value={newResource.size} onChange={e=>setNewResource(p=>({...p,size:e.target.value}))} placeholder="2.4 MB" className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-24 focus:outline-none"/>
+                        </div>
+                        <button onClick={handleAddResource} disabled={loading["addResource"]}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5">
+                          {loading["addResource"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save</>}
+                        </button>
+                        <button onClick={()=>setAddingResource(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {resources.length===0 ? <Empty label="No resources yet"/> : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-gray-50">{["Resource","Subject","Type","Size","URL","Status","Actions"].map(h=><th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {resources.map(r=>(
+                            <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-5 py-4">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="text-xl">{r.icon}</span>
+                                  <span className="font-semibold text-gray-900 max-w-[180px] truncate">{r.title}</span>
+                                </div>
+                              </td>
+                              <td className="px-5 py-4 text-gray-600">{r.subject}</td>
+                              <td className="px-5 py-4"><span className="text-xs font-semibold px-2 py-1 bg-blue-50 text-blue-700 rounded-full">{r.type}</span></td>
+                              <td className="px-5 py-4 text-gray-500 text-xs">{r.size||"—"}</td>
+                              <td className="px-5 py-4 text-xs text-gray-400 max-w-[160px] truncate">{r.url ? <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1"><Download size={11}/>Download</a> : "—"}</td>
+                              <td className="px-5 py-4">
+                                <button onClick={()=>handleResourceToggle(r.id,r.status)}
+                                  className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all ${r.status==="active"?"bg-green-100 text-green-700 hover:bg-green-200":"bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                                  {r.status==="active"?<ToggleRight size={13}/>:<ToggleLeft size={13}/>}{r.status==="active"?"Active":"Hidden"}
+                                </button>
+                              </td>
+                              <td className="px-5 py-4">
+                                <button onClick={()=>handleDeleteResource(r.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors"><Trash2 size={14}/></button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── VIDEOS tab ── */}
+              {contentTab==="videos" && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                    <h2 className="font-bold text-gray-900">Video Lessons ({videos.length})</h2>
+                    <button onClick={()=>setAddingVideo(a=>!a)}
+                      className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                      <Plus size={15}/> Add Video
+                    </button>
+                  </div>
+
+                  {addingVideo && (
+                    <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/50">
+                      <p className="text-sm font-semibold text-gray-800 mb-3">New Video Lesson</p>
+                      <div className="flex flex-wrap gap-3 items-end">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Title *</label>
+                          <input value={newVideo.title} onChange={e=>setNewVideo(p=>({...p,title:e.target.value}))} placeholder="e.g. Adding Fractions" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-52"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Subject *</label>
+                          <select value={newVideo.subject} onChange={e=>setNewVideo(p=>({...p,subject:e.target.value}))} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-40">
+                            <option value="">Select…</option>
+                            {["Phonics","Mathematics","English Grammar","Science","General"].map(s=><option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Duration</label>
+                          <input value={newVideo.duration} onChange={e=>setNewVideo(p=>({...p,duration:e.target.value}))} placeholder="14:30" className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-20 focus:outline-none"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Thumbnail (emoji)</label>
+                          <input value={newVideo.thumbnail} onChange={e=>setNewVideo(p=>({...p,thumbnail:e.target.value}))} placeholder="📹" className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-16 text-center focus:outline-none"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Video URL (YouTube etc.)</label>
+                          <input value={newVideo.videoUrl} onChange={e=>setNewVideo(p=>({...p,videoUrl:e.target.value}))} placeholder="https://youtube.com/…" className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                        </div>
+                        <button onClick={handleAddVideo} disabled={loading["addVideo"]}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5">
+                          {loading["addVideo"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save</>}
+                        </button>
+                        <button onClick={()=>setAddingVideo(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {videos.length===0 ? <Empty label="No video lessons yet"/> : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-gray-50">{["Video","Subject","Duration","Views","URL","Status","Actions"].map(h=><th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {videos.map(v=>(
+                            <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-5 py-4">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center text-xl shrink-0">{v.thumbnail}</div>
+                                  <span className="font-semibold text-gray-900 max-w-[180px] truncate">{v.title}</span>
+                                </div>
+                              </td>
+                              <td className="px-5 py-4 text-gray-600">{v.subject}</td>
+                              <td className="px-5 py-4 text-gray-500 text-xs">{v.duration||"—"}</td>
+                              <td className="px-5 py-4 text-gray-500">{v.views.toLocaleString()}</td>
+                              <td className="px-5 py-4 text-xs">{v.videoUrl ? <a href={v.videoUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1"><PlayCircle size={11}/>Watch</a> : <span className="text-gray-400">Not set</span>}</td>
+                              <td className="px-5 py-4">
+                                <button onClick={()=>handleVideoToggle(v.id,v.status)}
+                                  className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all ${v.status==="active"?"bg-green-100 text-green-700 hover:bg-green-200":"bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                                  {v.status==="active"?<ToggleRight size={13}/>:<ToggleLeft size={13}/>}{v.status==="active"?"Visible":"Hidden"}
+                                </button>
+                              </td>
+                              <td className="px-5 py-4">
+                                <button onClick={()=>handleDeleteVideo(v.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors"><Trash2 size={14}/></button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
