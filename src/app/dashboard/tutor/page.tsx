@@ -1,198 +1,975 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronRight, Timer, Users, CreditCard, Star, Settings, LogOut, LayoutDashboard, Calendar, BookOpen, History, User, Plus } from "lucide-react";
+import {
+  LayoutDashboard, Calendar, Users, CreditCard, User, Settings,
+  LogOut, Menu, X, Video, Clock, CheckCircle, AlertTriangle,
+  ChevronRight, TrendingUp, Search, Bell, Star, BookOpen,
+  IndianRupee, Flame, Target, Phone, Mail, Lock, Save,
+  AlertCircle, Plus, FileText, Eye, XCircle, RefreshCw,
+  MessageSquare, Award, BarChart2,
+} from "lucide-react";
 
-const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard",      href: "#" },
-  { icon: Calendar,        label: "Schedule",        href: "#", active: true },
-  { icon: BookOpen,        label: "Learning Center", href: "#" },
-  { icon: History,         label: "History",         href: "#" },
-  { icon: User,            label: "Profile",         href: "#" },
-  { icon: CreditCard,      label: "Payments",        href: "#" },
+/* ─── Types ─────────────────────────────────────────────────────────────── */
+type Section = "dashboard" | "sessions" | "students" | "earnings" | "profile";
+
+interface TSession {
+  id: string; childName: string; subject: string; date: string;
+  timeSlot: string; status: string; monthlyPrice: number;
+  zoomLink?: string | null; zoomStartUrl?: string | null;
+  parentName: string; parentEmail: string; notes?: string;
+  createdAt: string; tutorName: string; grade?: string;
+}
+
+interface UserInfo {
+  id: string; name: string; email: string; phone?: string | null;
+  role: string; approvalStatus?: string; createdAt?: string;
+}
+
+/* ─── Helpers ───────────────────────────────────────────────────────────── */
+function getSubjectStyle(subject: string) {
+  const map: Record<string, { color: string; bg: string; icon: string }> = {
+    "Phonics":         { color: "text-pink-600",   bg: "bg-pink-50",   icon: "🔤" },
+    "Mathematics":     { color: "text-purple-600", bg: "bg-purple-50", icon: "🔢" },
+    "English Grammar": { color: "text-blue-600",   bg: "bg-blue-50",   icon: "📝" },
+    "Science":         { color: "text-green-600",  bg: "bg-green-50",  icon: "🔬" },
+  };
+  return map[subject] ?? { color: "text-orange-600", bg: "bg-orange-50", icon: "📚" };
+}
+
+function fmtDate(iso?: string) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+const TIPS = [
+  "Start each session with a 2-minute warm-up game to grab attention.",
+  "Use the Zoom whiteboard for live problem solving — students love it!",
+  "Send a short recap message to parents after each session.",
+  "Vary your teaching pace: fast for revision, slow for new concepts.",
+  "Celebrate small wins! A sticker emoji goes a long way. 🌟",
 ];
 
-const stats = [
-  { icon: Timer,      label: "Hours Taught",    value: "1,240", color: "border-primary",           iconColor: "text-primary" },
-  { icon: Users,      label: "Active Students", value: "85",    color: "border-tertiary",          iconColor: "text-tertiary" },
-  { icon: CreditCard, label: "Total Earnings",  value: "₹3,20,000",color: "border-secondary-container",iconColor: "text-secondary" },
-  { icon: Star,       label: "Avg. Rating",     value: "4.9/5", color: "border-primary-container", iconColor: "text-primary-container" },
-];
-
-const sessions = [
-  { subject: "Mathematics",     student: "Emma S.",  time: "Today, 2:30 PM – 3:30 PM",  color: "border-primary" },
-  { subject: "Phonics",         student: "Noah J.",  time: "Today, 4:00 PM – 4:45 PM",  color: "border-tertiary" },
-  { subject: "English Grammar", student: "Maya K.",  time: "Tomorrow, 10:00 AM",         color: "border-secondary-container" },
-  { subject: "Public Speaking", student: "Leo V.",   time: "Tomorrow, 1:00 PM",          color: "border-primary" },
-];
-
-const timeSlots = ["08:00", "09:00", "10:00", "11:00", "12:00"];
-const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-const availability: Record<string, Record<string, string>> = {
-  "08:00": { Mon: "available", Tue: "",          Wed: "available", Thu: "",          Fri: "available", Sat: "", Sun: "" },
-  "09:00": { Mon: "available", Tue: "available", Wed: "available", Thu: "available", Fri: "available", Sat: "", Sun: "" },
-  "10:00": { Mon: "available", Tue: "available", Wed: "available", Thu: "available", Fri: "available", Sat: "busy", Sun: "busy" },
-  "11:00": { Mon: "",          Tue: "",          Wed: "available", Thu: "",          Fri: "",          Sat: "", Sun: "" },
-  "12:00": { Mon: "break",     Tue: "break",     Wed: "break",     Thu: "break",     Fri: "break",     Sat: "", Sun: "" },
-};
-
-const toolkits = [
-  { icon: "🔤", label: "Phonics Kit",     bg: "bg-tertiary-fixed" },
-  { icon: "💬", label: "Grammar Play",    bg: "bg-primary/10" },
-  { icon: "🔢", label: "Math Lab",        bg: "bg-secondary-container/20" },
-  { icon: "🎤", label: "Public Speaking", bg: "bg-tertiary/10" },
-  { icon: "📚", label: "Resources",       bg: "bg-surface-container-high" },
-];
-
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+══════════════════════════════════════════════════════════════════════════════ */
 export default function TutorDashboard() {
+  const router = useRouter();
+
+  /* ── State ── */
+  const [section, setSection]         = useState<Section>("dashboard");
+  const [user, setUser]               = useState<UserInfo | null>(null);
+  const [sessions, setSessions]       = useState<TSession[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Sessions
+  const [sessionTab, setSessionTab]       = useState<"upcoming" | "all" | "cancelled">("upcoming");
+  const [sessionSearch, setSessionSearch] = useState("");
+
+  // Profile
+  const [profileForm, setProfileForm]     = useState({ name: "", phone: "" });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg]       = useState("");
+  const [profileEdit, setProfileEdit]     = useState(false);
+
+  // Notes
+  const [noteOpen, setNoteOpen]   = useState<string | null>(null);
+  const [noteText, setNoteText]   = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  const todayTip = TIPS[new Date().getDay() % TIPS.length];
+
+  /* ── Data loading ── */
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/auth/profile").then(r => r.json()),
+      fetch("/api/tutor/sessions").then(r => r.json()),
+    ]).then(([profileData, sessData]) => {
+      if (profileData.user) {
+        setUser(profileData.user);
+        setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
+      }
+      if (sessData.sessions) setSessions(sessData.sessions);
+    }).catch(() => router.push("/auth/login"))
+      .finally(() => setLoading(false));
+  }, [router]);
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/auth/login");
+  };
+
+  /* ── Derived data ── */
+  const confirmedSessions = useMemo(() => sessions.filter(s => s.status === "CONFIRMED"), [sessions]);
+  const upcomingSessions  = useMemo(() => sessions.filter(s => s.status !== "CANCELLED"), [sessions]);
+  const nextSession       = upcomingSessions[0] ?? null;
+  const totalEarnings     = confirmedSessions.reduce((a, s) => a + s.monthlyPrice, 0);
+  const approvalStatus    = user?.approvalStatus ?? "APPROVED";
+
+  // Students derived from sessions
+  const studentMap = useMemo(() => {
+    return sessions.reduce((acc, s) => {
+      if (!acc[s.childName]) {
+        acc[s.childName] = { name: s.childName, parentName: s.parentName, parentEmail: s.parentEmail, sessions: [], subjects: new Set<string>() };
+      }
+      acc[s.childName].sessions.push(s);
+      acc[s.childName].subjects.add(s.subject);
+      return acc;
+    }, {} as Record<string, { name: string; parentName: string; parentEmail: string; sessions: TSession[]; subjects: Set<string> }>);
+  }, [sessions]);
+  const students = Object.values(studentMap);
+
+  // Subject breakdown
+  const subjectMap = useMemo(() =>
+    sessions.reduce((acc, s) => { acc[s.subject] = (acc[s.subject] || 0) + 1; return acc; }, {} as Record<string, number>),
+  [sessions]);
+
+  // Monthly earnings (last 6 months)
+  const monthlyEarnings = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const label = d.toLocaleString("en-US", { month: "short" });
+      const earnings = confirmedSessions.filter(s => {
+        const sd = new Date(s.createdAt);
+        return sd.getMonth() === d.getMonth() && sd.getFullYear() === d.getFullYear();
+      }).reduce((a, s) => a + s.monthlyPrice, 0);
+      const count = confirmedSessions.filter(s => {
+        const sd = new Date(s.createdAt);
+        return sd.getMonth() === d.getMonth() && sd.getFullYear() === d.getFullYear();
+      }).length;
+      return { month: label, earnings, count };
+    });
+  }, [confirmedSessions]);
+  const maxEarnings = Math.max(...monthlyEarnings.map(m => m.earnings), 1);
+
+  // Filtered sessions
+  const filteredSessions = useMemo(() => {
+    return sessions.filter(s => {
+      const matchesTab =
+        sessionTab === "upcoming"  ? s.status !== "CANCELLED" :
+        sessionTab === "cancelled" ? s.status === "CANCELLED" : true;
+      const q = sessionSearch.toLowerCase();
+      const matchesSearch = !q || s.childName.toLowerCase().includes(q) || s.subject.toLowerCase().includes(q) || s.parentName.toLowerCase().includes(q);
+      return matchesTab && matchesSearch;
+    });
+  }, [sessions, sessionTab, sessionSearch]);
+
+  /* ── Handlers ── */
+  const handleProfileSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSaving(true); setProfileMsg("");
+    const res = await fetch("/api/auth/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profileForm),
+    });
+    const data = await res.json();
+    if (res.ok) { setUser(data.user); setProfileMsg("Saved!"); setProfileEdit(false); setTimeout(() => setProfileMsg(""), 2000); }
+    else setProfileMsg(data.error ?? "Failed to save.");
+    setProfileSaving(false);
+  };
+
+  const handleSaveNote = async () => {
+    if (!noteOpen) return;
+    setNoteSaving(true);
+    const res = await fetch("/api/tutor/sessions", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookingId: noteOpen, notes: noteText }),
+    });
+    if (res.ok) {
+      setSessions(prev => prev.map(s => s.id === noteOpen ? { ...s, notes: noteText } : s));
+      setNoteOpen(null);
+    }
+    setNoteSaving(false);
+  };
+
+  /* ── Nav ── */
+  const navItems: { id: Section; icon: React.ElementType; label: string }[] = [
+    { id: "dashboard", icon: LayoutDashboard, label: "Dashboard"  },
+    { id: "sessions",  icon: Calendar,        label: "My Sessions" },
+    { id: "students",  icon: Users,           label: "Students"    },
+    { id: "earnings",  icon: IndianRupee,     label: "Earnings"    },
+    { id: "profile",   icon: User,            label: "My Profile"  },
+  ];
+
+  /* ── Sidebar ── */
+  const SidebarContent = () => (
+    <>
+      <div className="px-6 mb-6 mt-2">
+        <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary mb-3">
+          {user?.name?.[0]?.toUpperCase() ?? "T"}
+        </div>
+        <h1 className="font-display font-bold text-primary text-base leading-none">{user?.name ?? "Tutor"}</h1>
+        <p className="text-xs text-on-surface-variant mt-0.5 truncate">{user?.email ?? ""}</p>
+        <div className="flex items-center gap-1.5 mt-2">
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            approvalStatus === "APPROVED" ? "bg-green-100 text-green-700" :
+            approvalStatus === "PENDING"  ? "bg-yellow-100 text-yellow-700" :
+            "bg-red-100 text-red-600"
+          }`}>
+            {approvalStatus === "APPROVED" ? "✓ Verified Tutor" : approvalStatus === "PENDING" ? "⏳ Pending Review" : "✗ Not Approved"}
+          </span>
+        </div>
+      </div>
+
+      <nav className="flex flex-col flex-grow gap-0.5 px-2">
+        {navItems.map(item => {
+          const Icon = item.icon;
+          return (
+            <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }}
+              className={section === item.id ? "sidebar-link-active" : "sidebar-link"}>
+              <Icon size={18} /><span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="mt-auto px-4 pb-4 space-y-1">
+        <div className="bg-primary/5 border border-primary/20 rounded-xl px-3 py-2.5 mb-2">
+          <p className="text-[10px] font-bold text-primary mb-0.5">Today&apos;s Tip 💡</p>
+          <p className="text-[10px] text-on-surface-variant leading-relaxed">{todayTip}</p>
+        </div>
+        <button onClick={() => setSection("profile")} className="sidebar-link w-full text-left">
+          <Settings size={18} /> Settings
+        </button>
+        <button onClick={handleLogout} className="sidebar-link w-full text-left">
+          <LogOut size={18} /> Sign Out
+        </button>
+      </div>
+    </>
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex">
-      {/* ── Sidebar ── */}
-      <aside className="h-screen w-64 fixed left-0 top-0 hidden lg:flex flex-col bg-surface-container-low border-r border-outline-variant py-6 gap-1">
-        <div className="px-6 mb-6">
-          <h1 className="font-display font-bold text-primary text-lg leading-none">Zippy Explorer</h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">Level 4 Tutor</p>
-        </div>
+    <div className="min-h-screen bg-surface flex">
 
-        <nav className="flex flex-col flex-grow gap-0.5">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.label} href={item.href} className={item.active ? "sidebar-link-active" : "sidebar-link"}>
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto px-4 pb-4 space-y-1">
-          <button className="w-full bg-primary text-on-primary font-bold rounded-xl py-3 shadow-md squishy-hover flex items-center justify-center gap-2 text-sm">
-            <Plus size={16} /> Book New Session
-          </button>
-          <Link href="#" className="sidebar-link"><Settings size={18} /> Settings</Link>
-          <Link href="/" className="sidebar-link"><LogOut size={18} /> Sign Out</Link>
-        </div>
+      {/* Desktop Sidebar */}
+      <aside className="h-screen w-64 fixed left-0 top-0 hidden lg:flex flex-col bg-surface-container-low border-r border-outline-variant py-6 gap-1 z-30">
+        <SidebarContent />
       </aside>
 
-      {/* ── Main ── */}
-      <main className="flex-grow lg:ml-64 px-4 md:px-8 lg:px-10 py-10 bg-surface space-y-8">
+      {/* Mobile Sidebar */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
+          <aside className="absolute left-0 top-0 h-full w-72 bg-surface-container-low flex flex-col py-6 gap-1 shadow-xl">
+            <button onClick={() => setSidebarOpen(false)} className="absolute top-4 right-4 text-on-surface-variant"><X size={20} /></button>
+            <SidebarContent />
+          </aside>
+        </div>
+      )}
 
-        {/* Welcome + Next session */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="md:col-span-2 bg-surface-container-lowest p-6 rounded-2xl shadow-card border-t-4 border-primary">
-            <h1 className="font-display font-bold text-on-surface text-xl mb-1">Welcome back, Tutor Sarah! 👋</h1>
-            <p className="text-on-surface-variant">Your students are excited for another week of Fun &amp; Interactive Online Classes.</p>
-          </div>
-          <div className="bg-secondary-container p-5 rounded-2xl shadow-card relative overflow-hidden group">
-            <div className="relative z-10">
-              <span className="text-xs font-bold text-secondary uppercase tracking-widest">Next Session</span>
-              <h3 className="font-display font-bold text-on-secondary-fixed text-base mt-1">Phonics with Liam</h3>
-              <p className="text-sm font-semibold text-on-secondary-fixed/80">Starts in 15 mins</p>
-              <button className="mt-3 bg-on-secondary-fixed text-secondary-container px-4 py-2 rounded-full font-bold text-xs squishy-hover">
-                Join Class →
-              </button>
+      {/* Main */}
+      <main className="flex-grow lg:ml-64 px-4 md:px-8 lg:px-10 py-6 min-h-screen">
+
+        {/* Mobile top bar */}
+        <div className="flex items-center justify-between mb-6 lg:hidden">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-xl bg-surface-container border border-outline-variant">
+            <Menu size={20} />
+          </button>
+          <span className="font-display font-bold text-primary text-base">
+            {navItems.find(n => n.id === section)?.label ?? "Dashboard"}
+          </span>
+          <button onClick={() => setSection("profile")} className="p-2 rounded-xl bg-surface-container border border-outline-variant">
+            <User size={18} />
+          </button>
+        </div>
+
+        {/* ── Approval banner ── */}
+        {approvalStatus === "PENDING" && (
+          <div className="mb-5 flex items-start gap-3 bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-2xl px-5 py-4">
+            <AlertTriangle size={18} className="text-yellow-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">Your account is under review</p>
+              <p className="text-xs mt-0.5">Our team is verifying your credentials. You&apos;ll be notified by email once approved.</p>
             </div>
-            <div className="absolute -bottom-4 -right-4 text-8xl opacity-10 group-hover:rotate-12 transition-transform select-none">🚀</div>
           </div>
-        </section>
-
-        {/* Stats */}
-        <section className="grid grid-cols-2 md:grid-cols-4 gap-5">
-          {stats.map(({ icon: Icon, label, value, color, iconColor }) => (
-            <div key={label} className={`bg-surface-container-lowest p-5 rounded-2xl shadow-card flex flex-col items-center text-center border-b-4 ${color}`}>
-              <Icon size={32} className={`${iconColor} mb-2`} />
-              <span className="font-display font-bold text-2xl text-on-surface">{value}</span>
-              <span className="text-xs text-on-surface-variant mt-0.5">{label}</span>
+        )}
+        {approvalStatus === "REJECTED" && (
+          <div className="mb-5 flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl px-5 py-4">
+            <XCircle size={18} className="text-red-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">Application not approved</p>
+              <p className="text-xs mt-0.5">Please contact support@zippymindsacademy.com to understand the reason and reapply.</p>
             </div>
-          ))}
-        </section>
+          </div>
+        )}
 
-        {/* Availability + Upcoming sessions */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Availability grid */}
-          <div className="lg:col-span-2 bg-surface-container-lowest p-6 rounded-2xl shadow-card">
-            <div className="flex justify-between items-center mb-5">
-              <h3 className="font-display font-bold text-on-surface text-base">Manage Availability</h3>
-              <div className="flex gap-2">
-                <button className="bg-surface-container text-on-surface-variant px-3 py-1.5 rounded-lg text-xs font-semibold">Clear All</button>
-                <button className="bg-primary text-on-primary px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm squishy-hover">Save Changes</button>
+        {/* ══════════════════════════════════════════
+            SECTION: DASHBOARD
+        ══════════════════════════════════════════ */}
+        {section === "dashboard" && (
+          <div className="space-y-6">
+            {/* Greeting */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="font-display text-2xl md:text-3xl font-extrabold text-on-surface">
+                  Welcome back, {user?.name?.split(" ")[0] ?? "Tutor"} 👋
+                </h2>
+                <p className="text-on-surface-variant text-sm mt-1">
+                  {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                </p>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-xs">
-                <thead>
-                  <tr>
-                    <th className="w-14" />
-                    {days.map((d) => (
-                      <th key={d} className="font-semibold text-on-surface-variant pb-3 text-center">{d}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {timeSlots.map((slot) => (
-                    <tr key={slot} className="h-10">
-                      <td className="text-right pr-3 text-on-surface-variant font-semibold">{slot}</td>
-                      {days.map((day) => {
-                        const state = availability[slot]?.[day] ?? "";
-                        return (
-                          <td key={day} className={`border border-outline-variant/30 cursor-pointer hover:bg-primary/10 transition-colors ${
-                            state === "available" ? "bg-primary-fixed" :
-                            state === "break"     ? "bg-tertiary-fixed" :
-                            state === "busy"      ? "bg-surface-container-high" :
-                            ""
-                          }`} />
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-[11px] text-on-surface-variant mt-3 italic">* Click and drag to paint your available teaching slots.</p>
-          </div>
 
-          {/* Upcoming sessions */}
-          <div className="bg-surface-container-lowest p-5 rounded-2xl shadow-card flex flex-col">
-            <h3 className="font-display font-bold text-on-surface mb-4 flex items-center gap-2 text-base">
-              📋 Upcoming Sessions
-            </h3>
-            <div className="space-y-3 flex-grow">
-              {sessions.map((s) => (
-                <div key={s.student} className={`p-3 bg-surface-container-low rounded-xl border-l-4 ${s.color} flex items-center justify-between group hover:bg-surface-container-high transition-colors`}>
-                  <div>
-                    <p className="font-semibold text-sm text-on-surface">{s.subject}: {s.student}</p>
-                    <p className="text-xs text-on-surface-variant">{s.time}</p>
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Total Sessions",  value: sessions.length,               icon: Calendar,     color: "text-primary",    bg: "bg-primary/10"      },
+                { label: "Students Taught", value: students.length,               icon: Users,        color: "text-blue-600",   bg: "bg-blue-50"         },
+                { label: "Total Earned",    value: totalEarnings > 0 ? `₹${totalEarnings.toLocaleString("en-IN")}` : "₹0", icon: IndianRupee, color: "text-green-600", bg: "bg-green-50" },
+                { label: "Subjects",        value: Object.keys(subjectMap).length || "—", icon: BookOpen, color: "text-purple-600", bg: "bg-purple-50" },
+              ].map(({ label, value, icon: Icon, color, bg }) => (
+                <div key={label} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-4 shadow-card">
+                  <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}>
+                    <Icon size={20} className={color} />
                   </div>
-                  <ChevronRight size={16} className="text-on-surface-variant group-hover:translate-x-0.5 transition-transform" />
+                  <p className="text-2xl font-bold text-on-surface font-display">{value}</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">{label}</p>
                 </div>
               ))}
             </div>
-            <button className="mt-4 w-full border border-primary text-primary py-2.5 rounded-xl text-sm font-semibold hover:bg-primary hover:text-on-primary transition-all">
-              View Full Agenda
-            </button>
-          </div>
-        </section>
 
-        {/* Enhance Your Classes */}
-        <section className="bg-primary/5 p-8 rounded-3xl border-2 border-dashed border-primary-container/30">
-          <div className="text-center max-w-2xl mx-auto mb-6">
-            <h2 className="font-display font-bold text-primary text-xl mb-1">Enhance Your Classes</h2>
-            <p className="text-on-surface-variant text-sm">Use our digital toolkits to make learning fun and future-ready.</p>
-          </div>
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
-            {toolkits.map((t) => (
-              <button key={t.label} className="bg-surface-container-lowest p-4 rounded-2xl text-center shadow-sm hover:-translate-y-1 transition-transform group">
-                <div className={`w-12 h-12 ${t.bg} rounded-full flex items-center justify-center mx-auto mb-2 text-2xl`}>
-                  {t.icon}
+            {/* Next session + subject breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Next session */}
+              <div className="lg:col-span-2 bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+                <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
+                  <Calendar size={18} className="text-primary" /> Next Session
+                </h3>
+                {nextSession ? (
+                  <div className="flex flex-col sm:flex-row gap-5">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-lg font-bold text-on-surface">{nextSession.subject}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          nextSession.status === "CONFIRMED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                        }`}>{nextSession.status}</span>
+                      </div>
+                      <p className="text-sm text-on-surface-variant">👦 Student: <strong>{nextSession.childName}</strong></p>
+                      <p className="text-sm text-on-surface-variant">👤 Parent: {nextSession.parentName}</p>
+                      <div className="flex flex-wrap gap-3 text-xs text-on-surface-variant">
+                        <span className="flex items-center gap-1"><Calendar size={11} className="text-primary" />{nextSession.date}</span>
+                        <span className="flex items-center gap-1"><Clock size={11} className="text-primary" />{nextSession.timeSlot}</span>
+                        {nextSession.monthlyPrice > 0 && <span className="flex items-center gap-1"><IndianRupee size={11} className="text-green-600" />₹{nextSession.monthlyPrice}/mo</span>}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      {nextSession.zoomStartUrl ? (
+                        <a href={nextSession.zoomStartUrl} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-white text-sm hover:opacity-90 transition-all"
+                          style={{ backgroundColor: "#2D8CFF" }}>
+                          <Video size={15} /> Start Class
+                        </a>
+                      ) : nextSession.zoomLink ? (
+                        <a href={nextSession.zoomLink} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-white text-sm hover:opacity-90 transition-all"
+                          style={{ backgroundColor: "#2D8CFF" }}>
+                          <Video size={15} /> Join Zoom
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-surface-container text-on-surface-variant border border-outline-variant">
+                          <Clock size={15} /> Zoom Pending
+                        </span>
+                      )}
+                      <button onClick={() => setSection("sessions")} className="text-xs text-primary hover:underline flex items-center gap-1">
+                        All sessions <ChevronRight size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center py-8 text-center">
+                    <div className="text-4xl mb-3">📅</div>
+                    <p className="font-semibold text-on-surface mb-1">No sessions assigned yet</p>
+                    <p className="text-sm text-on-surface-variant">The admin will assign sessions to you once parents book.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Subject breakdown */}
+              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+                <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
+                  <BarChart2 size={18} className="text-primary" /> Subjects Taught
+                </h3>
+                {Object.keys(subjectMap).length > 0 ? (
+                  <div className="space-y-3">
+                    {Object.entries(subjectMap).sort((a, b) => b[1] - a[1]).map(([subject, count]) => {
+                      const { bg, icon } = getSubjectStyle(subject);
+                      const max = Math.max(...Object.values(subjectMap));
+                      return (
+                        <div key={subject}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-on-surface flex items-center gap-1.5">
+                              <span className={`w-5 h-5 ${bg} rounded-md flex items-center justify-center text-xs`}>{icon}</span>
+                              {subject}
+                            </span>
+                            <span className="text-xs font-bold text-primary">{count}</span>
+                          </div>
+                          <div className="h-2 bg-surface-container rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full"
+                              style={{ width: `${(count / max) * 100}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-on-surface-variant text-center py-4">Subject breakdown will appear once you have assigned sessions.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Recent students */}
+            {students.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-display font-bold text-on-surface text-base flex items-center gap-2">
+                    <Users size={18} className="text-primary" /> My Students
+                  </h3>
+                  <button onClick={() => setSection("students")} className="text-xs text-primary hover:underline flex items-center gap-1">
+                    View all <ChevronRight size={12} />
+                  </button>
                 </div>
-                <span className="text-xs font-semibold text-on-surface-variant">{t.label}</span>
-              </button>
-            ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {students.slice(0, 3).map(s => (
+                    <StudentCard key={s.name} student={s} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quick actions */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: "View Sessions",  icon: Calendar,    color: "bg-primary/10 text-primary",     action: () => setSection("sessions")  },
+                { label: "My Students",    icon: Users,       color: "bg-blue-50 text-blue-600",        action: () => setSection("students")  },
+                { label: "Earnings",       icon: IndianRupee, color: "bg-green-50 text-green-600",      action: () => setSection("earnings")  },
+                { label: "Edit Profile",   icon: User,        color: "bg-purple-50 text-purple-600",    action: () => setSection("profile")   },
+              ].map(({ label, icon: Icon, color, action }) => (
+                <button key={label} onClick={action}
+                  className="flex flex-col items-center gap-2 p-4 bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all text-center">
+                  <div className={`w-10 h-10 ${color} rounded-xl flex items-center justify-center`}><Icon size={18} /></div>
+                  <span className="text-xs font-semibold text-on-surface">{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </section>
+        )}
+
+        {/* ══════════════════════════════════════════
+            SECTION: MY SESSIONS
+        ══════════════════════════════════════════ */}
+        {section === "sessions" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-display text-2xl font-extrabold text-on-surface">My Sessions</h2>
+              <p className="text-sm text-on-surface-variant mt-1">{sessions.length} total sessions assigned to you</p>
+            </div>
+
+            {/* Search + filter */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                <input value={sessionSearch} onChange={e => setSessionSearch(e.target.value)}
+                  placeholder="Search student, subject…"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-outline-variant bg-surface-container-lowest text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+              </div>
+              <div className="flex gap-2">
+                {(["upcoming", "all", "cancelled"] as const).map(tab => (
+                  <button key={tab} onClick={() => setSessionTab(tab)}
+                    className={`px-4 py-2 rounded-full text-xs font-bold capitalize transition-all ${
+                      sessionTab === tab ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                    }`}>
+                    {tab} ({
+                      tab === "upcoming"  ? sessions.filter(s => s.status !== "CANCELLED").length :
+                      tab === "cancelled" ? sessions.filter(s => s.status === "CANCELLED").length :
+                      sessions.length
+                    })
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sessions list */}
+            {filteredSessions.length === 0 ? (
+              <EmptyState icon="📅" title="No sessions found"
+                desc={sessionTab === "cancelled" ? "No cancelled sessions." : "No sessions assigned yet. Admin will assign sessions when parents book."}
+              />
+            ) : (
+              <div className="space-y-3">
+                {filteredSessions.map(s => (
+                  <div key={s.id} className={`bg-surface-container-lowest rounded-2xl border shadow-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${
+                    s.status === "CANCELLED" ? "border-red-200 opacity-70" : "border-outline-variant"
+                  }`}>
+                    {/* Date badge */}
+                    <div className={`rounded-xl px-4 py-3 text-center min-w-[70px] shrink-0 ${s.status === "CANCELLED" ? "bg-red-50" : "bg-primary/10"}`}>
+                      <p className={`text-[10px] font-bold uppercase ${s.status === "CANCELLED" ? "text-red-400" : "text-primary"}`}>{s.date.split(" ")[0]}</p>
+                      <p className={`text-2xl font-extrabold leading-none ${s.status === "CANCELLED" ? "text-red-400" : "text-primary"}`}>
+                        {s.date.split(" ")[1]?.replace(",", "") ?? "--"}
+                      </p>
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="font-bold text-on-surface">{s.subject}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          s.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
+                          s.status === "PENDING"   ? "bg-yellow-100 text-yellow-700" :
+                          "bg-red-100 text-red-600"
+                        }`}>{s.status}</span>
+                        {s.monthlyPrice > 0 && <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">₹{s.monthlyPrice}/mo</span>}
+                      </div>
+                      <p className="text-sm text-on-surface-variant">👦 {s.childName} &nbsp;·&nbsp; 👤 Parent: {s.parentName}</p>
+                      <p className="text-xs text-on-surface-variant mt-1 flex items-center gap-1">
+                        <Clock size={11} className="text-primary" />{s.timeSlot}
+                      </p>
+                      {s.notes && (
+                        <p className="text-xs text-primary/70 mt-1 italic flex items-center gap-1">
+                          <MessageSquare size={10} /> {s.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 shrink-0">
+                      {s.status !== "CANCELLED" && (
+                        s.zoomStartUrl ? (
+                          <a href={s.zoomStartUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
+                            style={{ backgroundColor: "#2D8CFF" }}>
+                            <Video size={14} /> Start
+                          </a>
+                        ) : s.zoomLink ? (
+                          <a href={s.zoomLink} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
+                            style={{ backgroundColor: "#2D8CFF" }}>
+                            <Video size={14} /> Join
+                          </a>
+                        ) : null
+                      )}
+                      <button
+                        onClick={() => { setNoteOpen(s.id); setNoteText(s.notes ?? ""); }}
+                        className="p-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-primary/10 hover:text-primary hover:border-primary transition-all"
+                        title="Add note">
+                        <FileText size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Full history table */}
+            {sessions.length > 0 && (
+              <div>
+                <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
+                  <Clock size={16} className="text-on-surface-variant" /> All Sessions History
+                </h3>
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-outline-variant bg-surface-container">
+                        {["Student","Subject","Parent","Date","Time","Status","Zoom"].map(h => (
+                          <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sessions.map((s, i) => (
+                        <tr key={s.id} className={`border-b border-outline-variant/50 hover:bg-surface-container/50 transition-colors ${i === sessions.length - 1 ? "border-b-0" : ""}`}>
+                          <td className="px-4 py-3 font-semibold text-on-surface whitespace-nowrap">{s.childName}</td>
+                          <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{s.subject}</td>
+                          <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{s.parentName}</td>
+                          <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{s.date}</td>
+                          <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{s.timeSlot}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                              s.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
+                              s.status === "PENDING"   ? "bg-yellow-100 text-yellow-700" :
+                              "bg-red-100 text-red-600"
+                            }`}>{s.status}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {(s.zoomStartUrl || s.zoomLink) && s.status !== "CANCELLED" ? (
+                              <a href={s.zoomStartUrl || s.zoomLink!} target="_blank" rel="noopener noreferrer"
+                                className="text-xs font-bold px-3 py-1.5 rounded-lg text-white flex items-center gap-1 whitespace-nowrap"
+                                style={{ backgroundColor: "#2D8CFF" }}>
+                                <Video size={11} /> Open
+                              </a>
+                            ) : <span className="text-xs text-on-surface-variant">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════
+            SECTION: STUDENTS
+        ══════════════════════════════════════════ */}
+        {section === "students" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-display text-2xl font-extrabold text-on-surface">My Students</h2>
+              <p className="text-sm text-on-surface-variant mt-1">{students.length} unique student{students.length !== 1 ? "s" : ""} across all sessions</p>
+            </div>
+
+            {students.length === 0 ? (
+              <EmptyState icon="👦" title="No students yet"
+                desc="Students will appear here once sessions are assigned to you by the admin." />
+            ) : (
+              <>
+                {/* Stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {[
+                    { label: "Total Students",    value: students.length,                                            icon: Users,    color: "text-primary",    bg: "bg-primary/10"   },
+                    { label: "Subjects Covered",  value: Object.keys(subjectMap).length,                            icon: BookOpen, color: "text-purple-600", bg: "bg-purple-50"    },
+                    { label: "Confirmed Sessions",value: confirmedSessions.length,                                  icon: CheckCircle, color: "text-green-600", bg: "bg-green-50"  },
+                  ].map(({ label, value, icon: Icon, color, bg }) => (
+                    <div key={label} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-4 shadow-card">
+                      <div className={`w-9 h-9 ${bg} rounded-xl flex items-center justify-center mb-2`}><Icon size={18} className={color} /></div>
+                      <p className="text-xl font-bold text-on-surface font-display">{value}</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">{label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Student cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {students.map(s => (
+                    <StudentCard key={s.name} student={s} expanded />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════
+            SECTION: EARNINGS
+        ══════════════════════════════════════════ */}
+        {section === "earnings" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-display text-2xl font-extrabold text-on-surface">Earnings</h2>
+              <p className="text-sm text-on-surface-variant mt-1">Session revenue from confirmed bookings</p>
+            </div>
+
+            {/* Summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { label: "Total Earned",    value: `₹${totalEarnings.toLocaleString("en-IN")}`, sub: "from confirmed sessions",          icon: IndianRupee, color: "text-green-600", bg: "bg-green-50" },
+                { label: "Confirmed",       value: confirmedSessions.length,                    sub: "fully confirmed sessions",          icon: CheckCircle, color: "text-primary",   bg: "bg-primary/10" },
+                { label: "Free Demos",      value: sessions.filter(s => s.monthlyPrice === 0).length, sub: "₹0 introductory sessions",  icon: Star,        color: "text-orange-500",bg: "bg-orange-50" },
+              ].map(({ label, value, sub, icon: Icon, color, bg }) => (
+                <div key={label} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
+                  <div className={`w-11 h-11 ${bg} rounded-xl flex items-center justify-center mb-3`}><Icon size={22} className={color} /></div>
+                  <p className="text-2xl font-bold text-on-surface font-display">{value}</p>
+                  <p className="text-xs font-medium text-on-surface mt-0.5">{label}</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">{sub}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Monthly chart */}
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+              <h3 className="font-display font-bold text-on-surface text-base mb-5 flex items-center gap-2">
+                <TrendingUp size={18} className="text-primary" /> Monthly Earnings (last 6 months)
+              </h3>
+              <div className="flex items-end gap-3 h-40">
+                {monthlyEarnings.map(m => (
+                  <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
+                    <span className="text-xs font-bold text-primary">
+                      {m.earnings > 0 ? `₹${(m.earnings/1000).toFixed(0)}k` : "0"}
+                    </span>
+                    <div className="w-full bg-primary/10 rounded-t-lg hover:bg-primary/30 group relative transition-colors cursor-pointer"
+                      style={{ height: `${Math.max((m.earnings / maxEarnings) * 128, 4)}px` }}>
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                        {m.count} session{m.count !== 1 ? "s" : ""}
+                      </div>
+                    </div>
+                    <span className="text-xs text-on-surface-variant font-medium">{m.month}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Session invoices */}
+            <div>
+              <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
+                <FileText size={18} className="text-primary" /> Session Breakdown
+              </h3>
+              {sessions.length === 0 ? (
+                <EmptyState icon="💰" title="No sessions yet" desc="Earnings will appear here once sessions are assigned to you." />
+              ) : (
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden">
+                  <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto_auto] px-5 py-3 bg-surface-container border-b border-outline-variant text-xs font-semibold text-on-surface-variant uppercase tracking-wider gap-4">
+                    <span>Subject / Student</span><span>Date</span><span>Rate</span><span>Status</span><span>Zoom</span>
+                  </div>
+                  {sessions.map((s, i) => (
+                    <div key={s.id} className={`flex flex-col sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto] px-5 py-4 gap-3 sm:gap-4 sm:items-center ${i < sessions.length - 1 ? "border-b border-outline-variant/50" : ""}`}>
+                      <div>
+                        <p className="font-semibold text-on-surface text-sm">{s.subject}</p>
+                        <p className="text-xs text-on-surface-variant">Student: {s.childName}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-on-surface">{s.date}</p>
+                        <p className="text-xs text-on-surface-variant">{s.timeSlot}</p>
+                      </div>
+                      <div>
+                        {s.monthlyPrice > 0
+                          ? <span className="font-bold text-green-700">₹{s.monthlyPrice.toLocaleString("en-IN")}<span className="text-xs font-normal text-on-surface-variant">/mo</span></span>
+                          : <span className="text-xs font-bold px-2 py-1 bg-blue-50 text-blue-700 rounded-full">FREE</span>}
+                      </div>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                        s.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
+                        s.status === "PENDING"   ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"
+                      }`}>{s.status}</span>
+                      <div>
+                        {(s.zoomStartUrl || s.zoomLink) && s.status !== "CANCELLED" ? (
+                          <a href={s.zoomStartUrl || s.zoomLink!} target="_blank" rel="noopener noreferrer"
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg text-white flex items-center gap-1 whitespace-nowrap"
+                            style={{ backgroundColor: "#2D8CFF" }}>
+                            <Video size={11} /> Open
+                          </a>
+                        ) : <span className="text-xs text-on-surface-variant">—</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-surface-container rounded-2xl border border-outline-variant p-5 flex items-start gap-3">
+              <AlertCircle size={18} className="text-on-surface-variant mt-0.5 shrink-0" />
+              <p className="text-sm text-on-surface-variant">
+                Payments are processed monthly by Zippy Minds. For queries contact <strong>accounts@zippymindsacademy.com</strong>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════
+            SECTION: PROFILE
+        ══════════════════════════════════════════ */}
+        {section === "profile" && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <h2 className="font-display text-2xl font-extrabold text-on-surface">My Profile</h2>
+              <p className="text-sm text-on-surface-variant mt-1">Manage your tutor account details</p>
+            </div>
+
+            {/* Profile card */}
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+              <div className="flex items-start gap-5 mb-6">
+                <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center text-4xl font-bold text-primary shrink-0">
+                  {user?.name?.[0]?.toUpperCase() ?? "T"}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h3 className="font-display font-bold text-on-surface text-xl">{user?.name}</h3>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                      approvalStatus === "APPROVED" ? "bg-green-100 text-green-700" :
+                      approvalStatus === "PENDING"  ? "bg-yellow-100 text-yellow-700" :
+                      "bg-red-100 text-red-600"
+                    }`}>
+                      {approvalStatus === "APPROVED" ? "✓ Verified Tutor" : approvalStatus === "PENDING" ? "⏳ Under Review" : "✗ Not Approved"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-on-surface-variant mt-1">{user?.email}</p>
+                  <p className="text-sm text-on-surface-variant">{user?.phone ?? "No phone added"}</p>
+                  <p className="text-xs text-on-surface-variant mt-2">Member since {fmtDate(user?.createdAt)}</p>
+                </div>
+              </div>
+
+              {/* Stats strip */}
+              <div className="grid grid-cols-3 gap-3 mb-6 bg-surface-container rounded-2xl p-4">
+                {[
+                  { label: "Sessions",  value: sessions.length   },
+                  { label: "Students",  value: students.length   },
+                  { label: "Subjects",  value: Object.keys(subjectMap).length },
+                ].map(({ label, value }) => (
+                  <div key={label} className="text-center">
+                    <p className="text-xl font-bold text-on-surface font-display">{value}</p>
+                    <p className="text-xs text-on-surface-variant">{label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {!profileEdit ? (
+                <button onClick={() => setProfileEdit(true)}
+                  className="btn-primary w-full sm:w-auto">
+                  Edit Profile
+                </button>
+              ) : (
+                <form onSubmit={handleProfileSave} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-on-surface mb-1.5">Full Name</label>
+                    <input type="text" value={profileForm.name}
+                      onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-on-surface mb-1.5">Phone Number</label>
+                    <input type="tel" value={profileForm.phone ?? ""}
+                      onChange={e => setProfileForm(f => ({ ...f, phone: e.target.value }))}
+                      placeholder="+91 9876543210"
+                      className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+                  </div>
+                  <div className="bg-surface-container rounded-xl px-4 py-3">
+                    <p className="text-xs text-on-surface-variant flex items-center gap-1.5">
+                      <Lock size={12} /> Email cannot be changed. Contact admin if needed.
+                    </p>
+                  </div>
+                  {profileMsg && (
+                    <p className={`text-sm font-semibold flex items-center gap-2 ${profileMsg === "Saved!" ? "text-green-600" : "text-red-600"}`}>
+                      {profileMsg === "Saved!" ? <CheckCircle size={15} /> : <AlertCircle size={15} />} {profileMsg}
+                    </p>
+                  )}
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => setProfileEdit(false)}
+                      className="flex-1 py-3 rounded-xl border border-outline-variant text-on-surface-variant font-semibold text-sm hover:bg-surface-container transition-colors">
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={profileSaving} className="flex-1 btn-primary disabled:opacity-60">
+                      {profileSaving ? "Saving…" : <><Save size={15} /> Save Changes</>}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+
+            {/* Account info */}
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+              <h3 className="font-display font-bold text-on-surface mb-4">Account Information</h3>
+              <div className="space-y-3">
+                {[
+                  { label: "Role",             value: "Tutor",                     icon: User          },
+                  { label: "Email",            value: user?.email ?? "—",           icon: Mail          },
+                  { label: "Phone",            value: user?.phone ?? "Not added",   icon: Phone         },
+                  { label: "Approval Status",  value: approvalStatus,              icon: CheckCircle   },
+                  { label: "Member Since",     value: fmtDate(user?.createdAt),    icon: Award         },
+                ].map(({ label, value, icon: Icon }) => (
+                  <div key={label} className="flex items-center justify-between py-2.5 border-b border-outline-variant/50 last:border-0">
+                    <span className="text-sm text-on-surface-variant flex items-center gap-2">
+                      <Icon size={14} className="text-on-surface-variant" /> {label}
+                    </span>
+                    <span className="text-sm font-semibold text-on-surface">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* ── Add Note Modal ── */}
+      {noteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setNoteOpen(null)} />
+          <div className="relative bg-surface rounded-2xl border border-outline-variant shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-bold text-on-surface flex items-center gap-2">
+                <FileText size={18} className="text-primary" /> Session Note
+              </h3>
+              <button onClick={() => setNoteOpen(null)} className="text-on-surface-variant hover:text-on-surface"><X size={20} /></button>
+            </div>
+            <textarea rows={4} value={noteText} onChange={e => setNoteText(e.target.value)}
+              placeholder="Add a note about this session (e.g. student progress, next topic)…"
+              className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none" />
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setNoteOpen(null)} className="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant font-semibold text-sm hover:bg-surface-container transition-colors">Cancel</button>
+              <button onClick={handleSaveNote} disabled={noteSaving} className="flex-1 btn-primary disabled:opacity-60">
+                {noteSaving ? "Saving…" : <><Save size={14} /> Save Note</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Sub-components ────────────────────────────────────────────────────── */
+
+function StudentCard({ student, expanded }: {
+  student: { name: string; parentName: string; parentEmail: string; sessions: TSession[]; subjects: Set<string> };
+  expanded?: boolean;
+}) {
+  const confirmedCount = student.sessions.filter(s => s.status === "CONFIRMED").length;
+  const lastSession = student.sessions[0];
+  const subjects = [...student.subjects];
+
+  return (
+    <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center text-xl font-bold text-primary shrink-0">
+          {student.name[0]?.toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-on-surface">{student.name}</p>
+          <p className="text-xs text-on-surface-variant truncate">Parent: {student.parentName}</p>
+        </div>
+      </div>
+
+      <div className="space-y-1.5 text-xs text-on-surface-variant mb-3">
+        <div className="flex items-center gap-2">
+          <Calendar size={11} className="text-primary" />
+          {student.sessions.length} session{student.sessions.length !== 1 ? "s" : ""}
+          {confirmedCount > 0 && <span className="text-green-600 font-semibold">({confirmedCount} confirmed)</span>}
+        </div>
+        {lastSession && (
+          <div className="flex items-center gap-2">
+            <Clock size={11} className="text-primary" /> Last: {lastSession.date}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {subjects.map(subj => {
+          const { bg, icon, color } = getSubjectStyle(subj);
+          return (
+            <span key={subj} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${bg} ${color} flex items-center gap-0.5`}>
+              {icon} {subj}
+            </span>
+          );
+        })}
+      </div>
+
+      {expanded && lastSession?.zoomLink && (
+        <a href={lastSession.zoomStartUrl || lastSession.zoomLink} target="_blank" rel="noopener noreferrer"
+          className="mt-3 flex items-center justify-center gap-2 w-full font-bold text-xs py-2.5 rounded-xl text-white hover:opacity-90 transition-all"
+          style={{ backgroundColor: "#2D8CFF" }}>
+          <Video size={13} /> Join Latest Session
+        </a>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ icon, title, desc }: { icon: string; title: string; desc: string }) {
+  return (
+    <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-12 flex flex-col items-center text-center">
+      <div className="text-5xl mb-4">{icon}</div>
+      <h4 className="font-bold text-on-surface mb-2">{title}</h4>
+      <p className="text-sm text-on-surface-variant max-w-xs">{desc}</p>
     </div>
   );
 }
