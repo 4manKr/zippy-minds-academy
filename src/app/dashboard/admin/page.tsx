@@ -70,6 +70,10 @@ export default function AdminDashboard() {
   const [addingResource, setAddingResource] = useState(false);
   const [newVideo,       setNewVideo]       = useState({ title:"", subject:"", duration:"", thumbnail:"📹", videoUrl:"" });
   const [addingVideo,    setAddingVideo]    = useState(false);
+  // Edit modals
+  const [editCourse,    setEditCourse]    = useState<DBCourse|null>(null);
+  const [editResource,  setEditResource]  = useState<DBResource|null>(null);
+  const [editVideo,     setEditVideo]     = useState<DBVideo|null>(null);
 
   const setLoad = (key: string, v: boolean) => setLoading(p=>({...p,[key]:v}));
 
@@ -146,6 +150,23 @@ export default function AdminDashboard() {
     setTickets(t => t.map(x => x.id===ticketId ? {...x,status} : x));
   };
 
+  // ── Course: save edit ────────────────────────────────────────────────────
+  const handleSaveCourse = async () => {
+    if (!editCourse) return;
+    setLoad("editCourse", true);
+    const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description, price:editCourse.price }) });
+    const data = await res.json();
+    if (data.course) { setCourses(c=>c.map(x=>x.id===editCourse.id?data.course:x)); setEditCourse(null); }
+    setLoad("editCourse", false);
+  };
+
+  const handleDeleteCourse = async (courseId:string) => {
+    if (!confirm("Delete this course?")) return;
+    await fetch("/api/admin/courses", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ courseId }) });
+    setCourses(c=>c.filter(x=>x.id!==courseId));
+  };
+
   // ── Content: add resource ────────────────────────────────────────────────
   const handleAddResource = async () => {
     if (!newResource.title.trim() || !newResource.subject.trim()) return;
@@ -188,6 +209,28 @@ export default function AdminDashboard() {
     if (!confirm("Delete this video?")) return;
     await fetch("/api/admin/videos", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ videoId }) });
     setVideos(v=>v.filter(x=>x.id!==videoId));
+  };
+
+  // ── Resource: save edit ───────────────────────────────────────────────────
+  const handleSaveResource = async () => {
+    if (!editResource) return;
+    setLoad("editResource", true);
+    const res = await fetch("/api/admin/resources", { method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ resourceId:editResource.id, title:editResource.title, type:editResource.type, subject:editResource.subject, size:editResource.size, icon:editResource.icon, url:editResource.url }) });
+    const data = await res.json();
+    if (data.resource) { setResources(r=>r.map(x=>x.id===editResource.id?data.resource:x)); setEditResource(null); }
+    setLoad("editResource", false);
+  };
+
+  // ── Video: save edit ───────────────────────────────────────────────────────
+  const handleSaveVideo = async () => {
+    if (!editVideo) return;
+    setLoad("editVideo", true);
+    const res = await fetch("/api/admin/videos", { method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ videoId:editVideo.id, title:editVideo.title, subject:editVideo.subject, duration:editVideo.duration, thumbnail:editVideo.thumbnail, videoUrl:editVideo.videoUrl }) });
+    const data = await res.json();
+    if (data.video) { setVideos(v=>v.map(x=>x.id===editVideo.id?data.video:x)); setEditVideo(null); }
+    setLoad("editVideo", false);
   };
 
   // ── Save settings ─────────────────────────────────────────────────────────
@@ -265,6 +308,152 @@ export default function AdminDashboard() {
         </div>
       </aside>
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={()=>setSidebarOpen(false)}/>}
+
+      {/* ── Edit Course Modal ── */}
+      {editCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={()=>setEditCourse(null)}/>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2"><BookOpen size={18} className="text-blue-600"/> Edit Course</h3>
+              <button onClick={()=>setEditCourse(null)} className="text-gray-400 hover:text-gray-700"><X size={20}/></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Course Name</label>
+                <input value={editCourse.name} onChange={e=>setEditCourse(p=>p?{...p,name:e.target.value}:null)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+                <textarea value={editCourse.description} onChange={e=>setEditCourse(p=>p?{...p,description:e.target.value}:null)} rows={3}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Price (₹/month)</label>
+                <input type="number" value={editCourse.price} onChange={e=>setEditCourse(p=>p?{...p,price:parseInt(e.target.value)||0}:null)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={()=>setEditCourse(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={handleSaveCourse} disabled={loading["editCourse"]}
+                className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                {loading["editCourse"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Changes</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Resource Modal ── */}
+      {editResource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={()=>setEditResource(null)}/>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 z-10">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-blue-600"/> Edit Resource</h3>
+              <button onClick={()=>setEditResource(null)} className="text-gray-400 hover:text-gray-700"><X size={20}/></button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Title</label>
+                  <input value={editResource.title} onChange={e=>setEditResource(p=>p?{...p,title:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Subject</label>
+                  <select value={editResource.subject} onChange={e=>setEditResource(p=>p?{...p,subject:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none">
+                    {["Phonics","Mathematics","English Grammar","Science","General"].map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Type</label>
+                  <select value={editResource.type} onChange={e=>setEditResource(p=>p?{...p,type:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none">
+                    {["PDF","Image","Link"].map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Icon (emoji)</label>
+                  <input value={editResource.icon} onChange={e=>setEditResource(p=>p?{...p,icon:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-center focus:outline-none"/>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">File Size</label>
+                  <input value={editResource.size} onChange={e=>setEditResource(p=>p?{...p,size:e.target.value}:null)} placeholder="2.4 MB"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none"/>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Download / View URL</label>
+                <input value={editResource.url} onChange={e=>setEditResource(p=>p?{...p,url:e.target.value}:null)} placeholder="https://…"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={()=>setEditResource(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={handleSaveResource} disabled={loading["editResource"]}
+                className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                {loading["editResource"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Changes</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Video Modal ── */}
+      {editVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={()=>setEditVideo(null)}/>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 z-10">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2"><PlayCircle size={18} className="text-blue-600"/> Edit Video Lesson</h3>
+              <button onClick={()=>setEditVideo(null)} className="text-gray-400 hover:text-gray-700"><X size={20}/></button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Title</label>
+                  <input value={editVideo.title} onChange={e=>setEditVideo(p=>p?{...p,title:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Subject</label>
+                  <select value={editVideo.subject} onChange={e=>setEditVideo(p=>p?{...p,subject:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none">
+                    {["Phonics","Mathematics","English Grammar","Science","General"].map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Duration</label>
+                  <input value={editVideo.duration} onChange={e=>setEditVideo(p=>p?{...p,duration:e.target.value}:null)} placeholder="14:30"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none"/>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Thumbnail (emoji)</label>
+                  <input value={editVideo.thumbnail} onChange={e=>setEditVideo(p=>p?{...p,thumbnail:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-center focus:outline-none"/>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Video URL (YouTube, Drive, etc.)</label>
+                <input value={editVideo.videoUrl} onChange={e=>setEditVideo(p=>p?{...p,videoUrl:e.target.value}:null)} placeholder="https://youtube.com/watch?v=…"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={()=>setEditVideo(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={handleSaveVideo} disabled={loading["editVideo"]}
+                className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                {loading["editVideo"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Changes</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main ── */}
       <div className="flex-1 lg:ml-64 min-h-screen flex flex-col">
@@ -489,7 +678,10 @@ export default function AdminDashboard() {
                             </button>
                           </td>
                           <td className="px-5 py-4">
-                            <button className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Edit2 size={14}/></button>
+                            <div className="flex items-center gap-1.5">
+                              <button onClick={()=>setEditCourse(c)} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit"><Edit2 size={14}/></button>
+                              <button onClick={()=>handleDeleteCourse(c.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={14}/></button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -826,7 +1018,10 @@ export default function AdminDashboard() {
                                 </button>
                               </td>
                               <td className="px-5 py-4">
-                                <button onClick={()=>handleDeleteResource(r.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors"><Trash2 size={14}/></button>
+                                <div className="flex items-center gap-1.5">
+                                  <button onClick={()=>setEditResource(r)} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit"><Edit2 size={14}/></button>
+                                  <button onClick={()=>handleDeleteResource(r.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={14}/></button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -908,7 +1103,10 @@ export default function AdminDashboard() {
                                 </button>
                               </td>
                               <td className="px-5 py-4">
-                                <button onClick={()=>handleDeleteVideo(v.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors"><Trash2 size={14}/></button>
+                                <div className="flex items-center gap-1.5">
+                                  <button onClick={()=>setEditVideo(v)} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit"><Edit2 size={14}/></button>
+                                  <button onClick={()=>handleDeleteVideo(v.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={14}/></button>
+                                </div>
                               </td>
                             </tr>
                           ))}
