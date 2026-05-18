@@ -101,13 +101,14 @@ export default function HeroSection() {
 
               {/* Main image card */}
               <div className="rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
-                <div className="aspect-[4/3] relative bg-gray-100">
+                <div className="aspect-[4/3] relative" style={{ background: "linear-gradient(135deg, #1a3fa8 0%, #2d5be3 50%, #6c4ec4 100%)" }}>
                   <Image
                     src="/hero-child.jpg"
                     alt="Child learning online with Zippy Minds"
                     fill
                     className="object-cover object-center"
                     priority
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 </div>
               </div>
