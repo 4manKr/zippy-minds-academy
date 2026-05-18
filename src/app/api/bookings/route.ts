@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const {
       childName, childAge, grade, timezone, subject,
       tutorName, tutorInitials, date, timeSlot,
-      notes, monthlyPrice, parentName, parentEmail,
+      notes, monthlyPrice, parentName, parentEmail, otp,
     } = body;
 
     if (!childName || !subject || !date || !timeSlot) {
@@ -24,6 +24,17 @@ export async function POST(req: NextRequest) {
     const resolvedParentName  = parentName  || session.name  || "Guest";
     const resolvedParentEmail = parentEmail || session.email || "guest@zippy.com";
     const resolvedTimezone    = timezone    || "Asia/Kolkata";
+
+    // ── Verify OTP if provided (guest booking) ────────────────────────────
+    if (otp && !session.isLoggedIn) {
+      const record = await prisma.otpCode.findFirst({
+        where: { email: resolvedParentEmail, code: otp, used: false },
+        orderBy: { createdAt: "desc" },
+      });
+      if (!record) return NextResponse.json({ error: "Invalid verification code." }, { status: 400 });
+      if (new Date() > record.expiresAt) return NextResponse.json({ error: "Code expired. Please request a new one." }, { status: 400 });
+      await prisma.otpCode.update({ where: { id: record.id }, data: { used: true } });
+    }
 
     // ── Step 1: Create the booking (without zoom link first) ───────────────
     const booking = await prisma.booking.create({

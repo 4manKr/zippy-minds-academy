@@ -50,11 +50,14 @@ const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const dates    = [19, 20, 21, 22, 23, 24, 25];
 
 export default function BookDemoPage() {
-  const [step, setStep]             = useState<Step>(1);
-  const [confirmed, setConfirmed]   = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  const [step, setStep]               = useState<Step>(1);
+  const [confirmed, setConfirmed]     = useState(false);
+  const [confirming, setConfirming]   = useState(false);
   const [bookingError, setBookingError] = useState("");
+  const [otpPhase, setOtpPhase]       = useState<"idle" | "sent" | "verifying">("idle");
+  const [otp, setOtp]                 = useState("");
   const [form, setForm] = useState({
+    parentName: "", parentEmail: "",
     childName: "", childAge: "", grade: "",
     timezone: "Asia/Kolkata", subject: "",
     selectedDate: 20, selectedSlot: null as number | null,
@@ -74,14 +77,39 @@ export default function BookDemoPage() {
   const nextStep = () => setStep((s) => Math.min(4, s + 1) as Step);
   const prevStep = () => setStep((s) => Math.max(1, s - 1) as Step);
 
-  const handleConfirm = async () => {
+  // Step 1: send OTP to parent email
+  const handleSendOtp = async () => {
+    if (!form.parentEmail) { setBookingError("Please enter your email address."); return; }
     setConfirming(true);
+    setBookingError("");
+    try {
+      const res = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.parentEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setOtpPhase("sent");
+    } catch (e: unknown) {
+      setBookingError(e instanceof Error ? e.message : "Failed to send code.");
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  // Step 2: verify OTP + create booking
+  const handleConfirm = async () => {
+    if (!otp || otp.length < 6) { setBookingError("Enter the 6-digit code sent to your email."); return; }
+    setConfirming(true);
+    setOtpPhase("verifying");
     setBookingError("");
     try {
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          parentName: form.parentName, parentEmail: form.parentEmail, otp,
           childName: form.childName, childAge: form.childAge, grade: form.grade,
           timezone: form.timezone, subject: form.subject,
           tutorName: assignedTutor.name, tutorInitials: assignedTutor.initials,
@@ -93,6 +121,7 @@ export default function BookDemoPage() {
       if (!res.ok) throw new Error(data.error);
       setConfirmed(true);
     } catch (e: unknown) {
+      setOtpPhase("sent");
       setBookingError(e instanceof Error ? e.message : "Booking failed. Please try again.");
     } finally {
       setConfirming(false);
@@ -203,6 +232,18 @@ export default function BookDemoPage() {
                 <User size={22} className="text-primary" /> Tell us about your child
               </h2>
               <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-on-surface mb-1.5">Your Name (Parent)</label>
+                    <input type="text" placeholder="e.g. John Smith" value={form.parentName}
+                      onChange={(e) => setForm({ ...form, parentName: e.target.value })} className="input-field" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-on-surface mb-1.5">Your Email</label>
+                    <input type="email" placeholder="you@example.com" value={form.parentEmail}
+                      onChange={(e) => setForm({ ...form, parentEmail: e.target.value })} className="input-field" required />
+                  </div>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-on-surface mb-1.5">Child&apos;s Full Name</label>
                   <input type="text" placeholder="e.g. Alex Smith" value={form.childName}
@@ -396,16 +437,41 @@ export default function BookDemoPage() {
             </div>
           )}
 
+          {/* OTP verification inline (step 4 only) */}
+          {step === 4 && otpPhase === "sent" && (
+            <div className="mt-5 bg-primary/5 border border-primary/20 rounded-2xl p-5">
+              <p className="text-sm font-semibold text-on-surface mb-1 flex items-center gap-2">
+                <CheckCircle size={16} className="text-primary" /> Code sent to {form.parentEmail}
+              </p>
+              <p className="text-xs text-on-surface-variant mb-3">Enter the 6-digit code to confirm your booking</p>
+              <input
+                type="text" inputMode="numeric" maxLength={6} placeholder="123456"
+                value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                className="input-field text-center text-xl font-bold tracking-[0.4em] py-3 mb-2"
+              />
+              <button onClick={() => { setOtpPhase("idle"); setOtp(""); }}
+                className="text-xs text-on-surface-variant hover:text-primary">
+                ✉ Resend code
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mt-8 pt-6 border-t border-outline-variant/30">
-            <button onClick={prevStep} disabled={step === 1} className="btn-ghost disabled:opacity-40 disabled:cursor-not-allowed">
+            <button onClick={prevStep} disabled={step === 1 || otpPhase !== "idle"} className="btn-ghost disabled:opacity-40 disabled:cursor-not-allowed">
               ← Back
             </button>
             {step < 4 ? (
               <button onClick={nextStep} className="btn-primary">
                 Continue <ChevronRight size={18} />
               </button>
+            ) : otpPhase === "idle" ? (
+              <button onClick={handleSendOtp} disabled={confirming} className="btn-primary px-8 disabled:opacity-60">
+                {confirming
+                  ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  : <><span>Send Verification Code</span><ChevronRight size={18} /></>}
+              </button>
             ) : (
-              <button onClick={handleConfirm} disabled={confirming} className="btn-primary px-8 disabled:opacity-60">
+              <button onClick={handleConfirm} disabled={confirming || otp.length < 6} className="btn-primary px-8 disabled:opacity-60">
                 {confirming
                   ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   : <><span>Confirm Booking</span><CheckCircle size={18} /></>}
