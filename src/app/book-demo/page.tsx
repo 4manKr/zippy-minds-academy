@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   CheckCircle, ChevronRight, User, BookOpen, Calendar,
@@ -56,10 +56,16 @@ export default function BookDemoPage() {
   const [bookingError, setBookingError] = useState("");
   const [form, setForm] = useState({
     childName: "", childAge: "", grade: "",
-    timezone: "America/New_York", subject: "",
+    timezone: "Asia/Kolkata", subject: "",
     selectedDate: 20, selectedSlot: null as number | null,
     notes: "",
   });
+
+  // Auto-detect browser timezone on mount
+  useEffect(() => {
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (detected) setForm((f) => ({ ...f, timezone: detected }));
+  }, []);
 
   const assignedTutor      = tutorPool[form.subject] ?? DEFAULT_TUTOR;
   const selectedSlotLabel  = timeSlots.find((s) => s.id === form.selectedSlot)?.time ?? "Not selected";
