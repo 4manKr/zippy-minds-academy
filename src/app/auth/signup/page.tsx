@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, CheckCircle } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, CheckCircle, ShieldCheck } from "lucide-react";
 
 const benefits = [
   "Free 30-minute demo session",
@@ -15,12 +15,37 @@ const benefits = [
 
 export default function SignupPage() {
   const router = useRouter();
+  const [step, setStep]               = useState<"form" | "verify">("form");
   const [showPassword, setShowPassword] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [form, setForm]               = useState({ name: "", email: "", phone: "", password: "" });
+  const [otp, setOtp]                 = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState("");
+  const [resending, setResending]     = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Step 1 — validate form + send OTP
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setStep("verify");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to send code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2 — verify OTP + create account
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -28,7 +53,7 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, otp }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -37,6 +62,20 @@ export default function SignupPage() {
       setError(e instanceof Error ? e.message : "Signup failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResending(true);
+    setError("");
+    try {
+      await fetch("/api/auth/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+    } finally {
+      setResending(false);
     }
   };
 
@@ -70,77 +109,133 @@ export default function SignupPage() {
 
         {/* Right form */}
         <div className="bg-surface-container-lowest rounded-3xl shadow-card-hover p-8 md:p-10 border border-outline-variant">
-          <div className="flex flex-col items-center mb-7 lg:items-start">
-            <h1 className="font-display text-2xl font-bold text-on-surface">Create your account</h1>
-            <p className="text-on-surface-variant text-sm mt-1">Free to join · No credit card required</p>
-          </div>
 
-          {error && (
-            <div className="bg-error-container text-error rounded-xl px-4 py-2.5 text-sm font-medium mb-4">
-              {error}
-            </div>
-          )}
+          {step === "form" ? (
+            <>
+              <div className="flex flex-col items-center mb-7 lg:items-start">
+                <h1 className="font-display text-2xl font-bold text-on-surface">Create your account</h1>
+                <p className="text-on-surface-variant text-sm mt-1">Free to join · No credit card required</p>
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-on-surface mb-1.5">Full Name</label>
-              <div className="relative">
-                <User size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                <input type="text" placeholder="Your full name" value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="input-field pl-11" required />
+              {error && (
+                <div className="bg-error-container text-error rounded-xl px-4 py-2.5 text-sm font-medium mb-4">{error}</div>
+              )}
+
+              <form onSubmit={handleSendOtp} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-on-surface mb-1.5">Full Name</label>
+                  <div className="relative">
+                    <User size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <input type="text" placeholder="Your full name" value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      className="input-field pl-11" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-on-surface mb-1.5">Email Address</label>
+                  <div className="relative">
+                    <Mail size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <input type="email" placeholder="you@example.com" value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      className="input-field pl-11" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-on-surface mb-1.5">Phone Number <span className="text-on-surface-variant font-normal">(optional)</span></label>
+                  <div className="relative">
+                    <Phone size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <input type="tel" placeholder="+91 98765 43210" value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      className="input-field pl-11" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-on-surface mb-1.5">Password</label>
+                  <div className="relative">
+                    <Lock size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <input type={showPassword ? "text" : "password"} placeholder="Min. 8 characters"
+                      value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      className="input-field pl-11 pr-11" required minLength={8} />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant">
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-xs text-on-surface-variant">
+                  By signing up, you agree to our{" "}
+                  <Link href="/terms" className="text-primary hover:underline">Terms</Link> and{" "}
+                  <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+                </p>
+
+                <button type="submit" disabled={loading}
+                  className="w-full btn-primary justify-center py-3.5 text-base disabled:opacity-60">
+                  {loading
+                    ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><span>Send Verification Code</span><ArrowRight size={18} /></>}
+                </button>
+              </form>
+
+              <p className="text-center text-sm text-on-surface-variant mt-5">
+                Already have an account?{" "}
+                <Link href="/auth/login" className="font-semibold text-primary hover:underline">Sign in</Link>
+              </p>
+            </>
+          ) : (
+            <>
+              {/* OTP verification step */}
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <ShieldCheck size={30} className="text-primary" />
+                </div>
+                <h1 className="font-display text-2xl font-bold text-on-surface">Verify your email</h1>
+                <p className="text-on-surface-variant text-sm mt-2">
+                  We sent a 6-digit code to<br />
+                  <span className="font-semibold text-on-surface">{form.email}</span>
+                </p>
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-on-surface mb-1.5">Email Address</label>
-              <div className="relative">
-                <Mail size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                <input type="email" placeholder="you@example.com" value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="input-field pl-11" required />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-on-surface mb-1.5">Phone Number <span className="text-on-surface-variant font-normal">(optional)</span></label>
-              <div className="relative">
-                <Phone size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                <input type="tel" placeholder="+1 234 567 8900" value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="input-field pl-11" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-on-surface mb-1.5">Password</label>
-              <div className="relative">
-                <Lock size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                <input type={showPassword ? "text" : "password"} placeholder="Min. 8 characters"
-                  value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="input-field pl-11 pr-11" required />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant">
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+
+              {error && (
+                <div className="bg-error-container text-error rounded-xl px-4 py-2.5 text-sm font-medium mb-4">{error}</div>
+              )}
+
+              <form onSubmit={handleVerify} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-on-surface mb-1.5 text-center">Enter 6-digit code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    className="input-field text-center text-2xl font-bold tracking-[0.5em] py-4"
+                    required
+                  />
+                </div>
+
+                <button type="submit" disabled={loading || otp.length < 6}
+                  className="w-full btn-primary justify-center py-3.5 text-base disabled:opacity-60">
+                  {loading
+                    ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><ShieldCheck size={18} /><span>Verify & Create Account</span></>}
+                </button>
+              </form>
+
+              <div className="text-center mt-5 space-y-2">
+                <button onClick={handleResend} disabled={resending}
+                  className="text-sm text-primary hover:underline disabled:opacity-50">
+                  {resending ? "Sending..." : "Resend code"}
+                </button>
+                <br />
+                <button onClick={() => { setStep("form"); setError(""); setOtp(""); }}
+                  className="text-sm text-on-surface-variant hover:text-on-surface">
+                  ← Change email
                 </button>
               </div>
-            </div>
-
-            <p className="text-xs text-on-surface-variant">
-              By signing up, you agree to our{" "}
-              <Link href="/terms" className="text-primary hover:underline">Terms</Link> and{" "}
-              <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
-            </p>
-
-            <button type="submit" disabled={loading}
-              className="w-full btn-primary justify-center py-3.5 text-base disabled:opacity-60">
-              {loading
-                ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <><span>Create Account</span><ArrowRight size={18} /></>}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-on-surface-variant mt-5">
-            Already have an account?{" "}
-            <Link href="/auth/login" className="font-semibold text-primary hover:underline">Sign in</Link>
-          </p>
+            </>
+          )}
         </div>
       </div>
     </div>
