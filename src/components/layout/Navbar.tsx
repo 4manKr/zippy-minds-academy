@@ -19,11 +19,11 @@ export default function Navbar() {
 
   return (
     <header className="bg-surface/90 backdrop-blur-md sticky top-0 z-50 border-b border-outline-variant shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16 flex items-center justify-between h-20 md:h-24">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16 flex items-center justify-between h-16 md:h-18">
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <div className="relative w-16 h-16 md:w-20 md:h-20">
+          <div className="relative w-12 h-12 md:w-14 md:h-14">
             <Image src="/zippy-logo.jpeg" alt="Zippy Minds Academy" fill className="object-contain" priority />
           </div>
         </Link>

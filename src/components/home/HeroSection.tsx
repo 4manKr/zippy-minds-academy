@@ -72,44 +72,35 @@ export default function HeroSection() {
 
           {/* ── Right ── */}
           <div className="relative hidden lg:flex items-center justify-center py-10">
-            {/* Yellow backing card — offset bottom-right */}
-            <div className="absolute bottom-4 right-0 w-[88%] h-[88%] bg-secondary-container rounded-3xl z-0" />
+            {/* Yellow backing card — offset top-right */}
+            <div className="absolute top-4 right-0 w-[88%] h-[88%] bg-secondary-container rounded-3xl z-0" />
 
-            {/* Wrapper: extra top space for the LIVE badge to float above */}
-            <div className="relative z-10 w-[88%] pt-10">
+            {/* Main image card */}
+            <div className="relative z-10 w-[88%] rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
+              <div className="aspect-[4/3] relative" style={{ background: "linear-gradient(135deg, #1a3fa8 0%, #2d5be3 50%, #6c4ec4 100%)" }}>
 
-              {/* ── LIVE badge — floats ABOVE the image ── */}
-              <div className="absolute -top-1 left-6 right-6 z-20">
-                <div className="bg-white/95 backdrop-blur-md rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-2xl border border-white/80">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 bg-[#2d8cff] rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-                        <path d="M15 10l4.553-2.277A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14v-4zM3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
-                      </svg>
+                {/* Subtle gradient fade at bottom */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent z-10" />
+
+                {/* Live Session floating card — bottom */}
+                <div className="absolute bottom-5 left-5 right-5 z-20">
+                  <div className="bg-white/85 backdrop-blur-md rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-xl border border-white/60">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 bg-[#2d8cff] rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
+                          <path d="M15 10l4.553-2.277A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14v-4zM3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-on-surface leading-none">Live Session</p>
+                        <p className="text-xs text-on-surface-variant mt-0.5">Active Now</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-on-surface leading-none">Live Session</p>
-                      <p className="text-xs text-on-surface-variant mt-0.5">Active Now</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-red-500 font-bold text-sm tracking-wide">REC</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-red-500 font-bold text-sm tracking-wide">LIVE</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Main image card */}
-              <div className="rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
-                <div className="aspect-[4/3] relative" style={{ background: "linear-gradient(135deg, #1a3fa8 0%, #2d5be3 50%, #6c4ec4 100%)" }}>
-                  <Image
-                    src="/hero-child.jpg"
-                    alt="Child learning online with Zippy Minds"
-                    fill
-                    className="object-cover object-center"
-                    priority
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                  />
                 </div>
               </div>
             </div>
