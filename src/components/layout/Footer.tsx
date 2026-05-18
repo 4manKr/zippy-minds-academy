@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Mail, Phone, MapPin, Facebook, Twitter, Instagram, Linkedin, Youtube, ArrowRight } from "lucide-react";
+import { Mail, Phone, Globe, Facebook, Twitter, Instagram, Linkedin, Youtube, ArrowRight } from "lucide-react";
 
 const footerLinks = {
   Platform: [
@@ -82,19 +82,20 @@ export default function Footer() {
                 </div>
                 hello@zippymindsacademy.com
               </a>
-              <a href="tel:+919999999999"
+              <a href="tel:+919311483555"
                 className="flex items-center gap-3 text-sm text-white/60 hover:text-yellow-300 transition-colors group">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-yellow-400/20 transition-colors shrink-0">
                   <Phone size={14} className="text-yellow-400" />
                 </div>
-                +91 99999 99999
+                +91 93114 83555
               </a>
-              <div className="flex items-center gap-3 text-sm text-white/60">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                  <MapPin size={14} className="text-yellow-400" />
+              <a href="https://www.zippymindsacademy.com" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-3 text-sm text-white/60 hover:text-yellow-300 transition-colors group">
+                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-yellow-400/20 transition-colors shrink-0">
+                  <Globe size={14} className="text-yellow-400" />
                 </div>
-                New Delhi, India · Available Worldwide
-              </div>
+                www.zippymindsacademy.com
+              </a>
             </div>
 
             {/* Socials */}

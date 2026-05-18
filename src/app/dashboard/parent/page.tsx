@@ -10,7 +10,7 @@ import {
   FileText, Download, BookMarked, BarChart2, ChevronDown,
   Zap, Bell, Menu, X, User, Phone, Mail, IndianRupee,
   MessageSquare, Send, AlertCircle, ChevronLeft, RefreshCw,
-  Lock, Unlock, XCircle,
+  Lock, Unlock, XCircle, FolderOpen, ExternalLink,
 } from "lucide-react";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
@@ -44,6 +44,12 @@ interface Resource {
 interface VideoLesson {
   id: string; title: string; subject: string; duration: string;
   thumbnail: string; videoUrl: string; views: number; status: string;
+}
+
+interface TutorMaterial {
+  id: string; tutorName: string; studentName: string; subject: string;
+  title: string; fileUrl: string; fileType: string; fileSize: string;
+  notes: string; createdAt: string;
 }
 
 const FAQS = [
@@ -104,9 +110,10 @@ export default function ParentDashboard() {
   const [user, setUser]               = useState<UserInfo | null>(null);
   const [bookings, setBookings]       = useState<Booking[]>([]);
   const [tickets, setTickets]         = useState<Ticket[]>([]);
-  const [resources, setResources]     = useState<Resource[]>([]);
-  const [videos, setVideos]           = useState<VideoLesson[]>([]);
-  const [loading, setLoading]         = useState(true);
+  const [resources, setResources]         = useState<Resource[]>([]);
+  const [videos, setVideos]               = useState<VideoLesson[]>([]);
+  const [tutorMaterials, setTutorMaterials] = useState<TutorMaterial[]>([]);
+  const [loading, setLoading]             = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Schedule filters
@@ -140,7 +147,8 @@ export default function ParentDashboard() {
       fetch("/api/parent/support").then(r => r.json()),
       fetch("/api/parent/resources").then(r => r.json()),
       fetch("/api/parent/videos").then(r => r.json()),
-    ]).then(([profileData, bookingData, ticketData, resourceData, videoData]) => {
+      fetch("/api/parent/materials").then(r => r.json()),
+    ]).then(([profileData, bookingData, ticketData, resourceData, videoData, matData]) => {
       if (profileData.user) {
         setUser(profileData.user);
         setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
@@ -149,6 +157,7 @@ export default function ParentDashboard() {
       if (ticketData.tickets)      setTickets(ticketData.tickets);
       if (resourceData.resources)  setResources(resourceData.resources);
       if (videoData.videos)        setVideos(videoData.videos);
+      if (matData.materials)       setTutorMaterials(matData.materials);
     }).catch(() => {
       router.push("/auth/login");
     }).finally(() => setLoading(false));
@@ -799,6 +808,79 @@ export default function ParentDashboard() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </section>
+
+            {/* From Your Tutor — personalised materials */}
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display font-bold text-on-surface text-base flex items-center gap-2">
+                  <FolderOpen size={18} className="text-primary" /> From Your Tutor
+                  {tutorMaterials.length > 0 && (
+                    <span className="text-xs font-normal text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">
+                      {tutorMaterials.length} file{tutorMaterials.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {tutorMaterials.length > 0 && (
+                    <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">New</span>
+                  )}
+                </h3>
+              </div>
+              {tutorMaterials.length === 0 ? (
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-8 text-center">
+                  <p className="text-3xl mb-3">📬</p>
+                  <p className="font-semibold text-on-surface mb-1">No tutor materials yet</p>
+                  <p className="text-sm text-on-surface-variant">Your tutor will upload worksheets, notes and resources here directly for your child.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {tutorMaterials.map(m => {
+                    const subjectStyle = getSubjectStyle(m.subject);
+                    const fileIcon = m.fileType === "PDF" ? "📄" : m.fileType === "Image" ? "🖼️" : "📋";
+                    return (
+                      <div key={m.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-card-hover transition-shadow">
+                        {/* Icon */}
+                        <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-2xl shrink-0">{fileIcon}</div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="font-semibold text-on-surface text-sm">{m.title}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant">{m.fileType}</span>
+                            {m.subject && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subjectStyle.bg} ${subjectStyle.color}`}>
+                                {subjectStyle.icon} {m.subject}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-on-surface-variant">
+                            👤 From: <strong>{m.tutorName}</strong>
+                            {" · "}👦 For: <strong>{m.studentName}</strong>
+                            {m.fileSize && <> · {m.fileSize}</>}
+                            {" · "}{new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                          </p>
+                          {m.notes && (
+                            <p className="text-xs text-primary/70 mt-1 italic flex items-center gap-1">
+                              <MessageSquare size={10} /> {m.notes}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2 shrink-0">
+                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-primary/10 hover:text-primary hover:border-primary transition-all text-xs font-semibold">
+                            <ExternalLink size={13} /> View
+                          </a>
+                          <a href={m.fileUrl} download
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-all text-xs font-semibold">
+                            <Download size={13} /> Download
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </section>

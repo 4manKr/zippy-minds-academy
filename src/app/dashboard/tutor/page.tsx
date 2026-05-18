@@ -6,14 +6,22 @@ import Link from "next/link";
 import {
   LayoutDashboard, Calendar, Users, CreditCard, User, Settings,
   LogOut, Menu, X, Video, Clock, CheckCircle, AlertTriangle,
-  ChevronRight, TrendingUp, Search, Bell, Star, BookOpen,
-  IndianRupee, Flame, Target, Phone, Mail, Lock, Save,
-  AlertCircle, Plus, FileText, Eye, XCircle, RefreshCw,
-  MessageSquare, Award, BarChart2,
+  ChevronRight, TrendingUp, Search, Star, BookOpen,
+  IndianRupee, Phone, Mail, Lock, Save,
+  AlertCircle, Plus, FileText, XCircle,
+  MessageSquare, Award, BarChart2, Upload, Trash2, Download,
+  FolderOpen, ExternalLink,
 } from "lucide-react";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
-type Section = "dashboard" | "sessions" | "students" | "earnings" | "profile";
+type Section = "dashboard" | "sessions" | "students" | "earnings" | "materials" | "profile";
+
+interface TMaterial {
+  id: string; tutorName: string; tutorEmail: string;
+  studentName: string; subject: string; title: string;
+  fileUrl: string; fileType: string; fileSize: string;
+  notes: string; createdAt: string;
+}
 
 interface TSession {
   id: string; childName: string; subject: string; date: string;
@@ -80,6 +88,15 @@ export default function TutorDashboard() {
   const [noteText, setNoteText]   = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
 
+  // Materials
+  const [materials, setMaterials]           = useState<TMaterial[]>([]);
+  const [matStudentFilter, setMatStudentFilter] = useState<string>("All");
+  const [matUploading, setMatUploading]     = useState(false);
+  const [matUploadMsg, setMatUploadMsg]     = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [matForm, setMatForm]               = useState({ studentName: "", subject: "", title: "", notes: "" });
+  const [matFile, setMatFile]               = useState<File | null>(null);
+  const [showMatForm, setShowMatForm]       = useState(false);
+
   const todayTip = TIPS[new Date().getDay() % TIPS.length];
 
   /* ── Data loading ── */
@@ -87,12 +104,14 @@ export default function TutorDashboard() {
     Promise.all([
       fetch("/api/auth/profile").then(r => r.json()),
       fetch("/api/tutor/sessions").then(r => r.json()),
-    ]).then(([profileData, sessData]) => {
+      fetch("/api/tutor/materials").then(r => r.json()),
+    ]).then(([profileData, sessData, matData]) => {
       if (profileData.user) {
         setUser(profileData.user);
         setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
       }
       if (sessData.sessions) setSessions(sessData.sessions);
+      if (matData.materials) setMaterials(matData.materials);
     }).catch(() => router.push("/auth/login"))
       .finally(() => setLoading(false));
   }, [router]);
@@ -188,13 +207,69 @@ export default function TutorDashboard() {
     setNoteSaving(false);
   };
 
+  const handleUploadMaterial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!matFile || !matForm.studentName.trim() || !matForm.title.trim()) {
+      setMatUploadMsg({ type: "err", text: "Please fill in student name, title and select a file." });
+      return;
+    }
+    setMatUploading(true); setMatUploadMsg(null);
+    try {
+      // Step 1: upload file to blob
+      const fd = new FormData();
+      fd.append("file", matFile);
+      const uploadRes = await fetch("/api/tutor/materials/upload", { method: "POST", body: fd });
+      const uploadData = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(uploadData.error ?? "Upload failed");
+
+      // Step 2: save material record
+      const res = await fetch("/api/tutor/materials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentName: matForm.studentName.trim(),
+          subject:     matForm.subject.trim(),
+          title:       matForm.title.trim(),
+          notes:       matForm.notes.trim(),
+          fileUrl:     uploadData.url,
+          fileType:    uploadData.type?.includes("pdf") ? "PDF" : uploadData.type?.includes("image") ? "Image" : "Doc",
+          fileSize:    uploadData.size,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Save failed");
+
+      setMaterials(prev => [data.material, ...prev]);
+      setMatForm({ studentName: "", subject: "", title: "", notes: "" });
+      setMatFile(null);
+      setShowMatForm(false);
+      setMatUploadMsg({ type: "ok", text: "Material uploaded successfully!" });
+      setTimeout(() => setMatUploadMsg(null), 3000);
+    } catch (err) {
+      setMatUploadMsg({ type: "err", text: (err as Error).message ?? "Upload failed." });
+    } finally {
+      setMatUploading(false);
+    }
+  };
+
+  const handleDeleteMaterial = async (materialId: string) => {
+    if (!confirm("Delete this material? The student will no longer see it.")) return;
+    const res = await fetch("/api/tutor/materials", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ materialId }),
+    });
+    if (res.ok) setMaterials(prev => prev.filter(m => m.id !== materialId));
+  };
+
   /* ── Nav ── */
   const navItems: { id: Section; icon: React.ElementType; label: string }[] = [
-    { id: "dashboard", icon: LayoutDashboard, label: "Dashboard"  },
-    { id: "sessions",  icon: Calendar,        label: "My Sessions" },
-    { id: "students",  icon: Users,           label: "Students"    },
-    { id: "earnings",  icon: IndianRupee,     label: "Earnings"    },
-    { id: "profile",   icon: User,            label: "My Profile"  },
+    { id: "dashboard", icon: LayoutDashboard, label: "Dashboard"   },
+    { id: "sessions",  icon: Calendar,        label: "My Sessions"  },
+    { id: "students",  icon: Users,           label: "Students"     },
+    { id: "earnings",  icon: IndianRupee,     label: "Earnings"     },
+    { id: "materials", icon: FolderOpen,      label: "Materials"    },
+    { id: "profile",   icon: User,            label: "My Profile"   },
   ];
 
   /* ── Sidebar ── */
@@ -763,6 +838,227 @@ export default function TutorDashboard() {
                 Payments are processed monthly by Zippy Minds. For queries contact <strong>accounts@zippymindsacademy.com</strong>
               </p>
             </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════
+            SECTION: MATERIALS
+        ══════════════════════════════════════════ */}
+        {section === "materials" && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="font-display text-2xl font-extrabold text-on-surface">Student Materials</h2>
+                <p className="text-sm text-on-surface-variant mt-1">
+                  Upload PDFs, worksheets and resources for your students
+                </p>
+              </div>
+              <button onClick={() => { setShowMatForm(v => !v); setMatUploadMsg(null); }}
+                className="btn-primary flex items-center gap-2 shrink-0">
+                <Upload size={16} /> Upload Material
+              </button>
+            </div>
+
+            {/* Success/error banner */}
+            {matUploadMsg && (
+              <div className={`flex items-center gap-3 rounded-2xl px-5 py-3.5 ${
+                matUploadMsg.type === "ok" ? "bg-green-50 border border-green-200 text-green-800" : "bg-red-50 border border-red-200 text-red-800"
+              }`}>
+                {matUploadMsg.type === "ok" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+                <span className="text-sm font-semibold">{matUploadMsg.text}</span>
+              </div>
+            )}
+
+            {/* Upload Form */}
+            {showMatForm && (
+              <div className="bg-surface-container-lowest rounded-2xl border border-primary/20 shadow-card p-6">
+                <h3 className="font-display font-bold text-on-surface mb-5 flex items-center gap-2">
+                  <Upload size={18} className="text-primary" /> New Material
+                </h3>
+                <form onSubmit={handleUploadMaterial} className="space-y-4">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-1.5">Student Name <span className="text-red-500">*</span></label>
+                      <input
+                        list="student-names-list"
+                        value={matForm.studentName}
+                        onChange={e => setMatForm(f => ({ ...f, studentName: e.target.value }))}
+                        placeholder="Type or pick a student name"
+                        className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                        required
+                      />
+                      <datalist id="student-names-list">
+                        {Object.keys(studentMap).map(n => <option key={n} value={n} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-1.5">Subject</label>
+                      <input
+                        list="subject-list"
+                        value={matForm.subject}
+                        onChange={e => setMatForm(f => ({ ...f, subject: e.target.value }))}
+                        placeholder="e.g. Mathematics"
+                        className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      />
+                      <datalist id="subject-list">
+                        {Object.keys(subjectMap).map(s => <option key={s} value={s} />)}
+                      </datalist>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-on-surface mb-1.5">Material Title <span className="text-red-500">*</span></label>
+                    <input
+                      value={matForm.title}
+                      onChange={e => setMatForm(f => ({ ...f, title: e.target.value }))}
+                      placeholder="e.g. Week 3 — Multiplication Practice Sheet"
+                      className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-on-surface mb-1.5">Notes (optional)</label>
+                    <textarea
+                      rows={2}
+                      value={matForm.notes}
+                      onChange={e => setMatForm(f => ({ ...f, notes: e.target.value }))}
+                      placeholder="Any instructions for the student or parent…"
+                      className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-on-surface mb-1.5">File <span className="text-red-500">*</span></label>
+                    <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${matFile ? "border-primary bg-primary/5" : "border-outline-variant hover:border-primary/50"}`}>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp"
+                        className="hidden"
+                        id="mat-file-input"
+                        onChange={e => setMatFile(e.target.files?.[0] ?? null)}
+                      />
+                      <label htmlFor="mat-file-input" className="cursor-pointer flex flex-col items-center gap-2">
+                        {matFile ? (
+                          <>
+                            <FileText size={28} className="text-primary" />
+                            <span className="text-sm font-semibold text-primary">{matFile.name}</span>
+                            <span className="text-xs text-on-surface-variant">{(matFile.size / 1024).toFixed(0)} KB · Click to change</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={28} className="text-on-surface-variant" />
+                            <span className="text-sm font-semibold text-on-surface">Click to choose file</span>
+                            <span className="text-xs text-on-surface-variant">PDF, Word, PPT, or image · Max 10 MB</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-1">
+                    <button type="button" onClick={() => setShowMatForm(false)}
+                      className="flex-1 py-3 rounded-xl border border-outline-variant text-on-surface-variant font-semibold text-sm hover:bg-surface-container transition-colors">
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={matUploading} className="flex-1 btn-primary disabled:opacity-60 justify-center">
+                      {matUploading ? (
+                        <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Uploading…</>
+                      ) : (
+                        <><Upload size={15} /> Upload</>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[
+                { label: "Total Files",   value: materials.length,                                          icon: FileText,  color: "text-primary",    bg: "bg-primary/10"  },
+                { label: "PDFs",          value: materials.filter(m => m.fileType === "PDF").length,        icon: FileText,  color: "text-red-600",    bg: "bg-red-50"      },
+                { label: "Images",        value: materials.filter(m => m.fileType === "Image").length,      icon: Star,      color: "text-blue-600",   bg: "bg-blue-50"     },
+                { label: "Students",      value: new Set(materials.map(m => m.studentName)).size,           icon: Users,     color: "text-green-600",  bg: "bg-green-50"    },
+              ].map(({ label, value, icon: Icon, color, bg }) => (
+                <div key={label} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-4 shadow-card">
+                  <div className={`w-9 h-9 ${bg} rounded-xl flex items-center justify-center mb-2`}><Icon size={18} className={color} /></div>
+                  <p className="text-xl font-bold text-on-surface font-display">{value}</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Student filter pills */}
+            {materials.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {["All", ...Array.from(new Set(materials.map(m => m.studentName)))].map(name => (
+                  <button key={name} onClick={() => setMatStudentFilter(name)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                      matStudentFilter === name ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                    }`}>
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Materials list */}
+            {materials.length === 0 ? (
+              <EmptyState icon="📁" title="No materials uploaded yet"
+                desc="Upload PDFs, worksheets and resources for your students. They will be able to view and download them from their Learning Center." />
+            ) : (
+              <div className="space-y-3">
+                {materials
+                  .filter(m => matStudentFilter === "All" || m.studentName === matStudentFilter)
+                  .map(m => {
+                    const fileIcon = m.fileType === "PDF" ? "📄" : m.fileType === "Image" ? "🖼️" : "📋";
+                    const subjectStyle = getSubjectStyle(m.subject);
+                    return (
+                      <div key={m.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                        {/* Icon */}
+                        <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                          {fileIcon}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="font-bold text-on-surface text-sm">{m.title}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant">{m.fileType}</span>
+                            {m.subject && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subjectStyle.bg} ${subjectStyle.color}`}>
+                                {subjectStyle.icon} {m.subject}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-on-surface-variant">
+                            👦 <strong>{m.studentName}</strong>
+                            {m.fileSize && <> · {m.fileSize}</>}
+                            · {fmtDate(m.createdAt)}
+                          </p>
+                          {m.notes && (
+                            <p className="text-xs text-primary/70 mt-1 italic">{m.notes}</p>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2 shrink-0">
+                          <a href={m.fileUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-primary/10 hover:text-primary hover:border-primary transition-all text-xs font-semibold">
+                            <ExternalLink size={13} /> View
+                          </a>
+                          <a href={m.fileUrl} download
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-all text-xs font-semibold">
+                            <Download size={13} /> Download
+                          </a>
+                          <button onClick={() => handleDeleteMaterial(m.id)}
+                            className="p-2 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         )}
 

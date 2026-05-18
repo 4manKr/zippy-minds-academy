@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, Phone, MapPin, Clock, Send, MessageSquare, CheckCircle } from "lucide-react";
+import { Mail, Phone, Globe, Clock, Send, MessageSquare, CheckCircle } from "lucide-react";
 
 const contactInfo = [
-  { icon: Mail,  title: "Email Us",      detail: "hello@zippymindsacademy.com", sub: "Reply within 4 hours" },
-  { icon: Phone, title: "Call Us",       detail: "+91 99999 99999",             sub: "Mon–Sat, 9 AM–8 PM IST" },
-  { icon: MapPin, title: "Head Office",  detail: "New Delhi, India",            sub: "Serving students globally" },
-  { icon: Clock, title: "Support Hours", detail: "24/7 for urgent issues",      sub: "Standard: Mon–Sat 9–8 IST" },
+  { icon: Mail,  title: "Email Us",      detail: "hello@zippymindsacademy.com", sub: "Reply within 4 hours",         href: "mailto:hello@zippymindsacademy.com" },
+  { icon: Phone, title: "Call / WhatsApp",detail: "+91 93114 83555",            sub: "Mon–Sat, 9 AM–8 PM IST",       href: "tel:+919311483555" },
+  { icon: Globe, title: "Website",       detail: "www.zippymindsacademy.com",   sub: "Explore all courses & tutors", href: "https://www.zippymindsacademy.com" },
+  { icon: Clock, title: "Support Hours", detail: "24/7 for urgent issues",      sub: "Standard: Mon–Sat 9–8 IST",    href: undefined },
 ];
 
 export default function ContactPage() {
@@ -53,9 +53,9 @@ export default function ContactPage() {
                className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-white/20 transition-all">
               <Mail size={14} /> hello@zippymindsacademy.com
             </a>
-            <a href="tel:+919999999999"
+            <a href="tel:+919311483555"
                className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-white/20 transition-all">
-              <Phone size={14} /> +91 99999 99999
+              <Phone size={14} /> +91 93114 83555
             </a>
             <span className="inline-flex items-center gap-2 bg-secondary-container/20 border border-secondary-container/30 text-secondary-container text-sm font-semibold px-4 py-2 rounded-full">
               <Clock size={14} /> 24/7 Support
@@ -72,14 +72,21 @@ export default function ContactPage() {
           {/* Info cards */}
           <div className="lg:col-span-2 space-y-4">
             <h2 className="font-display text-xl font-bold text-on-surface mb-6">Get in touch</h2>
-            {contactInfo.map(({ icon: Icon, title, detail, sub }) => (
-              <div key={title} className="flex items-start gap-4 p-5 bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card">
+            {contactInfo.map(({ icon: Icon, title, detail, sub, href }) => (
+              <div key={title} className="flex items-start gap-4 p-5 bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card hover:shadow-card-hover transition-shadow">
                 <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center text-on-primary shrink-0">
                   <Icon size={20} />
                 </div>
                 <div>
                   <p className="font-semibold text-on-surface">{title}</p>
-                  <p className="text-primary text-sm font-medium">{detail}</p>
+                  {href ? (
+                    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer"
+                      className="text-primary text-sm font-medium hover:underline">
+                      {detail}
+                    </a>
+                  ) : (
+                    <p className="text-primary text-sm font-medium">{detail}</p>
+                  )}
                   <p className="text-xs text-on-surface-variant">{sub}</p>
                 </div>
               </div>

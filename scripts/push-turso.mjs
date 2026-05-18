@@ -123,7 +123,7 @@ const statements = [
   ["Seed platform settings", `INSERT OR IGNORE INTO "PlatformSetting" ("id","key","value") VALUES
     ('ps1','siteName','Zippy Minds Academy'),
     ('ps2','contactEmail','hello@zippymindsacademy.com'),
-    ('ps3','phone','+91 99999 99999'),
+    ('ps3','phone','+91 93114 83555'),
     ('ps4','zoomEnabled','true'),
     ('ps5','emailNotifications','true'),
     ('ps6','autoApprove','false'),
@@ -167,6 +167,21 @@ const statements = [
     ('r6','Multiplication Tables Poster','Image','Mathematics','0.5 MB','🖼️','','active'),
     ('r7','Sight Words Flash Cards','PDF','Phonics','1.2 MB','📄','','active'),
     ('r8','Creative Writing Prompts','PDF','English Grammar','0.9 MB','📄','','active')`],
+
+  // ── TutorMaterial table ───────────────────────────────────────────────────
+  ["TutorMaterial table", `CREATE TABLE IF NOT EXISTS "TutorMaterial" (
+    "id"          TEXT NOT NULL PRIMARY KEY,
+    "tutorName"   TEXT NOT NULL,
+    "tutorEmail"  TEXT NOT NULL DEFAULT '',
+    "studentName" TEXT NOT NULL,
+    "subject"     TEXT NOT NULL DEFAULT '',
+    "title"       TEXT NOT NULL,
+    "fileUrl"     TEXT NOT NULL,
+    "fileType"    TEXT NOT NULL DEFAULT 'PDF',
+    "fileSize"    TEXT NOT NULL DEFAULT '',
+    "notes"       TEXT NOT NULL DEFAULT '',
+    "createdAt"   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`],
 
   // ── Seed video lessons ────────────────────────────────────────────────────
   ["Seed videos", `INSERT OR IGNORE INTO "VideoLesson" ("id","title","subject","duration","thumbnail","videoUrl","views","status") VALUES
