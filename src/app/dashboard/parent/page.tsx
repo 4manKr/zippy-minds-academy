@@ -1,132 +1,322 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Star, ChevronRight, Plus, Settings, LogOut, LayoutDashboard,
   Calendar, BookOpen, CreditCard, HelpCircle, CheckCircle,
   Video, Clock, Flame, Trophy, Target, TrendingUp, PlayCircle,
-  FileText, Download, BookMarked, BarChart2, ChevronLeft,
-  Zap, Bell, Menu, X, RefreshCw,
+  FileText, Download, BookMarked, BarChart2, ChevronDown,
+  Zap, Bell, Menu, X, User, Phone, Mail, IndianRupee,
+  MessageSquare, Send, AlertCircle, ChevronLeft, RefreshCw,
+  Lock, Unlock, XCircle,
 } from "lucide-react";
 
-type Section = "dashboard" | "schedule" | "learning";
+/* ─── Types ─────────────────────────────────────────────────────────────── */
+
+type Section = "dashboard" | "schedule" | "learning" | "payments" | "support";
 
 interface Booking {
   id: string; childName: string; subject: string; tutorName: string;
   date: string; timeSlot: string; status: string; monthlyPrice: number;
   zoomLink?: string | null; notes?: string; createdAt?: string;
+  parentName?: string; parentEmail?: string;
 }
-interface UserInfo { name: string; email: string; role: string; }
 
-// ── Learning resources data ─────────────────────────────────────────────────
-const subjectProgress = [
-  { subject: "Phonics",         progress: 65, color: "from-pink-400 to-rose-500",     sessions: 8,  icon: "🔤" },
-  { subject: "Mathematics",     progress: 48, color: "from-purple-400 to-purple-600", sessions: 5,  icon: "🔢" },
-  { subject: "English Grammar", progress: 80, color: "from-blue-400 to-blue-600",     sessions: 12, icon: "📝" },
-  { subject: "Science",         progress: 30, color: "from-green-400 to-emerald-500", sessions: 3,  icon: "🔬" },
+interface UserInfo {
+  id: string; name: string; email: string; phone?: string | null;
+  role: string; createdAt?: string;
+}
+
+interface Ticket {
+  id: string; subject: string; message: string; priority: string;
+  status: string; reply?: string | null; createdAt: string;
+}
+
+/* ─── Static content (resources, videos — intentionally static) ─────────── */
+
+const RESOURCES = [
+  { title: "Phonics Workbook — Level 1",     type: "PDF",   subject: "Phonics",         size: "2.4 MB", icon: "📄" },
+  { title: "Number Patterns Practice Sheet", type: "PDF",   subject: "Mathematics",     size: "1.1 MB", icon: "📄" },
+  { title: "Grammar Rules Cheat Sheet",      type: "PDF",   subject: "English Grammar", size: "0.8 MB", icon: "📄" },
+  { title: "Reading Comprehension Pack",     type: "PDF",   subject: "English Grammar", size: "3.2 MB", icon: "📄" },
+  { title: "Science Experiments at Home",    type: "PDF",   subject: "Science",         size: "1.7 MB", icon: "📄" },
+  { title: "Multiplication Tables Poster",   type: "Image", subject: "Mathematics",     size: "0.5 MB", icon: "🖼️" },
 ];
 
-const resources = [
-  { title: "Phonics Workbook — Level 1",      type: "PDF",   subject: "Phonics",         size: "2.4 MB", icon: "📄" },
-  { title: "Number Patterns Practice Sheet",   type: "PDF",   subject: "Mathematics",     size: "1.1 MB", icon: "📄" },
-  { title: "Grammar Rules Cheat Sheet",        type: "PDF",   subject: "English Grammar", size: "0.8 MB", icon: "📄" },
-  { title: "Reading Comprehension Pack",       type: "PDF",   subject: "English Grammar", size: "3.2 MB", icon: "📄" },
-  { title: "Science Experiments at Home",      type: "PDF",   subject: "Science",         size: "1.7 MB", icon: "📄" },
-  { title: "Multiplication Tables Poster",     type: "Image", subject: "Mathematics",     size: "0.5 MB", icon: "🖼️" },
+const VIDEO_LESSONS = [
+  { title: "Introduction to Letter Sounds", subject: "Phonics",         duration: "12:30", thumb: "🔤", views: "2.1k" },
+  { title: "Blending CVC Words",            subject: "Phonics",         duration: "15:45", thumb: "🔤", views: "1.8k" },
+  { title: "Place Value Explained Simply",  subject: "Mathematics",     duration: "18:20", thumb: "🔢", views: "3.4k" },
+  { title: "Parts of Speech — Fun Way",     subject: "English Grammar", duration: "14:10", thumb: "📝", views: "2.7k" },
+  { title: "Solar System for Kids",         subject: "Science",         duration: "20:00", thumb: "🔬", views: "4.1k" },
+  { title: "Creative Story Writing Tips",   subject: "English Grammar", duration: "11:55", thumb: "✍️", views: "1.5k" },
 ];
 
-const videoLessons = [
-  { title: "Introduction to Letter Sounds",   subject: "Phonics",         duration: "12:30", thumbnail: "🔤", views: "2.1k" },
-  { title: "Blending CVC Words",              subject: "Phonics",         duration: "15:45", thumbnail: "🔤", views: "1.8k" },
-  { title: "Place Value Explained Simply",    subject: "Mathematics",     duration: "18:20", thumbnail: "🔢", views: "3.4k" },
-  { title: "Parts of Speech — Fun Way",       subject: "English Grammar", duration: "14:10", thumbnail: "📝", views: "2.7k" },
-  { title: "Solar System for Kids",           subject: "Science",         duration: "20:00", thumbnail: "🔬", views: "4.1k" },
-  { title: "Creative Story Writing Tips",     subject: "English Grammar", duration: "11:55", thumbnail: "✍️", views: "1.5k" },
+const FAQS = [
+  { q: "How do I join my Zoom session?",           a: "Click the 'Join Zoom' button next to your confirmed session. The link is active 10 minutes before the session starts." },
+  { q: "Can I reschedule a booking?",              a: "Yes! Please contact support at least 24 hours before your session and we'll arrange a new slot with your tutor." },
+  { q: "How long is a demo session?",              a: "Free demo sessions are 30 minutes. Regular sessions are 60 minutes." },
+  { q: "What subjects do you teach?",              a: "We offer Phonics, Mathematics, English Grammar, Science, and many more subjects for KG to Grade 8." },
+  { q: "How do I track my child's progress?",      a: "Visit the Learning Center section to see subject-by-subject progress tracked from your session history." },
+  { q: "What if my tutor doesn't show up?",        a: "Raise a support ticket immediately and we'll reschedule at no cost and apply a credit to your account." },
 ];
 
-const achievements = [
-  { title: "First Session",   icon: "🎯", desc: "Completed your first demo",   earned: true  },
-  { title: "Quick Learner",   icon: "⚡", desc: "5 sessions in one week",       earned: true  },
-  { title: "Star Student",    icon: "⭐", desc: "10 sessions completed",        earned: false },
-  { title: "Consistent",      icon: "🔥", desc: "7-day streak",                 earned: false },
-  { title: "Subject Master",  icon: "🏆", desc: "Complete a full subject path", earned: false },
-  { title: "Reading Champ",   icon: "📚", desc: "Read 5 resource PDFs",         earned: false },
-];
+/* ─── Helpers ───────────────────────────────────────────────────────────── */
 
-const assignments = [
-  { title: "Phonics Worksheet — Set A",  subject: "Phonics",     due: "Tomorrow",  status: "pending"  },
-  { title: "Counting to 100 — Practice", subject: "Mathematics", due: "In 3 days", status: "pending"  },
-  { title: "Write a Short Paragraph",    subject: "English",     due: "Completed",  status: "done"     },
-  { title: "Name 5 Animals with Sounds", subject: "Phonics",     due: "Completed",  status: "done"     },
-];
+function getSubjectStyle(subject: string) {
+  const map: Record<string, { color: string; bg: string; gradient: string; icon: string }> = {
+    "Phonics":         { color: "text-pink-600",   bg: "bg-pink-50",   gradient: "from-pink-400 to-rose-500",     icon: "🔤" },
+    "Mathematics":     { color: "text-purple-600", bg: "bg-purple-50", gradient: "from-purple-400 to-purple-600", icon: "🔢" },
+    "English Grammar": { color: "text-blue-600",   bg: "bg-blue-50",   gradient: "from-blue-400 to-blue-600",     icon: "📝" },
+    "Science":         { color: "text-green-600",  bg: "bg-green-50",  gradient: "from-green-400 to-emerald-500", icon: "🔬" },
+  };
+  return map[subject] ?? { color: "text-orange-600", bg: "bg-orange-50", gradient: "from-orange-400 to-amber-500", icon: "📚" };
+}
+
+function calculateStreak(bookings: Booking[]): number {
+  const confirmed = bookings.filter(b => b.status === "CONFIRMED");
+  if (!confirmed.length) return 0;
+  const parsed = confirmed.map(b => {
+    const d = new Date(b.date);
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }).filter(Boolean) as number[];
+  if (!parsed.length) return 0;
+  const unique = [...new Set(parsed)].sort((a, b) => b - a);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let streak = 0; let cur = today.getTime();
+  for (const ts of unique) {
+    if (ts === cur) { streak++; cur -= 86400000; }
+    else if (ts < cur) break;
+  }
+  return streak;
+}
+
+function fmtDate(iso?: string) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+══════════════════════════════════════════════════════════════════════════════ */
 
 export default function ParentDashboard() {
   const router = useRouter();
-  const [section, setSection]       = useState<Section>("dashboard");
-  const [user, setUser]             = useState<UserInfo | null>(null);
-  const [bookings, setBookings]     = useState<Booking[]>([]);
-  const [loading, setLoading]       = useState(true);
+
+  /* ── State ── */
+  const [section, setSection]         = useState<Section>("dashboard");
+  const [user, setUser]               = useState<UserInfo | null>(null);
+  const [bookings, setBookings]       = useState<Booking[]>([]);
+  const [tickets, setTickets]         = useState<Ticket[]>([]);
+  const [loading, setLoading]         = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Schedule filters
+  const [scheduleTab, setScheduleTab] = useState<"upcoming" | "confirmed" | "cancelled">("upcoming");
+
+  // Learning
   const [subjectFilter, setSubjectFilter] = useState("All");
 
+  // Cancel booking
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  // Support form
+  const [ticketForm, setTicketForm]     = useState({ subject: "", message: "", priority: "medium" });
+  const [ticketSending, setTicketSending] = useState(false);
+  const [ticketDone, setTicketDone]     = useState(false);
+  const [ticketError, setTicketError]   = useState("");
+  const [supportTab, setSupportTab]     = useState<"new" | "history" | "faq">("new");
+  const [expandedFaq, setExpandedFaq]   = useState<number | null>(null);
+
+  // Profile modal
+  const [profileOpen, setProfileOpen]   = useState(false);
+  const [profileForm, setProfileForm]   = useState({ name: "", phone: "" });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg]     = useState("");
+
+  /* ── Data loading ── */
   useEffect(() => {
     Promise.all([
-      fetch("/api/auth/me").then(r => r.json()),
+      fetch("/api/auth/profile").then(r => r.json()),
       fetch("/api/bookings").then(r => r.json()),
-    ]).then(([userData, bookingData]) => {
-      if (userData.user)      setUser(userData.user);
-      if (bookingData.bookings) setBookings(bookingData.bookings);
+      fetch("/api/parent/support").then(r => r.json()),
+    ]).then(([profileData, bookingData, ticketData]) => {
+      if (profileData.user) {
+        setUser(profileData.user);
+        setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
+      }
+      if (bookingData.bookings)  setBookings(bookingData.bookings);
+      if (ticketData.tickets)    setTickets(ticketData.tickets);
+    }).catch(() => {
+      // If not authenticated, redirect
+      router.push("/auth/login");
     }).finally(() => setLoading(false));
-  }, []);
+  }, [router]);
 
+  /* ── Derived data ── */
+  const totalSessions     = bookings.length;
+  const confirmedSessions = bookings.filter(b => b.status === "CONFIRMED").length;
+  const streak            = useMemo(() => calculateStreak(bookings), [bookings]);
+  const nextSession       = bookings.find(b => b.status !== "CANCELLED") ?? null;
+
+  // Subject breakdown from real bookings
+  const subjectMap = useMemo(() =>
+    bookings.reduce((acc, b) => {
+      acc[b.subject] = (acc[b.subject] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>),
+  [bookings]);
+
+  const subjectData = useMemo(() =>
+    Object.entries(subjectMap)
+      .sort((a, b) => b[1] - a[1])
+      .map(([subject, count]) => ({
+        subject, sessions: count,
+        progress: Math.min(Math.round((count / 20) * 100), 100),
+        ...getSubjectStyle(subject),
+      })),
+  [subjectMap]);
+
+  // Achievements from real data
+  const achievements = useMemo(() => [
+    { title: "First Session",  icon: "🎯", desc: "Completed your first booking",       earned: totalSessions >= 1 },
+    { title: "Quick Learner",  icon: "⚡", desc: "5 sessions booked",                  earned: totalSessions >= 5 },
+    { title: "Star Student",   icon: "⭐", desc: "10 confirmed sessions",              earned: confirmedSessions >= 10 },
+    { title: "On Fire!",       icon: "🔥", desc: "3+ day active streak",               earned: streak >= 3 },
+    { title: "Subject Master", icon: "🏆", desc: "20 sessions in one subject",         earned: Object.values(subjectMap).some(v => v >= 20) },
+    { title: "Explorer",       icon: "🌍", desc: "Tried 3 or more subjects",           earned: Object.keys(subjectMap).length >= 3 },
+  ], [totalSessions, confirmedSessions, streak, subjectMap]);
+
+  // Schedule filtered lists
+  const filteredBookings = useMemo(() => {
+    if (scheduleTab === "upcoming")  return bookings.filter(b => b.status !== "CANCELLED");
+    if (scheduleTab === "confirmed") return bookings.filter(b => b.status === "CONFIRMED");
+    return bookings.filter(b => b.status === "CANCELLED");
+  }, [bookings, scheduleTab]);
+
+  // Payments data
+  const totalMonthly   = bookings.filter(b => b.status === "CONFIRMED" && b.monthlyPrice > 0)
+                                  .reduce((a, b) => a + b.monthlyPrice, 0);
+  const freeDemos      = bookings.filter(b => b.monthlyPrice === 0).length;
+  const paidSessions   = bookings.filter(b => b.monthlyPrice > 0).length;
+
+  /* ── Handlers ── */
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/auth/login");
   };
 
-  const upcomingBookings = bookings.filter(b => b.status !== "CANCELLED");
-  const nextSession      = upcomingBookings[0] ?? null;
-  const totalSessions    = bookings.length;
-  const confirmedSessions = bookings.filter(b => b.status === "CONFIRMED").length;
+  const handleCancel = async (bookingId: string) => {
+    if (!confirm("Cancel this booking?")) return;
+    setCancellingId(bookingId);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId, status: "CANCELLED" }),
+      });
+      if (res.ok) {
+        setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: "CANCELLED" } : b));
+      }
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
-  const navItems = [
-    { id: "dashboard" as Section, icon: LayoutDashboard, label: "Dashboard"      },
-    { id: "schedule"  as Section, icon: Calendar,        label: "Schedule"       },
-    { id: "learning"  as Section, icon: BookOpen,        label: "Learning Center"},
-    { id: null,                   icon: CreditCard,      label: "Payments"       },
-    { id: null,                   icon: HelpCircle,      label: "Support"        },
+  const handleTicketSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ticketForm.subject.trim() || !ticketForm.message.trim()) {
+      setTicketError("Please fill in subject and message.");
+      return;
+    }
+    setTicketSending(true); setTicketError("");
+    try {
+      const res = await fetch("/api/parent/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(ticketForm),
+      });
+      const data = await res.json();
+      if (res.ok && data.ticket) {
+        setTickets(prev => [data.ticket, ...prev]);
+        setTicketForm({ subject: "", message: "", priority: "medium" });
+        setTicketDone(true);
+        setSupportTab("history");
+        setTimeout(() => setTicketDone(false), 4000);
+      } else {
+        setTicketError(data.error ?? "Failed to submit ticket.");
+      }
+    } catch {
+      setTicketError("Network error. Please try again.");
+    } finally {
+      setTicketSending(false);
+    }
+  };
+
+  const handleProfileSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSaving(true); setProfileMsg("");
+    try {
+      const res = await fetch("/api/auth/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profileForm),
+      });
+      const data = await res.json();
+      if (res.ok && data.user) {
+        setUser(data.user);
+        setProfileMsg("Profile updated successfully!");
+        setTimeout(() => { setProfileMsg(""); setProfileOpen(false); }, 1800);
+      } else {
+        setProfileMsg(data.error ?? "Failed to update.");
+      }
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  /* ── Nav items ── */
+  const navItems: { id: Section; icon: React.ElementType; label: string }[] = [
+    { id: "dashboard", icon: LayoutDashboard, label: "Dashboard"       },
+    { id: "schedule",  icon: Calendar,        label: "Schedule"        },
+    { id: "learning",  icon: BookOpen,        label: "Learning Center" },
+    { id: "payments",  icon: CreditCard,      label: "Payments"        },
+    { id: "support",   icon: HelpCircle,      label: "Support"         },
   ];
 
+  /* ── Sidebar ── */
   const SidebarContent = () => (
     <>
       <div className="px-6 mb-6 mt-2">
-        <h1 className="font-display font-bold text-primary text-lg leading-none">{user?.name ?? "Explorer"}</h1>
-        <p className="text-xs text-on-surface-variant mt-0.5">{user?.email ?? "Parent Account"}</p>
-        <div className="flex items-center gap-1.5 mt-2">
-          <Flame size={13} className="text-orange-500" />
-          <span className="text-xs font-semibold text-on-surface-variant">3 day streak 🔥</span>
+        <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-xl mb-3">
+          {user?.name?.[0]?.toUpperCase() ?? "P"}
         </div>
+        <h1 className="font-display font-bold text-primary text-lg leading-none">{user?.name ?? "Parent"}</h1>
+        <p className="text-xs text-on-surface-variant mt-0.5 truncate">{user?.email ?? ""}</p>
+        {streak > 0 && (
+          <div className="flex items-center gap-1.5 mt-2">
+            <Flame size={13} className="text-orange-500" />
+            <span className="text-xs font-semibold text-on-surface-variant">{streak} day streak 🔥</span>
+          </div>
+        )}
       </div>
 
       <nav className="flex flex-col flex-grow gap-0.5 px-2">
-        {navItems.map((item) => {
+        {navItems.map(item => {
           const Icon = item.icon;
           const isActive = item.id === section;
-          const isDisabled = item.id === null;
-          if (isDisabled) {
-            return (
-              <span key={item.label} className="sidebar-link opacity-40 cursor-not-allowed select-none">
-                <Icon size={18} /><span>{item.label}</span>
-                <span className="ml-auto text-[10px] bg-surface-container px-1.5 py-0.5 rounded-full">Soon</span>
-              </span>
-            );
-          }
           return (
-            <button key={item.label} onClick={() => { setSection(item.id!); setSidebarOpen(false); }}
+            <button key={item.id}
+              onClick={() => { setSection(item.id); setSidebarOpen(false); }}
               className={isActive ? "sidebar-link-active" : "sidebar-link"}>
               <Icon size={18} /><span>{item.label}</span>
+              {item.id === "support" && tickets.some(t => t.status === "open" && t.reply) && (
+                <span className="ml-auto w-2 h-2 rounded-full bg-primary" />
+              )}
             </button>
           );
         })}
@@ -137,11 +327,21 @@ export default function ParentDashboard() {
           className="w-full bg-primary text-on-primary font-bold rounded-full py-3 shadow-md flex items-center justify-center gap-2 text-sm hover:bg-primary/90 transition-colors">
           <Plus size={16} /> Book New Session
         </Link>
-        <button className="sidebar-link w-full text-left"><Settings size={18} /> Settings</button>
+        <button onClick={() => { setProfileOpen(true); setSidebarOpen(false); }}
+          className="sidebar-link w-full text-left"><Settings size={18} /> Edit Profile</button>
         <button onClick={handleLogout} className="sidebar-link w-full text-left"><LogOut size={18} /> Sign Out</button>
       </div>
     </>
   );
+
+  /* ── Loading screen ── */
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface flex">
@@ -173,10 +373,10 @@ export default function ParentDashboard() {
             <Menu size={20} />
           </button>
           <span className="font-display font-bold text-primary text-base">
-            {section === "dashboard" ? "Dashboard" : section === "schedule" ? "Schedule" : "Learning Center"}
+            {navItems.find(n => n.id === section)?.label ?? "Dashboard"}
           </span>
-          <button className="p-2 rounded-xl bg-surface-container border border-outline-variant">
-            <Bell size={18} />
+          <button onClick={() => setProfileOpen(true)} className="p-2 rounded-xl bg-surface-container border border-outline-variant">
+            <User size={18} />
           </button>
         </div>
 
@@ -196,17 +396,17 @@ export default function ParentDashboard() {
                 </p>
               </div>
               <Link href="/book-demo" className="btn-primary self-start sm:self-auto whitespace-nowrap">
-                <Plus size={16} /> Book Demo
+                <Plus size={16} /> Book Session
               </Link>
             </div>
 
-            {/* Stats row */}
+            {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Total Sessions",    value: totalSessions,      icon: Calendar,   color: "text-primary",    bg: "bg-primary/10"      },
-                { label: "Confirmed",         value: confirmedSessions,  icon: CheckCircle,color: "text-green-600",  bg: "bg-green-50"        },
-                { label: "Streak",            value: "3 days 🔥",        icon: Flame,      color: "text-orange-500", bg: "bg-orange-50"       },
-                { label: "Subjects Active",   value: subjectProgress.length, icon: BookOpen,color: "text-purple-600", bg: "bg-purple-50"    },
+                { label: "Total Sessions",  value: totalSessions,             icon: Calendar,    color: "text-primary",    bg: "bg-primary/10"      },
+                { label: "Confirmed",        value: confirmedSessions,          icon: CheckCircle, color: "text-green-600",  bg: "bg-green-50"        },
+                { label: "Day Streak",       value: streak > 0 ? `${streak} 🔥` : "–", icon: Flame, color: "text-orange-500", bg: "bg-orange-50" },
+                { label: "Subjects Active",  value: Object.keys(subjectMap).length || "–", icon: BookOpen, color: "text-purple-600", bg: "bg-purple-50" },
               ].map(({ label, value, icon: Icon, color, bg }) => (
                 <div key={label} className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-4 shadow-card">
                   <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}>
@@ -220,34 +420,31 @@ export default function ParentDashboard() {
 
             {/* Next session + progress */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
               {/* Next session */}
               <div className="lg:col-span-2 bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
                 <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
                   <Calendar size={18} className="text-primary" /> Next Session
                 </h3>
                 {nextSession ? (
-                  <div className="flex flex-col sm:flex-row gap-5 items-start">
+                  <div className="flex flex-col sm:flex-row gap-5">
                     <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-lg font-bold text-on-surface">{nextSession.subject}</span>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                          nextSession.status === "CONFIRMED"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-yellow-100 text-yellow-700"
+                          nextSession.status === "CONFIRMED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
                         }`}>{nextSession.status}</span>
                       </div>
-                      <p className="text-sm text-on-surface-variant">👤 {nextSession.tutorName}</p>
-                      <p className="text-sm text-on-surface-variant">👦 {nextSession.childName}</p>
+                      <p className="text-sm text-on-surface-variant">👤 Tutor: {nextSession.tutorName}</p>
+                      <p className="text-sm text-on-surface-variant">👦 Student: {nextSession.childName}</p>
                       <div className="flex flex-wrap gap-3 text-xs text-on-surface-variant mt-1">
-                        <span className="flex items-center gap-1"><Calendar size={11} className="text-primary" /> {nextSession.date}</span>
-                        <span className="flex items-center gap-1"><Clock size={11} className="text-primary" /> {nextSession.timeSlot}</span>
+                        <span className="flex items-center gap-1"><Calendar size={11} className="text-primary" />{nextSession.date}</span>
+                        <span className="flex items-center gap-1"><Clock size={11} className="text-primary" />{nextSession.timeSlot}</span>
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2 sm:items-end">
+                    <div className="flex flex-col gap-2 sm:items-end shrink-0">
                       {nextSession.zoomLink ? (
                         <a href={nextSession.zoomLink} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-white text-sm transition-all hover:opacity-90"
+                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-white text-sm hover:opacity-90 transition-all"
                           style={{ backgroundColor: "#2D8CFF" }}>
                           <Video size={15} /> Join Zoom
                         </a>
@@ -258,39 +455,40 @@ export default function ParentDashboard() {
                       )}
                       <button onClick={() => setSection("schedule")}
                         className="text-xs text-primary hover:underline flex items-center gap-1">
-                        View all sessions <ChevronRight size={12} />
+                        View all <ChevronRight size={12} />
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center py-8 text-center">
-                    <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mb-3 text-2xl">📅</div>
-                    <p className="font-semibold text-on-surface mb-1">No sessions yet</p>
-                    <p className="text-sm text-on-surface-variant mb-4">Book your free demo to get started!</p>
-                    <Link href="/book-demo" className="btn-primary text-sm px-6 py-2.5">Book Free Demo</Link>
-                  </div>
+                  <EmptyState icon="📅" title="No sessions yet"
+                    desc="Book your free demo to get started!"
+                    action={<Link href="/book-demo" className="btn-primary text-sm px-6 py-2.5">Book Free Demo</Link>} />
                 )}
               </div>
 
-              {/* Quick learning progress */}
+              {/* Subject progress preview */}
               <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
                 <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
                   <TrendingUp size={18} className="text-primary" /> Progress
                 </h3>
-                <div className="space-y-4">
-                  {subjectProgress.slice(0, 3).map((s) => (
-                    <div key={s.subject}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-semibold text-on-surface">{s.icon} {s.subject}</span>
-                        <span className="text-xs font-bold text-primary">{s.progress}%</span>
+                {subjectData.length > 0 ? (
+                  <div className="space-y-4">
+                    {subjectData.slice(0, 3).map(s => (
+                      <div key={s.subject}>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs font-semibold text-on-surface">{s.icon} {s.subject}</span>
+                          <span className="text-xs font-bold text-primary">{s.progress}%</span>
+                        </div>
+                        <div className="h-2 bg-surface-container rounded-full overflow-hidden">
+                          <div className={`h-full bg-gradient-to-r ${s.gradient} rounded-full transition-all`}
+                            style={{ width: `${s.progress}%` }} />
+                        </div>
                       </div>
-                      <div className="h-2 bg-surface-container rounded-full overflow-hidden">
-                        <div className={`h-full bg-gradient-to-r ${s.color} rounded-full transition-all`}
-                          style={{ width: `${s.progress}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-on-surface-variant text-center py-4">Progress will appear once you complete sessions.</p>
+                )}
                 <button onClick={() => setSection("learning")}
                   className="mt-4 text-xs text-primary hover:underline flex items-center gap-1">
                   Full Learning Center <ChevronRight size={12} />
@@ -298,20 +496,20 @@ export default function ParentDashboard() {
               </div>
             </div>
 
-            {/* All bookings list */}
+            {/* Recent bookings */}
             {bookings.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-display font-bold text-on-surface text-base flex items-center gap-2">
-                    <Video size={18} className="text-primary" /> Your Sessions
+                    <Video size={18} className="text-primary" /> Recent Sessions
                   </h3>
                   <button onClick={() => setSection("schedule")} className="text-xs text-primary hover:underline flex items-center gap-1">
                     View all <ChevronRight size={12} />
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {bookings.slice(0, 3).map((b) => (
-                    <BookingCard key={b.id} booking={b} />
+                  {bookings.slice(0, 3).map(b => (
+                    <BookingCard key={b.id} booking={b} onCancel={handleCancel} cancelling={cancellingId === b.id} />
                   ))}
                 </div>
               </div>
@@ -320,10 +518,10 @@ export default function ParentDashboard() {
             {/* Quick actions */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Book Session",    icon: Plus,        color: "bg-primary/10 text-primary",       action: () => router.push("/book-demo") },
-                { label: "My Schedule",     icon: Calendar,    color: "bg-blue-50 text-blue-600",          action: () => setSection("schedule")   },
-                { label: "Study Materials", icon: BookOpen,    color: "bg-purple-50 text-purple-600",      action: () => setSection("learning")   },
-                { label: "My Progress",     icon: BarChart2,   color: "bg-green-50 text-green-600",        action: () => setSection("learning")   },
+                { label: "Book Session",    icon: Plus,        color: "bg-primary/10 text-primary",     action: () => router.push("/book-demo") },
+                { label: "My Schedule",     icon: Calendar,    color: "bg-blue-50 text-blue-600",        action: () => setSection("schedule")   },
+                { label: "Study Materials", icon: BookOpen,    color: "bg-purple-50 text-purple-600",    action: () => setSection("learning")   },
+                { label: "Get Support",     icon: HelpCircle,  color: "bg-orange-50 text-orange-600",    action: () => setSection("support")    },
               ].map(({ label, icon: Icon, color, action }) => (
                 <button key={label} onClick={action}
                   className="flex flex-col items-center gap-2 p-4 bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all text-center">
@@ -345,77 +543,79 @@ export default function ParentDashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h2 className="font-display text-2xl font-extrabold text-on-surface">My Schedule</h2>
-                <p className="text-sm text-on-surface-variant mt-1">All your booked and upcoming sessions</p>
+                <p className="text-sm text-on-surface-variant mt-1">{bookings.length} total bookings</p>
               </div>
               <Link href="/book-demo" className="btn-primary self-start sm:self-auto whitespace-nowrap">
                 <Plus size={16} /> Book New Session
               </Link>
             </div>
 
-            {/* Weekly overview strip */}
+            {/* Week strip */}
             <WeekStrip bookings={bookings} />
 
-            {/* Upcoming sessions */}
-            <div>
-              <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
-                <Zap size={16} className="text-primary" /> Upcoming Sessions
-              </h3>
-              {loading ? (
-                <div className="flex justify-center py-12">
-                  <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                </div>
-              ) : upcomingBookings.length === 0 ? (
-                <EmptyState
-                  icon="📅"
-                  title="No sessions booked yet"
-                  desc="Book a free demo session to get started!"
-                  action={<Link href="/book-demo" className="btn-primary text-sm px-6 py-2.5">Book Free Demo</Link>}
-                />
-              ) : (
-                <div className="space-y-3">
-                  {upcomingBookings.map((b) => (
-                    <ScheduleRow key={b.id} booking={b} />
-                  ))}
-                </div>
-              )}
+            {/* Tab filter */}
+            <div className="flex gap-2">
+              {(["upcoming", "confirmed", "cancelled"] as const).map(tab => (
+                <button key={tab} onClick={() => setScheduleTab(tab)}
+                  className={`px-4 py-2 rounded-full text-xs font-bold capitalize transition-all ${
+                    scheduleTab === tab ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                  }`}>
+                  {tab} ({
+                    tab === "upcoming"  ? bookings.filter(b => b.status !== "CANCELLED").length :
+                    tab === "confirmed" ? bookings.filter(b => b.status === "CONFIRMED").length :
+                    bookings.filter(b => b.status === "CANCELLED").length
+                  })
+                </button>
+              ))}
             </div>
 
-            {/* Past / all sessions */}
+            {/* Session list */}
+            {filteredBookings.length === 0 ? (
+              <EmptyState icon="📅" title="No sessions here"
+                desc={scheduleTab === "cancelled" ? "No cancelled sessions." : "Book a session to get started."}
+                action={scheduleTab !== "cancelled" ? <Link href="/book-demo" className="btn-primary text-sm px-6 py-2.5">Book Free Demo</Link> : undefined}
+              />
+            ) : (
+              <div className="space-y-3">
+                {filteredBookings.map(b => (
+                  <ScheduleRow key={b.id} booking={b} onCancel={handleCancel} cancelling={cancellingId === b.id} />
+                ))}
+              </div>
+            )}
+
+            {/* Session history table */}
             {bookings.length > 0 && (
               <div>
                 <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
-                  <Clock size={16} className="text-on-surface-variant" /> Session History
+                  <Clock size={16} className="text-on-surface-variant" /> Full History
                 </h3>
-                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden">
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-outline-variant bg-surface-container">
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Subject</th>
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider hidden sm:table-cell">Student</th>
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider hidden md:table-cell">Tutor</th>
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Date</th>
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider hidden sm:table-cell">Time</th>
-                        <th className="text-left px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Status</th>
-                        <th className="px-5 py-3"></th>
+                        {["Subject","Student","Tutor","Date","Time","Status",""].map(h => (
+                          <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
                       {bookings.map((b, i) => (
                         <tr key={b.id} className={`border-b border-outline-variant/50 hover:bg-surface-container/50 transition-colors ${i === bookings.length - 1 ? "border-b-0" : ""}`}>
-                          <td className="px-5 py-4 font-semibold text-on-surface">{b.subject}</td>
-                          <td className="px-5 py-4 text-on-surface-variant hidden sm:table-cell">{b.childName}</td>
-                          <td className="px-5 py-4 text-on-surface-variant hidden md:table-cell">{b.tutorName}</td>
-                          <td className="px-5 py-4 text-on-surface-variant">{b.date}</td>
-                          <td className="px-5 py-4 text-on-surface-variant hidden sm:table-cell">{b.timeSlot}</td>
-                          <td className="px-5 py-4">
-                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                              b.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
-                              b.status === "PENDING"   ? "bg-yellow-100 text-yellow-700" :
-                                                         "bg-surface-container text-on-surface-variant"
+                          <td className="px-4 py-3 font-semibold text-on-surface whitespace-nowrap">{b.subject}</td>
+                          <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{b.childName}</td>
+                          <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{b.tutorName}</td>
+                          <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{b.date}</td>
+                          <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{b.timeSlot}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                              b.status === "CONFIRMED"  ? "bg-green-100 text-green-700"   :
+                              b.status === "PENDING"    ? "bg-yellow-100 text-yellow-700" :
+                              b.status === "CANCELLED"  ? "bg-red-100 text-red-600"       :
+                              "bg-surface-container text-on-surface-variant"
                             }`}>{b.status}</span>
                           </td>
-                          <td className="px-5 py-4">
-                            {b.zoomLink && (
+                          <td className="px-4 py-3">
+                            {b.zoomLink && b.status !== "CANCELLED" && (
                               <a href={b.zoomLink} target="_blank" rel="noopener noreferrer"
                                 className="text-xs font-bold px-3 py-1.5 rounded-lg text-white flex items-center gap-1 whitespace-nowrap"
                                 style={{ backgroundColor: "#2D8CFF" }}>
@@ -431,14 +631,12 @@ export default function ParentDashboard() {
               </div>
             )}
 
-            {/* Tips */}
             <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 flex items-start gap-4">
               <div className="text-2xl">💡</div>
               <div>
                 <h4 className="font-semibold text-primary mb-1">Pro Tip</h4>
                 <p className="text-sm text-on-surface-variant">
-                  Regular sessions 3–4 times a week show the best results.
-                  Book recurring slots from your tutor to lock in the best times!
+                  Regular sessions 3–4 times a week show the best results. Book recurring slots with your tutor for the most consistent progress!
                 </p>
               </div>
             </div>
@@ -455,9 +653,12 @@ export default function ParentDashboard() {
                 <h2 className="font-display text-2xl font-extrabold text-on-surface">Learning Center</h2>
                 <p className="text-sm text-on-surface-variant mt-1">Track progress, access resources &amp; grow every day</p>
               </div>
-              <div className="flex items-center gap-2 text-sm bg-secondary-container/20 border border-secondary-container/40 rounded-full px-4 py-2">
-                <Flame size={15} className="text-orange-500" /> <span className="font-semibold text-on-surface">3 day streak!</span>
-              </div>
+              {streak > 0 && (
+                <div className="flex items-center gap-2 text-sm bg-orange-50 border border-orange-200 rounded-full px-4 py-2">
+                  <Flame size={15} className="text-orange-500" />
+                  <span className="font-semibold text-orange-700">{streak} day streak!</span>
+                </div>
+              )}
             </div>
 
             {/* Subject Progress */}
@@ -465,50 +666,52 @@ export default function ParentDashboard() {
               <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
                 <Target size={18} className="text-primary" /> Subject Progress
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {subjectProgress.map((s) => (
-                  <div key={s.subject} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
-                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${s.color} flex items-center justify-center text-2xl mb-3`}>
-                      {s.icon}
-                    </div>
-                    <p className="font-bold text-on-surface text-sm mb-1">{s.subject}</p>
-                    <p className="text-xs text-on-surface-variant mb-3">{s.sessions} sessions completed</p>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 bg-surface-container rounded-full overflow-hidden">
-                        <div className={`h-full bg-gradient-to-r ${s.color} rounded-full`}
-                          style={{ width: `${s.progress}%` }} />
+              {subjectData.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {subjectData.map(s => (
+                    <div key={s.subject} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
+                      <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${s.gradient} flex items-center justify-center text-2xl mb-3`}>
+                        {s.icon}
                       </div>
-                      <span className="text-xs font-bold text-on-surface shrink-0">{s.progress}%</span>
+                      <p className="font-bold text-on-surface text-sm mb-1">{s.subject}</p>
+                      <p className="text-xs text-on-surface-variant mb-3">{s.sessions} session{s.sessions !== 1 ? "s" : ""} completed</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-surface-container rounded-full overflow-hidden">
+                          <div className={`h-full bg-gradient-to-r ${s.gradient} rounded-full transition-all`}
+                            style={{ width: `${s.progress}%` }} />
+                        </div>
+                        <span className="text-xs font-bold text-on-surface shrink-0">{s.progress}%</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-8 text-center">
+                  <p className="text-3xl mb-3">📊</p>
+                  <p className="font-semibold text-on-surface mb-1">No progress data yet</p>
+                  <p className="text-sm text-on-surface-variant mb-4">Complete your first session to see subject progress here.</p>
+                  <Link href="/book-demo" className="btn-primary text-sm px-6 py-2.5">Book Free Demo</Link>
+                </div>
+              )}
             </section>
 
-            {/* Assignments */}
+            {/* Achievements */}
             <section>
               <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
-                <FileText size={18} className="text-primary" /> Assignments &amp; Homework
+                <Trophy size={18} className="text-primary" /> Achievements
               </h3>
-              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card overflow-hidden">
-                {assignments.map((a, i) => (
-                  <div key={a.title} className={`flex items-center gap-4 px-5 py-4 ${i < assignments.length - 1 ? "border-b border-outline-variant/50" : ""}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                      a.status === "done" ? "bg-green-100 text-green-600" : "bg-yellow-100 text-yellow-600"
-                    }`}>
-                      {a.status === "done" ? <CheckCircle size={16} /> : <Clock size={16} />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-semibold ${a.status === "done" ? "text-on-surface-variant line-through" : "text-on-surface"}`}>
-                        {a.title}
-                      </p>
-                      <p className="text-xs text-on-surface-variant mt-0.5">{a.subject}</p>
-                    </div>
-                    <span className={`text-xs font-semibold shrink-0 px-2.5 py-1 rounded-full ${
-                      a.status === "done"
-                        ? "bg-green-100 text-green-600"
-                        : a.due === "Tomorrow" ? "bg-red-100 text-red-600" : "bg-yellow-100 text-yellow-700"
-                    }`}>{a.due}</span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {achievements.map(a => (
+                  <div key={a.title} className={`rounded-2xl border p-4 text-center transition-all ${
+                    a.earned
+                      ? "bg-yellow-50 border-yellow-200 shadow-card"
+                      : "bg-surface-container border-outline-variant opacity-50"
+                  }`}>
+                    <div className={`text-3xl mb-2 ${!a.earned ? "grayscale" : ""}`}>{a.icon}</div>
+                    <p className="text-xs font-bold text-on-surface">{a.title}</p>
+                    <p className="text-[10px] text-on-surface-variant mt-0.5 leading-tight">{a.desc}</p>
+                    {a.earned && <p className="text-[10px] font-bold text-yellow-600 mt-1">Earned! ✓</p>}
+                    {!a.earned && <p className="text-[10px] text-on-surface-variant mt-1 flex items-center justify-center gap-0.5"><Lock size={9} /> Locked</p>}
                   </div>
                 ))}
               </div>
@@ -516,30 +719,23 @@ export default function ParentDashboard() {
 
             {/* Study Resources */}
             <section>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <h3 className="font-display font-bold text-on-surface text-base flex items-center gap-2">
                   <BookMarked size={18} className="text-primary" /> Study Resources
                 </h3>
-                {/* Subject filter */}
-                <div className="flex gap-2 overflow-x-auto">
-                  {["All", "Phonics", "Mathematics", "English Grammar", "Science"].map((f) => (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {["All", "Phonics", "Mathematics", "English Grammar", "Science"].map(f => (
                     <button key={f} onClick={() => setSubjectFilter(f)}
                       className={`text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-all ${
-                        subjectFilter === f
-                          ? "bg-primary text-on-primary"
-                          : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                        subjectFilter === f ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
                       }`}>{f}</button>
                   ))}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {resources
-                  .filter(r => subjectFilter === "All" || r.subject === subjectFilter)
-                  .map((r) => (
+                {RESOURCES.filter(r => subjectFilter === "All" || r.subject === subjectFilter).map(r => (
                   <div key={r.title} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-4 flex items-start gap-3 hover:shadow-card-hover transition-shadow">
-                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-xl shrink-0">
-                      {r.icon}
-                    </div>
+                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-xl shrink-0">{r.icon}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-on-surface leading-snug">{r.title}</p>
                       <p className="text-xs text-on-surface-variant mt-0.5">{r.subject} · {r.type} · {r.size}</p>
@@ -558,21 +754,16 @@ export default function ParentDashboard() {
                 <PlayCircle size={18} className="text-primary" /> Video Lessons
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {videoLessons
-                  .filter(v => subjectFilter === "All" || v.subject === subjectFilter)
-                  .map((v) => (
+                {VIDEO_LESSONS.filter(v => subjectFilter === "All" || v.subject === subjectFilter).map(v => (
                   <div key={v.title} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card overflow-hidden hover:shadow-card-hover transition-shadow group cursor-pointer">
-                    {/* Thumbnail */}
                     <div className="h-32 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center relative">
-                      <span className="text-5xl">{v.thumbnail}</span>
+                      <span className="text-5xl">{v.thumb}</span>
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center">
                         <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg">
                           <PlayCircle size={24} className="text-primary" />
                         </div>
                       </div>
-                      <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs font-bold px-2 py-0.5 rounded-md">
-                        {v.duration}
-                      </span>
+                      <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs font-bold px-2 py-0.5 rounded-md">{v.duration}</span>
                     </div>
                     <div className="p-4">
                       <p className="text-sm font-semibold text-on-surface leading-snug">{v.title}</p>
@@ -581,27 +772,6 @@ export default function ParentDashboard() {
                         <span className="text-xs text-on-surface-variant">{v.views} views</span>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Achievements */}
-            <section>
-              <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
-                <Trophy size={18} className="text-primary" /> Achievements
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                {achievements.map((a) => (
-                  <div key={a.title} className={`rounded-2xl border p-4 text-center transition-all ${
-                    a.earned
-                      ? "bg-secondary-container/20 border-secondary-container/50 shadow-card"
-                      : "bg-surface-container border-outline-variant opacity-50"
-                  }`}>
-                    <div className={`text-3xl mb-2 ${!a.earned ? "grayscale" : ""}`}>{a.icon}</div>
-                    <p className="text-xs font-bold text-on-surface">{a.title}</p>
-                    <p className="text-[10px] text-on-surface-variant mt-0.5 leading-tight">{a.desc}</p>
-                    {a.earned && <p className="text-[10px] font-bold text-primary mt-1">Earned! ✓</p>}
                   </div>
                 ))}
               </div>
@@ -620,14 +790,402 @@ export default function ParentDashboard() {
             </div>
           </div>
         )}
+
+        {/* ══════════════════════════════════════════
+            SECTION: PAYMENTS
+        ══════════════════════════════════════════ */}
+        {section === "payments" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-display text-2xl font-extrabold text-on-surface">Payments &amp; Billing</h2>
+              <p className="text-sm text-on-surface-variant mt-1">Your session history and payment summary</p>
+            </div>
+
+            {/* Summary cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                {
+                  label: "Monthly Plan",
+                  value: totalMonthly > 0 ? `₹${totalMonthly.toLocaleString("en-IN")}` : "Free Demo",
+                  sub: totalMonthly > 0 ? "per month committed" : "No paid plan yet",
+                  icon: IndianRupee, color: "text-green-600", bg: "bg-green-50",
+                },
+                {
+                  label: "Sessions Booked",
+                  value: bookings.length,
+                  sub: `${freeDemos} free · ${paidSessions} paid`,
+                  icon: Calendar, color: "text-primary", bg: "bg-primary/10",
+                },
+                {
+                  label: "Confirmed Sessions",
+                  value: confirmedSessions,
+                  sub: "Ready to attend",
+                  icon: CheckCircle, color: "text-blue-600", bg: "bg-blue-50",
+                },
+              ].map(({ label, value, sub, icon: Icon, color, bg }) => (
+                <div key={label} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
+                  <div className={`w-11 h-11 ${bg} rounded-xl flex items-center justify-center mb-3`}>
+                    <Icon size={22} className={color} />
+                  </div>
+                  <p className="text-2xl font-bold text-on-surface font-display">{value}</p>
+                  <p className="text-xs font-medium text-on-surface mt-0.5">{label}</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">{sub}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Upgrade CTA (if only free demos) */}
+            {totalMonthly === 0 && bookings.length > 0 && (
+              <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-on-primary flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-display font-bold text-lg mb-1">Ready to upgrade?</h3>
+                  <p className="text-on-primary/80 text-sm">You&apos;ve completed your free demo. Start regular sessions from just ₹999/month.</p>
+                </div>
+                <Link href="/book-demo"
+                  className="shrink-0 bg-white text-primary font-bold rounded-full px-6 py-3 text-sm hover:bg-white/90 transition-colors whitespace-nowrap">
+                  Book Paid Session
+                </Link>
+              </div>
+            )}
+
+            {/* Session invoice list */}
+            {bookings.length > 0 ? (
+              <div>
+                <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
+                  <FileText size={18} className="text-primary" /> Session Invoices
+                </h3>
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden">
+                  <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto_auto] px-5 py-3 bg-surface-container border-b border-outline-variant text-xs font-semibold text-on-surface-variant uppercase tracking-wider gap-4">
+                    <span>Subject / Student</span>
+                    <span>Date &amp; Time</span>
+                    <span>Amount</span>
+                    <span>Status</span>
+                    <span>Action</span>
+                  </div>
+                  {bookings.map((b, i) => (
+                    <div key={b.id} className={`flex flex-col sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto] px-5 py-4 gap-3 sm:gap-4 sm:items-center ${
+                      i < bookings.length - 1 ? "border-b border-outline-variant/50" : ""
+                    }`}>
+                      <div>
+                        <p className="font-semibold text-on-surface text-sm">{b.subject}</p>
+                        <p className="text-xs text-on-surface-variant">for {b.childName}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-on-surface">{b.date}</p>
+                        <p className="text-xs text-on-surface-variant">{b.timeSlot}</p>
+                      </div>
+                      <div className="font-bold text-on-surface">
+                        {b.monthlyPrice > 0 ? (
+                          <span className="text-green-700">₹{b.monthlyPrice.toLocaleString("en-IN")}<span className="text-xs font-normal text-on-surface-variant">/mo</span></span>
+                        ) : (
+                          <span className="text-xs font-bold px-2 py-1 bg-blue-50 text-blue-700 rounded-full">FREE</span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                        b.status === "CONFIRMED"  ? "bg-green-100 text-green-700"   :
+                        b.status === "PENDING"    ? "bg-yellow-100 text-yellow-700" :
+                        b.status === "CANCELLED"  ? "bg-red-100 text-red-600"       :
+                        "bg-surface-container text-on-surface-variant"
+                      }`}>{b.status}</span>
+                      <div>
+                        {b.zoomLink && b.status === "CONFIRMED" ? (
+                          <a href={b.zoomLink} target="_blank" rel="noopener noreferrer"
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg text-white flex items-center gap-1 whitespace-nowrap"
+                            style={{ backgroundColor: "#2D8CFF" }}>
+                            <Video size={11} /> Join
+                          </a>
+                        ) : (
+                          <span className="text-xs text-on-surface-variant">—</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <EmptyState icon="💳" title="No sessions yet"
+                desc="Book a free demo session to get started with Zippy Minds!"
+                action={<Link href="/book-demo" className="btn-primary text-sm px-6 py-2.5">Book Free Demo</Link>} />
+            )}
+
+            {/* Payment note */}
+            <div className="bg-surface-container rounded-2xl border border-outline-variant p-5 flex items-start gap-3">
+              <AlertCircle size={18} className="text-on-surface-variant mt-0.5 shrink-0" />
+              <p className="text-sm text-on-surface-variant">
+                Payments are collected securely by your tutor or via bank transfer before each month begins.
+                For payment issues, please <button onClick={() => setSection("support")} className="text-primary font-semibold hover:underline">raise a support ticket</button>.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════
+            SECTION: SUPPORT
+        ══════════════════════════════════════════ */}
+        {section === "support" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-display text-2xl font-extrabold text-on-surface">Support Center</h2>
+              <p className="text-sm text-on-surface-variant mt-1">Get help, raise tickets, and browse FAQs</p>
+            </div>
+
+            {/* Success toast */}
+            {ticketDone && (
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-800 rounded-xl px-4 py-3">
+                <CheckCircle size={18} className="text-green-600" />
+                <span className="text-sm font-semibold">Ticket submitted! We&apos;ll reply to your email within 24 hours.</span>
+              </div>
+            )}
+
+            {/* Support tabs */}
+            <div className="flex gap-2 border-b border-outline-variant">
+              {(["new", "history", "faq"] as const).map(tab => (
+                <button key={tab} onClick={() => setSupportTab(tab)}
+                  className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-all ${
+                    supportTab === tab
+                      ? "border-primary text-primary"
+                      : "border-transparent text-on-surface-variant hover:text-on-surface"
+                  }`}>
+                  {tab === "new" ? "New Ticket" : tab === "history" ? `My Tickets (${tickets.length})` : "FAQ"}
+                </button>
+              ))}
+            </div>
+
+            {/* ── New Ticket Form ── */}
+            {supportTab === "new" && (
+              <div className="max-w-2xl">
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+                  <h3 className="font-display font-bold text-on-surface mb-5 flex items-center gap-2">
+                    <MessageSquare size={18} className="text-primary" /> Submit a Support Request
+                  </h3>
+                  <form onSubmit={handleTicketSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-1.5">Subject *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Zoom link not working, Need to reschedule…"
+                        value={ticketForm.subject}
+                        onChange={e => setTicketForm(f => ({ ...f, subject: e.target.value }))}
+                        className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-1.5">Priority</label>
+                      <select
+                        value={ticketForm.priority}
+                        onChange={e => setTicketForm(f => ({ ...f, priority: e.target.value }))}
+                        className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all">
+                        <option value="low">Low — General question</option>
+                        <option value="medium">Medium — Need help soon</option>
+                        <option value="high">High — Urgent issue</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-1.5">Message *</label>
+                      <textarea
+                        rows={5}
+                        placeholder="Describe your issue in detail. Include booking date, subject, and any error messages you saw…"
+                        value={ticketForm.message}
+                        onChange={e => setTicketForm(f => ({ ...f, message: e.target.value }))}
+                        className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all resize-none"
+                      />
+                    </div>
+
+                    {ticketError && (
+                      <div className="flex items-center gap-2 text-red-600 text-sm">
+                        <AlertCircle size={15} /> {ticketError}
+                      </div>
+                    )}
+
+                    <button type="submit" disabled={ticketSending}
+                      className="btn-primary w-full sm:w-auto px-8 disabled:opacity-60">
+                      {ticketSending ? (
+                        <span className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin" />
+                          Submitting…
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2"><Send size={15} /> Submit Ticket</span>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Quick contact */}
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <a href="mailto:support@zippymindsacademy.com"
+                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-4 flex items-center gap-3 hover:shadow-card transition-shadow">
+                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                      <Mail size={18} className="text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface">Email Us</p>
+                      <p className="text-xs text-on-surface-variant">support@zippymindsacademy.com</p>
+                    </div>
+                  </a>
+                  <a href="https://wa.me/919999999999" target="_blank" rel="noopener noreferrer"
+                    className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-4 flex items-center gap-3 hover:shadow-card transition-shadow">
+                    <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
+                      <Phone size={18} className="text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface">WhatsApp</p>
+                      <p className="text-xs text-on-surface-variant">Mon–Sat · 9 AM – 7 PM IST</p>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* ── My Tickets ── */}
+            {supportTab === "history" && (
+              <div>
+                {tickets.length === 0 ? (
+                  <EmptyState icon="🎫" title="No tickets yet"
+                    desc="Haven't raised a support request yet. We're here if you need us!"
+                    action={<button onClick={() => setSupportTab("new")} className="btn-primary text-sm px-6 py-2.5">Raise a Ticket</button>} />
+                ) : (
+                  <div className="space-y-4">
+                    {tickets.map(t => (
+                      <div key={t.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                                t.priority === "high"   ? "bg-red-100 text-red-600"      :
+                                t.priority === "medium" ? "bg-yellow-100 text-yellow-700" :
+                                "bg-surface-container text-on-surface-variant"
+                              }`}>{t.priority}</span>
+                              <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                                t.status === "open" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"
+                              }`}>{t.status}</span>
+                            </div>
+                            <p className="font-bold text-on-surface">{t.subject}</p>
+                            <p className="text-sm text-on-surface-variant mt-1 line-clamp-2">{t.message}</p>
+                          </div>
+                          <p className="text-xs text-on-surface-variant shrink-0">{fmtDate(t.createdAt)}</p>
+                        </div>
+                        {t.reply && (
+                          <div className="mt-4 bg-primary/5 border border-primary/20 rounded-xl p-4">
+                            <p className="text-xs font-bold text-primary mb-1 flex items-center gap-1">
+                              <MessageSquare size={12} /> Admin Reply
+                            </p>
+                            <p className="text-sm text-on-surface">{t.reply}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── FAQ ── */}
+            {supportTab === "faq" && (
+              <div className="max-w-2xl space-y-3">
+                {FAQS.map((faq, i) => (
+                  <div key={i} className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden">
+                    <button
+                      onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}
+                      className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-surface-container/50 transition-colors">
+                      <span className="font-semibold text-on-surface text-sm pr-4">{faq.q}</span>
+                      <ChevronDown size={16} className={`text-on-surface-variant shrink-0 transition-transform ${expandedFaq === i ? "rotate-180" : ""}`} />
+                    </button>
+                    {expandedFaq === i && (
+                      <div className="px-5 pb-4 text-sm text-on-surface-variant border-t border-outline-variant/50 pt-3">
+                        {faq.a}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </main>
+
+      {/* ── Profile Edit Modal ── */}
+      {profileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setProfileOpen(false)} />
+          <div className="relative bg-surface rounded-3xl border border-outline-variant shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-display font-bold text-on-surface text-lg flex items-center gap-2">
+                <User size={20} className="text-primary" /> Edit Profile
+              </h3>
+              <button onClick={() => setProfileOpen(false)} className="text-on-surface-variant hover:text-on-surface">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleProfileSave} className="space-y-4">
+              {/* Avatar */}
+              <div className="flex items-center gap-4 mb-2">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary">
+                  {profileForm.name?.[0]?.toUpperCase() ?? user?.name?.[0]?.toUpperCase() ?? "P"}
+                </div>
+                <div>
+                  <p className="font-semibold text-on-surface">{user?.name}</p>
+                  <p className="text-xs text-on-surface-variant">{user?.email}</p>
+                  <p className="text-xs text-on-surface-variant capitalize mt-0.5">{user?.role?.toLowerCase()} account</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-on-surface mb-1.5">Full Name</label>
+                <input type="text" value={profileForm.name}
+                  onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-on-surface mb-1.5">Phone Number</label>
+                <input type="tel" value={profileForm.phone}
+                  onChange={e => setProfileForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="+91 9876543210"
+                  className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+              </div>
+
+              <div className="bg-surface-container rounded-xl px-4 py-3">
+                <p className="text-xs text-on-surface-variant flex items-center gap-1.5">
+                  <Lock size={12} /> Email cannot be changed. Contact support if needed.
+                </p>
+              </div>
+
+              {profileMsg && (
+                <p className={`text-sm font-semibold flex items-center gap-2 ${profileMsg.includes("success") ? "text-green-600" : "text-red-600"}`}>
+                  {profileMsg.includes("success") ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+                  {profileMsg}
+                </p>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setProfileOpen(false)}
+                  className="flex-1 py-3 rounded-xl border border-outline-variant text-on-surface-variant font-semibold text-sm hover:bg-surface-container transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={profileSaving}
+                  className="flex-1 btn-primary disabled:opacity-60">
+                  {profileSaving ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ── Sub-components ─────────────────────────────────────────────────────── */
+/* ─── Sub-components ────────────────────────────────────────────────────── */
 
-function BookingCard({ booking: b }: { booking: Booking }) {
+function BookingCard({ booking: b, onCancel, cancelling }: {
+  booking: Booking;
+  onCancel: (id: string) => void;
+  cancelling: boolean;
+}) {
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
       <div className="flex items-start justify-between mb-3">
@@ -636,43 +1194,61 @@ function BookingCard({ booking: b }: { booking: Booking }) {
           <p className="text-xs text-on-surface-variant mt-0.5">for {b.childName}</p>
         </div>
         <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-          b.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
-          b.status === "PENDING"   ? "bg-yellow-100 text-yellow-700" : "bg-surface-container text-on-surface-variant"
+          b.status === "CONFIRMED" ? "bg-green-100 text-green-700"  :
+          b.status === "PENDING"   ? "bg-yellow-100 text-yellow-700":
+          b.status === "CANCELLED" ? "bg-red-100 text-red-600"      :
+          "bg-surface-container text-on-surface-variant"
         }`}>{b.status}</span>
       </div>
       <div className="space-y-1.5 text-xs text-on-surface-variant mb-4">
-        <div className="flex items-center gap-2"><Calendar size={12} className="text-primary" /> {b.date}</div>
-        <div className="flex items-center gap-2"><Clock size={12} className="text-primary" /> {b.timeSlot}</div>
-        <div className="flex items-center gap-2"><Video size={12} className="text-primary" /> {b.tutorName}</div>
+        <div className="flex items-center gap-2"><Calendar size={12} className="text-primary" />{b.date}</div>
+        <div className="flex items-center gap-2"><Clock size={12} className="text-primary" />{b.timeSlot}</div>
+        <div className="flex items-center gap-2"><User size={12} className="text-primary" />{b.tutorName}</div>
       </div>
-      {b.zoomLink ? (
+      {b.status === "CANCELLED" ? (
+        <div className="flex items-center justify-center gap-2 w-full bg-red-50 text-red-500 text-xs py-2.5 rounded-xl border border-red-200">
+          <XCircle size={13} /> Cancelled
+        </div>
+      ) : b.zoomLink ? (
         <a href={b.zoomLink} target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 w-full font-bold text-xs py-2.5 rounded-xl transition-all text-white hover:opacity-90"
+          className="flex items-center justify-center gap-2 w-full font-bold text-xs py-2.5 rounded-xl text-white hover:opacity-90 transition-all"
           style={{ backgroundColor: "#2D8CFF" }}>
           <Video size={14} /> Join Zoom Session
         </a>
       ) : (
-        <div className="flex items-center justify-center gap-2 w-full bg-surface-container text-on-surface-variant text-xs py-2.5 rounded-xl border border-outline-variant">
-          <Clock size={13} /> Zoom link pending
+        <div className="space-y-2">
+          <div className="flex items-center justify-center gap-2 w-full bg-surface-container text-on-surface-variant text-xs py-2.5 rounded-xl border border-outline-variant">
+            <Clock size={13} /> Zoom link pending
+          </div>
+          {b.status === "PENDING" && (
+            <button onClick={() => onCancel(b.id)} disabled={cancelling}
+              className="w-full text-xs text-red-500 hover:text-red-700 font-semibold py-1 disabled:opacity-50">
+              {cancelling ? "Cancelling…" : "Cancel booking"}
+            </button>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function ScheduleRow({ booking: b }: { booking: Booking }) {
+function ScheduleRow({ booking: b, onCancel, cancelling }: {
+  booking: Booking;
+  onCancel: (id: string) => void;
+  cancelling: boolean;
+}) {
+  const [month, day] = b.date.split(" ");
   return (
-    <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+    <div className={`bg-surface-container-lowest rounded-2xl border shadow-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${
+      b.status === "CANCELLED" ? "border-red-200 opacity-70" : "border-outline-variant"
+    }`}>
       {/* Date badge */}
-      <div className="bg-primary/10 rounded-xl px-4 py-3 text-center min-w-[70px] shrink-0">
-        <p className="text-[10px] font-bold text-primary uppercase tracking-wide">
-          {b.date.split(" ")[0]}
-        </p>
-        <p className="text-2xl font-extrabold text-primary leading-none">
-          {b.date.split(" ")[1]?.replace(",", "") ?? "--"}
-        </p>
-        <p className="text-[10px] text-primary/70 font-medium">
-          {b.date.split(" ")[2] ?? ""}
+      <div className={`rounded-xl px-4 py-3 text-center min-w-[70px] shrink-0 ${
+        b.status === "CANCELLED" ? "bg-red-50" : "bg-primary/10"
+      }`}>
+        <p className={`text-[10px] font-bold uppercase tracking-wide ${b.status === "CANCELLED" ? "text-red-400" : "text-primary"}`}>{month}</p>
+        <p className={`text-2xl font-extrabold leading-none ${b.status === "CANCELLED" ? "text-red-400" : "text-primary"}`}>
+          {day?.replace(",", "") ?? "--"}
         </p>
       </div>
 
@@ -681,28 +1257,44 @@ function ScheduleRow({ booking: b }: { booking: Booking }) {
         <div className="flex flex-wrap items-center gap-2 mb-1">
           <span className="font-bold text-on-surface">{b.subject}</span>
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-            b.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
-            b.status === "PENDING"   ? "bg-yellow-100 text-yellow-700" : "bg-surface-container text-on-surface-variant"
+            b.status === "CONFIRMED" ? "bg-green-100 text-green-700"  :
+            b.status === "PENDING"   ? "bg-yellow-100 text-yellow-700":
+            b.status === "CANCELLED" ? "bg-red-100 text-red-600"      :
+            "bg-surface-container text-on-surface-variant"
           }`}>{b.status}</span>
         </div>
         <p className="text-sm text-on-surface-variant">👤 {b.tutorName} &nbsp;·&nbsp; 👦 {b.childName}</p>
         <p className="text-xs text-on-surface-variant mt-1 flex items-center gap-1">
-          <Clock size={11} className="text-primary" /> {b.timeSlot} &nbsp;·&nbsp; FREE Demo (30 min)
+          <Clock size={11} className="text-primary" /> {b.timeSlot}
+          {b.monthlyPrice > 0 ? ` · ₹${b.monthlyPrice}/mo` : " · Free Demo"}
         </p>
       </div>
 
-      {/* Action */}
-      <div className="shrink-0">
-        {b.zoomLink ? (
+      {/* Actions */}
+      <div className="flex gap-2 shrink-0">
+        {b.status === "CANCELLED" ? (
+          <span className="flex items-center gap-1 text-xs text-red-400 font-semibold px-3 py-2">
+            <XCircle size={13} /> Cancelled
+          </span>
+        ) : b.zoomLink ? (
           <a href={b.zoomLink} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
             style={{ backgroundColor: "#2D8CFF" }}>
             <Video size={15} /> Join Zoom
           </a>
         ) : (
-          <div className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-surface-container text-on-surface-variant border border-outline-variant">
-            <Clock size={14} /> Pending
-          </div>
+          <>
+            <span className="flex items-center gap-1 px-4 py-2.5 rounded-xl text-sm bg-surface-container text-on-surface-variant border border-outline-variant font-medium">
+              <Clock size={13} /> Pending
+            </span>
+            {b.status === "PENDING" && (
+              <button onClick={() => onCancel(b.id)} disabled={cancelling}
+                className="p-2.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                title="Cancel booking">
+                <XCircle size={16} />
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -710,15 +1302,12 @@ function ScheduleRow({ booking: b }: { booking: Booking }) {
 }
 
 function WeekStrip({ bookings }: { bookings: Booking[] }) {
-  const today   = new Date();
-  const days    = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    return d;
+  const today = new Date();
+  const days  = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today); d.setDate(today.getDate() + i); return d;
   });
-  const DAY  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const MON  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
+  const DAY = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
       <div className="flex items-center justify-between mb-4">
@@ -731,35 +1320,38 @@ function WeekStrip({ bookings }: { bookings: Booking[] }) {
       </div>
       <div className="grid grid-cols-7 gap-2">
         {days.map((d, i) => {
-          const label = `${MON[d.getMonth()]} ${d.getDate()}`;
-          const hasSession = bookings.some(b => b.date.includes(String(d.getDate())) && b.date.includes(MON[d.getMonth()]));
+          const hasSession = bookings.some(b =>
+            b.status !== "CANCELLED" &&
+            b.date.includes(String(d.getDate())) &&
+            b.date.includes(MON[d.getMonth()])
+          );
           const isToday = i === 0;
           return (
             <div key={i} className={`flex flex-col items-center p-2 rounded-xl text-center ${
-              isToday ? "bg-primary text-on-primary" :
+              isToday    ? "bg-primary text-on-primary" :
               hasSession ? "bg-secondary-container/30 border border-secondary-container" :
               "bg-surface-container"
             }`}>
               <span className="text-[10px] font-bold uppercase">{DAY[d.getDay()]}</span>
               <span className="text-base font-extrabold mt-0.5">{d.getDate()}</span>
               <span className="text-[9px] mt-0.5 opacity-70">{MON[d.getMonth()]}</span>
-              {hasSession && !isToday && (
-                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1" />
-              )}
-              {isToday && <div className="w-1.5 h-1.5 rounded-full bg-on-primary/60 mt-1" />}
+              {hasSession && !isToday && <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1" />}
+              {isToday   && <div className="w-1.5 h-1.5 rounded-full bg-on-primary/60 mt-1" />}
             </div>
           );
         })}
       </div>
-      <p className="text-[10px] text-on-surface-variant mt-3 text-center flex items-center justify-center gap-2">
+      <p className="text-[10px] text-on-surface-variant mt-3 text-center flex items-center justify-center gap-3">
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block" /> Today</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-secondary-container inline-block border border-secondary-container" /> Has session</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-secondary-container inline-block border border-secondary-container" /> Session booked</span>
       </p>
     </div>
   );
 }
 
-function EmptyState({ icon, title, desc, action }: { icon: string; title: string; desc: string; action?: React.ReactNode }) {
+function EmptyState({ icon, title, desc, action }: {
+  icon: string; title: string; desc: string; action?: React.ReactNode;
+}) {
   return (
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-12 flex flex-col items-center text-center">
       <div className="text-5xl mb-4">{icon}</div>

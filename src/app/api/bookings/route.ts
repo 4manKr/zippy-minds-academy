@@ -91,6 +91,36 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// PATCH — cancel / update a booking (owner only)
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session.isLoggedIn) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+    const { bookingId, status } = await req.json();
+    if (!bookingId || !status) {
+      return NextResponse.json({ error: "bookingId and status required" }, { status: 400 });
+    }
+
+    // Verify ownership
+    const existing = await prisma.booking.findFirst({
+      where: { id: bookingId, userId: session.userId },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    }
+
+    const updated = await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status },
+    });
+    return NextResponse.json({ booking: updated });
+  } catch {
+    return NextResponse.json({ error: "Failed to update booking" }, { status: 500 });
+  }
+}
+
 // GET — fetch bookings for current user
 export async function GET() {
   try {
