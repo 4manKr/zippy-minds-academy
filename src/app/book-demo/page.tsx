@@ -17,22 +17,49 @@ const steps = [
   { id: 4, label: "Confirm" },
 ];
 
-const tutorPool: Record<string, { name: string; initials: string; color: string; rating: number; experience: string; monthlyPrice: number }> = {
-  "Phonics":                 { name: "Ms. Ananya Singh",  initials: "AS", color: "from-pink-400 to-rose-500",     rating: 4.9, experience: "10 years", monthlyPrice: 199 },
-  "English Grammar":         { name: "Ms. Priya Sharma",  initials: "PS", color: "from-blue-400 to-blue-600",     rating: 4.8, experience: "8 years",  monthlyPrice: 219 },
-  "Mathematics":             { name: "Mr. Rahul Verma",   initials: "RV", color: "from-purple-400 to-purple-600", rating: 4.9, experience: "9 years",  monthlyPrice: 229 },
-  "Public Speaking":         { name: "Ms. Kavya Nair",    initials: "KN", color: "from-orange-400 to-yellow-400", rating: 4.8, experience: "7 years",  monthlyPrice: 219 },
-  "Writing & Communication": { name: "Ms. Sunita Rao",    initials: "SR", color: "from-teal-400 to-cyan-500",     rating: 4.7, experience: "6 years",  monthlyPrice: 199 },
-  "Coding":                  { name: "Mr. Arjun Mehta",   initials: "AM", color: "from-indigo-400 to-blue-600",   rating: 4.9, experience: "5 years",  monthlyPrice: 249 },
-  "Science":                 { name: "Dr. Meera Patel",   initials: "MP", color: "from-green-400 to-emerald-500", rating: 4.8, experience: "9 years",  monthlyPrice: 229 },
-  "Life Skills":             { name: "Mr. Rohan Gupta",   initials: "RG", color: "from-yellow-400 to-orange-400", rating: 4.7, experience: "8 years",  monthlyPrice: 199 },
-  "Hindi":                   { name: "Ms. Kavita Sharma", initials: "KS", color: "from-red-400 to-orange-500",    rating: 4.7, experience: "7 years",  monthlyPrice: 199 },
-  "General Knowledge":       { name: "Mr. Vikram Nair",   initials: "VN", color: "from-cyan-400 to-teal-500",     rating: 4.6, experience: "6 years",  monthlyPrice: 199 },
-  "Creative Arts":           { name: "Ms. Divya Iyer",    initials: "DI", color: "from-fuchsia-400 to-pink-500",  rating: 4.8, experience: "5 years",  monthlyPrice: 199 },
-  "Social Studies":          { name: "Ms. Rekha Pillai",  initials: "RP", color: "from-amber-400 to-orange-400",  rating: 4.7, experience: "6 years",  monthlyPrice: 199 },
+// Fallback pool — used when no approved DB tutor exists for a subject
+const tutorPool: Record<string, { name: string; initials: string; color: string; rating: number; experience: string }> = {
+  "Phonics":                 { name: "Ms. Ananya Singh",  initials: "AS", color: "from-pink-400 to-rose-500",     rating: 4.9, experience: "10 years" },
+  "English Grammar":         { name: "Ms. Priya Sharma",  initials: "PS", color: "from-blue-400 to-blue-600",     rating: 4.8, experience: "8 years"  },
+  "Mathematics":             { name: "Mr. Rahul Verma",   initials: "RV", color: "from-purple-400 to-purple-600", rating: 4.9, experience: "9 years"  },
+  "Public Speaking":         { name: "Ms. Kavya Nair",    initials: "KN", color: "from-orange-400 to-yellow-400", rating: 4.8, experience: "7 years"  },
+  "Writing & Communication": { name: "Ms. Sunita Rao",    initials: "SR", color: "from-teal-400 to-cyan-500",     rating: 4.7, experience: "6 years"  },
+  "Coding":                  { name: "Mr. Arjun Mehta",   initials: "AM", color: "from-indigo-400 to-blue-600",   rating: 4.9, experience: "5 years"  },
+  "Science":                 { name: "Dr. Meera Patel",   initials: "MP", color: "from-green-400 to-emerald-500", rating: 4.8, experience: "9 years"  },
+  "Life Skills":             { name: "Mr. Rohan Gupta",   initials: "RG", color: "from-yellow-400 to-orange-400", rating: 4.7, experience: "8 years"  },
+  "Hindi":                   { name: "Ms. Kavita Sharma", initials: "KS", color: "from-red-400 to-orange-500",    rating: 4.7, experience: "7 years"  },
+  "General Knowledge":       { name: "Mr. Vikram Nair",   initials: "VN", color: "from-cyan-400 to-teal-500",     rating: 4.6, experience: "6 years"  },
+  "Creative Arts":           { name: "Ms. Divya Iyer",    initials: "DI", color: "from-fuchsia-400 to-pink-500",  rating: 4.8, experience: "5 years"  },
+  "Social Studies":          { name: "Ms. Rekha Pillai",  initials: "RP", color: "from-amber-400 to-orange-400",  rating: 4.7, experience: "6 years"  },
 };
 
-const DEFAULT_TUTOR = { name: "Available Tutor", initials: "AT", color: "from-primary to-primary-container", rating: 4.8, experience: "5+ years", monthlyPrice: 249 };
+// Gradient colors assigned to DB tutors (cycles by index)
+const DB_TUTOR_COLORS = [
+  "from-violet-400 to-purple-600",
+  "from-sky-400 to-blue-600",
+  "from-emerald-400 to-teal-600",
+  "from-rose-400 to-pink-600",
+  "from-amber-400 to-orange-500",
+  "from-indigo-400 to-violet-600",
+  "from-cyan-400 to-sky-600",
+  "from-fuchsia-400 to-rose-500",
+];
+
+interface DisplayTutor {
+  name: string;
+  initials: string;
+  color: string;
+  rating: number;
+  experience: string;
+}
+
+interface DbTutor { id: string; name: string; initials: string; }
+
+const DEFAULT_TUTOR: DisplayTutor = {
+  name: "Available Tutor", initials: "AT",
+  color: "from-primary to-primary-container",
+  rating: 4.8, experience: "5+ years",
+};
 
 const timeSlots = [
   { id: 1, time: "9:00 AM",  available: true  },
@@ -79,6 +106,9 @@ export default function BookDemoPage() {
   const [otp, setOtp]                 = useState("");
   const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
 
+  // Live DB tutors: subject → first approved tutor
+  const [dbTutorBySubject, setDbTutorBySubject] = useState<Record<string, DbTutor>>({});
+
   // Build dynamic calendar dates once (client-side only to avoid SSR mismatch)
   const calendarDates = useMemo(() => buildCalendarDates(), []);
 
@@ -91,15 +121,40 @@ export default function BookDemoPage() {
     notes: "",
   });
 
+  // Fetch approved tutors from DB on mount
+  useEffect(() => {
+    fetch("/api/tutors")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.tutorBySubject) setDbTutorBySubject(data.tutorBySubject); })
+      .catch(() => {/* silently fall back to tutorPool */});
+  }, []);
+
   // Auto-detect browser timezone on mount
   useEffect(() => {
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (detected) setForm((f) => ({ ...f, timezone: detected }));
   }, []);
 
+  // Resolve display tutor: DB first → fallback pool → DEFAULT
+  function getDisplayTutor(subject: string): DisplayTutor {
+    const db = dbTutorBySubject[subject];
+    if (db) {
+      // Assign a stable color based on name char sum
+      const colorIdx = db.name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % DB_TUTOR_COLORS.length;
+      return {
+        name:       db.name,
+        initials:   db.initials,
+        color:      DB_TUTOR_COLORS[colorIdx],
+        rating:     4.8,
+        experience: "Verified tutor",
+      };
+    }
+    return tutorPool[subject] ?? DEFAULT_TUTOR;
+  }
+
   const selectedDateEntry   = calendarDates[form.selectedDateIdx];
   const selectedDateLabel   = selectedDateEntry?.fullDate ?? "";
-  const assignedTutor       = tutorPool[form.subject] ?? DEFAULT_TUTOR;
+  const assignedTutor       = getDisplayTutor(form.subject);
   const selectedSlotLabel   = timeSlots.find((s) => s.id === form.selectedSlot)?.time ?? "Not selected";
   const tzLabel             = TIMEZONES.find((t) => t.value === form.timezone)?.label ?? form.timezone;
 
@@ -143,7 +198,7 @@ export default function BookDemoPage() {
           timezone: form.timezone, subject: form.subject,
           tutorName: assignedTutor.name, tutorInitials: assignedTutor.initials,
           date: selectedDateLabel, timeSlot: selectedSlotLabel,
-          notes: form.notes, monthlyPrice: assignedTutor.monthlyPrice,
+          notes: form.notes, monthlyPrice: 0,
         }),
       });
       const data = await res.json();
@@ -336,7 +391,7 @@ export default function BookDemoPage() {
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {SUBJECTS.map((s) => {
-                  const tutor = tutorPool[s];
+                  const hasTutor = !!(dbTutorBySubject[s] || tutorPool[s]);
                   return (
                     <button key={s} onClick={() => setForm({ ...form, subject: s })}
                       className={`p-4 rounded-2xl border-2 text-sm font-medium transition-all text-left ${
@@ -345,26 +400,26 @@ export default function BookDemoPage() {
                           : "border-outline-variant text-on-surface-variant hover:border-primary/50 hover:bg-surface-container"
                       }`}>
                       <p className="font-semibold">{s}</p>
-                      {tutor && <p className="text-xs text-on-surface-variant mt-1 font-normal">Free demo available</p>}
+                      {hasTutor && <p className="text-xs text-on-surface-variant mt-1 font-normal">Free demo available</p>}
                     </button>
                   );
                 })}
               </div>
 
-              {form.subject && tutorPool[form.subject] && (
+              {form.subject && (
                 <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${tutorPool[form.subject].color} flex items-center justify-center text-white font-bold font-display shrink-0`}>
-                    {tutorPool[form.subject].initials}
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getDisplayTutor(form.subject).color} flex items-center justify-center text-white font-bold font-display shrink-0`}>
+                    {getDisplayTutor(form.subject).initials}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-1.5 mb-0.5">
                       <Sparkles size={13} className="text-primary" />
                       <span className="text-xs font-semibold text-primary uppercase tracking-wide">Auto-Assigned for {form.subject}</span>
                     </div>
-                    <p className="font-bold text-on-surface">{tutorPool[form.subject].name}</p>
+                    <p className="font-bold text-on-surface">{getDisplayTutor(form.subject).name}</p>
                     <div className="flex items-center gap-3 text-xs text-on-surface-variant mt-0.5">
-                      <span className="flex items-center gap-1"><Star size={11} fill="#fdd000" stroke="#fdd000" /> {tutorPool[form.subject].rating}</span>
-                      <span>{tutorPool[form.subject].experience} experience</span>
+                      <span className="flex items-center gap-1"><Star size={11} fill="#fdd000" stroke="#fdd000" /> {getDisplayTutor(form.subject).rating}</span>
+                      <span>{getDisplayTutor(form.subject).experience} experience</span>
                     </div>
                   </div>
                   <CheckCircle size={20} className="text-primary shrink-0" />

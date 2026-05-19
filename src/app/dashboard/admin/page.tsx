@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -26,16 +26,6 @@ interface DBResource  { id:string; title:string; type:string; subject:string; si
 interface DBVideo    { id:string; title:string; subject:string; duration:string; thumbnail:string; videoUrl:string; views:number; status:string; }
 interface DBRecording { id:string; title:string; description:string; subject:string; studentName:string; tutorName:string; videoUrl:string; duration:string; fileSize:string; uploadedBy:string; uploadedByRole:string; visibility:string; createdAt:string; }
 
-// mock payments (no payment table yet)
-const mockPayments = [
-  { id:1, parent:"Sarah M.",    tutor:"Dr. Priya S.",  amount:1999, subject:"Mathematics", status:"success",  date:"May 18, 2026" },
-  { id:2, parent:"James A.",    tutor:"Rahul V.",       amount:1799, subject:"Physics",     status:"success",  date:"May 18, 2026" },
-  { id:3, parent:"Emily C.",    tutor:"Dr. Meera P.",   amount:1799, subject:"Biology",     status:"refunded", date:"May 17, 2026" },
-  { id:4, parent:"Mohammed A.", tutor:"Dr. Vikram N.",  amount:2299, subject:"Chemistry",   status:"success",  date:"May 17, 2026" },
-  { id:5, parent:"Priya K.",    tutor:"Ms. Ananya S.",  amount:1999, subject:"Phonics",     status:"success",  date:"May 16, 2026" },
-  { id:6, parent:"Liu W.",      tutor:"Mr. Arjun M.",   amount:2499, subject:"Coding",      status:"pending",  date:"May 16, 2026" },
-  { id:7, parent:"Ana R.",      tutor:"Ms. Kavya N.",   amount:2199, subject:"Speaking",    status:"success",  date:"May 15, 2026" },
-];
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -84,6 +74,17 @@ export default function AdminDashboard() {
   const [editVideo,     setEditVideo]     = useState<DBVideo|null>(null);
 
   const setLoad = (key: string, v: boolean) => setLoading(p=>({...p,[key]:v}));
+
+  // Derive payment records from real bookings
+  const payments = useMemo(() => sessions.map(b => ({
+    id:      b.id,
+    parent:  b.parentName,
+    tutor:   b.tutorName,
+    amount:  b.monthlyPrice || 0,
+    subject: b.subject,
+    status:  b.status === "CONFIRMED" ? "success" : b.status === "CANCELLED" ? "refunded" : "pending",
+    date:    new Date(b.createdAt).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" }),
+  })), [sessions]);
 
   // ── Fetch helpers ─────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
@@ -256,9 +257,9 @@ export default function AdminDashboard() {
   const pendingTutors   = tutors.filter(t => t.approvalStatus==="PENDING");
   const filteredUsers   = users.filter(u => (userRole==="All"||u.role===userRole) && (u.name.toLowerCase().includes(userSearch.toLowerCase())||u.email.toLowerCase().includes(userSearch.toLowerCase())));
   const filteredSessions= sessions.filter(b => (sessionFilter==="All"||b.status===sessionFilter) && (b.subject.toLowerCase().includes(sessionSearch.toLowerCase())||b.childName.toLowerCase().includes(sessionSearch.toLowerCase())||b.tutorName.toLowerCase().includes(sessionSearch.toLowerCase())));
-  const filteredPayments= mockPayments.filter(p => payFilter==="All"||p.status===payFilter);
+  const filteredPayments= payments.filter(p => payFilter==="All"||p.status===payFilter);
   const filteredTickets = tickets.filter(t => supportFilter==="All"||t.status===supportFilter);
-  const totalRevenue    = mockPayments.filter(p=>p.status==="success").reduce((a,b)=>a+b.amount,0);
+  const totalRevenue    = payments.filter(p=>p.status==="success").reduce((a,b)=>a+b.amount,0);
   const maxSessions     = Math.max(...(analytics?.monthly.map(m=>m.sessions)??[1]), 1);
   const openTickets     = tickets.filter(t=>t.status==="open").length;
 
@@ -502,7 +503,7 @@ export default function AdminDashboard() {
                 {[
                   { label:"Total Users",      value:users.length,     sub:`${users.filter(u=>u.role==="PARENT").length} parents · ${tutors.length} tutors`, icon:Users,         color:"blue"   },
                   { label:"Total Sessions",   value:sessions.length,  sub:`${sessions.filter(s=>s.status==="CONFIRMED").length} confirmed`,                 icon:Calendar,     color:"purple" },
-                  { label:"Revenue (Est.)",   value:`₹${totalRevenue.toLocaleString("en-IN")}`, sub:"from mock payments",                                  icon:DollarSign,   color:"green"  },
+                  { label:"Revenue (Est.)",   value:`₹${totalRevenue.toLocaleString("en-IN")}`, sub:"from confirmed bookings",                             icon:DollarSign,   color:"green"  },
                   { label:"Pending Approvals",value:pendingTutors.length, sub:"tutor applications",                                                         icon:AlertTriangle,color:"yellow" },
                 ].map(({ label,value,sub,icon:Icon,color })=>(
                   <div key={label} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
@@ -752,9 +753,9 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
                   { label:"Total Revenue", value:`₹${totalRevenue.toLocaleString("en-IN")}`, icon:TrendingUp,  color:"green"  },
-                  { label:"Successful",    value:mockPayments.filter(p=>p.status==="success").length,  icon:CheckCircle,color:"blue"   },
-                  { label:"Refunded",      value:mockPayments.filter(p=>p.status==="refunded").length, icon:RefreshCw,  color:"red"    },
-                  { label:"Pending",       value:mockPayments.filter(p=>p.status==="pending").length,  icon:Clock,      color:"yellow" },
+                  { label:"Successful",    value:payments.filter(p=>p.status==="success").length,  icon:CheckCircle,color:"blue"   },
+                  { label:"Refunded",      value:payments.filter(p=>p.status==="refunded").length, icon:RefreshCw,  color:"red"    },
+                  { label:"Pending",       value:payments.filter(p=>p.status==="pending").length,  icon:Clock,      color:"yellow" },
                 ].map(({ label,value,icon:Icon,color })=>(
                   <div key={label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${color==="green"?"bg-green-50 text-green-600":color==="blue"?"bg-blue-50 text-blue-600":color==="red"?"bg-red-50 text-red-500":"bg-yellow-50 text-yellow-600"}`}><Icon size={19}/></div>
