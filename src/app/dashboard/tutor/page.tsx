@@ -12,6 +12,7 @@ import {
   MessageSquare, Award, BarChart2, Upload, Trash2, Download,
   FolderOpen, ExternalLink, Play, Link as LinkIcon,
 } from "lucide-react";
+import { SUBJECTS } from "@/lib/utils";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 type Section = "dashboard" | "sessions" | "students" | "earnings" | "materials" | "profile";
@@ -41,6 +42,7 @@ interface TSession {
 interface UserInfo {
   id: string; name: string; email: string; phone?: string | null;
   role: string; approvalStatus?: string; createdAt?: string;
+  subjects?: string[];
 }
 
 /* ─── Helpers ───────────────────────────────────────────────────────────── */
@@ -85,7 +87,7 @@ export default function TutorDashboard() {
   const [sessionSearch, setSessionSearch] = useState("");
 
   // Profile
-  const [profileForm, setProfileForm]     = useState({ name: "", phone: "" });
+  const [profileForm, setProfileForm]     = useState({ name: "", phone: "", subjects: [] as string[] });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg]       = useState("");
   const [profileEdit, setProfileEdit]     = useState(false);
@@ -129,7 +131,7 @@ export default function TutorDashboard() {
     ]).then(([profileData, sessData, matData, recData]) => {
       if (profileData.user) {
         setUser(profileData.user);
-        setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
+        setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "", subjects: profileData.user.subjects ?? [] });
       }
       if (sessData.sessions)    setSessions(sessData.sessions);
       if (matData.materials)    setMaterials(matData.materials);
@@ -209,7 +211,7 @@ export default function TutorDashboard() {
       body: JSON.stringify(profileForm),
     });
     const data = await res.json();
-    if (res.ok) { setUser(data.user); setProfileMsg("Saved!"); setProfileEdit(false); setTimeout(() => setProfileMsg(""), 2000); }
+    if (res.ok) { setUser(data.user); setProfileForm(f => ({ ...f, subjects: data.user.subjects ?? [] })); setProfileMsg("Saved!"); setProfileEdit(false); setTimeout(() => setProfileMsg(""), 2000); }
     else setProfileMsg(data.error ?? "Failed to save.");
     setProfileSaving(false);
   };
@@ -1477,6 +1479,18 @@ export default function TutorDashboard() {
                 ))}
               </div>
 
+              {/* Declared subjects (read-only) */}
+              {(user?.subjects ?? []).length > 0 && (
+                <div className="mb-5">
+                  <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Subjects I Teach</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(user?.subjects ?? []).map(s => (
+                      <span key={s} className="px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {!profileEdit ? (
                 <button onClick={() => setProfileEdit(true)}
                   className="btn-primary w-full sm:w-auto">
@@ -1497,6 +1511,37 @@ export default function TutorDashboard() {
                       placeholder="+91 9876543210"
                       className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
                   </div>
+
+                  {/* Subjects I Teach */}
+                  <div>
+                    <label className="block text-sm font-semibold text-on-surface mb-1">Subjects I Teach</label>
+                    <p className="text-xs text-on-surface-variant mb-3">Select all subjects you are qualified to teach. New demo bookings for these subjects will be assigned to you.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {SUBJECTS.map(s => {
+                        const selected = profileForm.subjects.includes(s);
+                        return (
+                          <button key={s} type="button"
+                            onClick={() => setProfileForm(f => ({
+                              ...f,
+                              subjects: selected
+                                ? f.subjects.filter(x => x !== s)
+                                : [...f.subjects, s],
+                            }))}
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all ${
+                              selected
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-outline-variant text-on-surface-variant hover:border-primary/40 hover:bg-surface-container"
+                            }`}>
+                            {selected ? "✓ " : ""}{s}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {profileForm.subjects.length === 0 && (
+                      <p className="text-xs text-on-surface-variant/60 mt-2 italic">No subjects selected — you won't be auto-assigned to new bookings</p>
+                    )}
+                  </div>
+
                   <div className="bg-surface-container rounded-xl px-4 py-3">
                     <p className="text-xs text-on-surface-variant flex items-center gap-1.5">
                       <Lock size={12} /> Email cannot be changed. Contact admin if needed.

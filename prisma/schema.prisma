@@ -15,6 +15,7 @@ model User {
   role           String   @default("PARENT")
   password       String
   approvalStatus String   @default("APPROVED") // PENDING | APPROVED | REJECTED (for TUTOR role)
+  subjects       String   @default("[]")       // JSON array of subject strings, e.g. '["Mathematics","Science"]'
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

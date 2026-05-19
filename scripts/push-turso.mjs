@@ -32,6 +32,8 @@ const statements = [
 
   ["User.approvalStatus column (ALTER)", `ALTER TABLE "User" ADD COLUMN "approvalStatus" TEXT NOT NULL DEFAULT 'APPROVED'`],
 
+  ["User.subjects column (ALTER)", `ALTER TABLE "User" ADD COLUMN "subjects" TEXT NOT NULL DEFAULT '[]'`],
+
   ["Booking table", `CREATE TABLE IF NOT EXISTS "Booking" (
     "id"            TEXT NOT NULL PRIMARY KEY,
     "userId"        TEXT,
