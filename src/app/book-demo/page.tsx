@@ -201,9 +201,9 @@ export default function BookDemoPage() {
                 <span className="text-xs font-semibold text-primary uppercase tracking-wide">Auto-Assigned Tutor</span>
               </div>
               <p className="font-bold text-on-surface">{assignedTutor.name}</p>
-              <div className="flex items-center gap-1 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5">
                 <Star size={11} fill="#fdd000" stroke="#fdd000" />
-                <span className="text-xs text-on-surface-variant">{assignedTutor.rating} · {assignedTutor.experience} experience</span>
+                <span className="text-xs text-on-surface-variant">{assignedTutor.rating} · {assignedTutor.experience} exp.</span>
               </div>
             </div>
           </div>
@@ -345,7 +345,7 @@ export default function BookDemoPage() {
                           : "border-outline-variant text-on-surface-variant hover:border-primary/50 hover:bg-surface-container"
                       }`}>
                       <p className="font-semibold">{s}</p>
-                      {tutor && <p className="text-xs text-on-surface-variant mt-1 font-normal">from ₹{tutor.monthlyPrice}/mo</p>}
+                      {tutor && <p className="text-xs text-on-surface-variant mt-1 font-normal">Free demo available</p>}
                     </button>
                   );
                 })}
@@ -365,7 +365,6 @@ export default function BookDemoPage() {
                     <div className="flex items-center gap-3 text-xs text-on-surface-variant mt-0.5">
                       <span className="flex items-center gap-1"><Star size={11} fill="#fdd000" stroke="#fdd000" /> {tutorPool[form.subject].rating}</span>
                       <span>{tutorPool[form.subject].experience} experience</span>
-                      <span className="font-bold text-primary">₹{tutorPool[form.subject].monthlyPrice}/month</span>
                     </div>
                   </div>
                   <CheckCircle size={20} className="text-primary shrink-0" />
@@ -441,7 +440,6 @@ export default function BookDemoPage() {
                   <div className="flex items-center gap-3 text-xs text-on-surface-variant mt-0.5">
                     <span className="flex items-center gap-1"><Star size={11} fill="#fdd000" stroke="#fdd000" /> {assignedTutor.rating}</span>
                     <span>{assignedTutor.experience} exp.</span>
-                    <span className="font-bold text-primary">₹{assignedTutor.monthlyPrice}/month after demo</span>
                   </div>
                 </div>
               </div>
@@ -455,7 +453,6 @@ export default function BookDemoPage() {
                   { label: "Time",         value: selectedSlotLabel },
                   { label: "Timezone",     value: tzLabel },
                   { label: "Session",      value: "FREE Demo (30 minutes)" },
-                  { label: "Monthly Plan", value: `₹${assignedTutor.monthlyPrice}/month (after demo)` },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between">
                     <span className="text-on-surface-variant">{label}</span>

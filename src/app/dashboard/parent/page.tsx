@@ -52,6 +52,12 @@ interface TutorMaterial {
   notes: string; visibility: string; createdAt: string;
 }
 
+interface TRecording {
+  id: string; title: string; description: string; subject: string;
+  studentName: string; tutorName: string; videoUrl: string;
+  duration: string; uploadedByRole: string; visibility: string; createdAt: string;
+}
+
 const FAQS = [
   { q: "How do I join my Zoom session?",           a: "Click the 'Join Zoom' button next to your confirmed session. The link is active 10 minutes before the session starts." },
   { q: "Can I reschedule a booking?",              a: "Yes! Please contact support at least 24 hours before your session and we'll arrange a new slot with your tutor." },
@@ -113,6 +119,7 @@ export default function ParentDashboard() {
   const [resources, setResources]         = useState<Resource[]>([]);
   const [videos, setVideos]               = useState<VideoLesson[]>([]);
   const [tutorMaterials, setTutorMaterials] = useState<TutorMaterial[]>([]);
+  const [recordings, setRecordings]         = useState<TRecording[]>([]);
   const [loading, setLoading]             = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -148,7 +155,8 @@ export default function ParentDashboard() {
       fetch("/api/parent/resources").then(r => r.json()),
       fetch("/api/parent/videos").then(r => r.json()),
       fetch("/api/parent/materials").then(r => r.json()),
-    ]).then(([profileData, bookingData, ticketData, resourceData, videoData, matData]) => {
+      fetch("/api/recordings").then(r => r.json()),
+    ]).then(([profileData, bookingData, ticketData, resourceData, videoData, matData, recData]) => {
       if (profileData.user) {
         setUser(profileData.user);
         setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
@@ -158,6 +166,7 @@ export default function ParentDashboard() {
       if (resourceData.resources)  setResources(resourceData.resources);
       if (videoData.videos)        setVideos(videoData.videos);
       if (matData.materials)       setTutorMaterials(matData.materials);
+      if (recData.recordings)      setRecordings(recData.recordings);
     }).catch(() => {
       router.push("/auth/login");
     }).finally(() => setLoading(false));
@@ -881,6 +890,70 @@ export default function ParentDashboard() {
                             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-all text-xs font-semibold">
                             <Download size={13} /> Download
                           </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Recorded Sessions */}
+            <section>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-display font-bold text-on-surface text-base flex items-center gap-2">
+                  <PlayCircle size={18} className="text-primary" /> Recorded Sessions
+                  {recordings.length > 0 && (
+                    <span className="text-xs font-normal text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">
+                      {recordings.length} video{recordings.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </h3>
+              </div>
+              {recordings.length === 0 ? (
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-8 text-center">
+                  <p className="text-3xl mb-3">🎬</p>
+                  <p className="font-semibold text-on-surface mb-1">No recordings yet</p>
+                  <p className="text-sm text-on-surface-variant">Recorded Zoom sessions from your tutor will appear here for rewatching.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {recordings.map(r => {
+                    const subjectStyle = getSubjectStyle(r.subject);
+                    return (
+                      <div key={r.id}
+                        className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card overflow-hidden hover:shadow-card-hover transition-shadow group cursor-pointer"
+                        onClick={() => window.open(r.videoUrl, "_blank")}>
+                        {/* Thumbnail */}
+                        <div className="h-32 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center relative">
+                          <div className="w-14 h-14 bg-white/80 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <PlayCircle size={28} className="text-primary" />
+                          </div>
+                          {r.duration && (
+                            <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs font-bold px-2 py-0.5 rounded-md">⏱ {r.duration}</span>
+                          )}
+                          {r.uploadedByRole === "ADMIN" && (
+                            <span className="absolute top-2 left-2 bg-primary text-on-primary text-[10px] font-bold px-2 py-0.5 rounded-md">Admin</span>
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <p className="text-sm font-semibold text-on-surface leading-snug mb-1">{r.title}</p>
+                          <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                            {r.subject && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subjectStyle.bg} ${subjectStyle.color}`}>
+                                {subjectStyle.icon} {r.subject}
+                              </span>
+                            )}
+                            {r.visibility === "all"
+                              ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">All Students</span>
+                              : r.studentName && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">👦 {r.studentName}</span>
+                            }
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-on-surface-variant">
+                            <span>🎓 {r.tutorName || "Tutor"}</span>
+                            <span>{new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                          </div>
+                          {r.description && <p className="text-xs text-on-surface-variant mt-1.5 italic leading-snug">{r.description}</p>}
                         </div>
                       </div>
                     );

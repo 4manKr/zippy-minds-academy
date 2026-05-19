@@ -10,6 +10,7 @@ import {
   AlertTriangle, Settings, MessageSquare, Calendar, Bell,
   Trash2, TrendingUp, Send, ToggleLeft, ToggleRight, Plus, Edit2, Zap,
   MapPin, RefreshCw, Save, PlayCircle, FileText, Download,
+  Play, Upload, Link as LinkIcon, User,
 } from "lucide-react";
 
 type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content";
@@ -21,8 +22,9 @@ interface DBCourse  { id:string; name:string; description:string; price:number; 
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
 interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; }
-interface DBResource { id:string; title:string; type:string; subject:string; size:string; icon:string; url:string; status:string; }
-interface DBVideo   { id:string; title:string; subject:string; duration:string; thumbnail:string; videoUrl:string; views:number; status:string; }
+interface DBResource  { id:string; title:string; type:string; subject:string; size:string; icon:string; url:string; status:string; }
+interface DBVideo    { id:string; title:string; subject:string; duration:string; thumbnail:string; videoUrl:string; views:number; status:string; }
+interface DBRecording { id:string; title:string; description:string; subject:string; studentName:string; tutorName:string; videoUrl:string; duration:string; fileSize:string; uploadedBy:string; uploadedByRole:string; visibility:string; createdAt:string; }
 
 // mock payments (no payment table yet)
 const mockPayments = [
@@ -48,8 +50,9 @@ export default function AdminDashboard() {
   const [tickets,   setTickets]   = useState<DBTicket[]>([]);
   const [analytics, setAnalytics] = useState<Analytics|null>(null);
   const [dbSettings,setDbSettings]= useState<Settings>({ siteName:"", contactEmail:"", phone:"", zoomEnabled:"true", emailNotifications:"true", autoApprove:"false", maintenanceMode:"false" });
-  const [resources,  setResources]  = useState<DBResource[]>([]);
-  const [videos,     setVideos]     = useState<DBVideo[]>([]);
+  const [resources,   setResources]   = useState<DBResource[]>([]);
+  const [videos,      setVideos]      = useState<DBVideo[]>([]);
+  const [recordings,  setRecordings]  = useState<DBRecording[]>([]);
   const [loading,   setLoading]   = useState<Record<string,boolean>>({});
 
   // UI state
@@ -65,11 +68,16 @@ export default function AdminDashboard() {
   const [newCourse,      setNewCourse]      = useState({ name:"", description:"", price:"199" });
   const [addingCourse,   setAddingCourse]   = useState(false);
   // Content management
-  const [contentTab,     setContentTab]     = useState<"resources"|"videos">("resources");
+  const [contentTab,     setContentTab]     = useState<"resources"|"videos"|"recordings">("resources");
   const [newResource,    setNewResource]    = useState({ title:"", type:"PDF", subject:"", size:"", icon:"📄", url:"" });
   const [addingResource, setAddingResource] = useState(false);
   const [newVideo,       setNewVideo]       = useState({ title:"", subject:"", duration:"", thumbnail:"📹", videoUrl:"" });
   const [addingVideo,    setAddingVideo]    = useState(false);
+  // Recordings
+  const [newRecording,   setNewRecording]   = useState({ title:"", description:"", subject:"", studentName:"", tutorName:"", videoUrl:"", duration:"", visibility:"individual" as "individual"|"all", useLink:true });
+  const [addingRecording,setAddingRecording]= useState(false);
+  const [recFile,        setRecFile]        = useState<File|null>(null);
+  const [recUploadMsg,   setRecUploadMsg]   = useState<{type:"ok"|"err";text:string}|null>(null);
   // Edit modals
   const [editCourse,    setEditCourse]    = useState<DBCourse|null>(null);
   const [editResource,  setEditResource]  = useState<DBResource|null>(null);
@@ -80,7 +88,7 @@ export default function AdminDashboard() {
   // ── Fetch helpers ─────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoad("init", true);
-    const [u,s,t,c,tk,an,st,res,vid] = await Promise.all([
+    const [u,s,t,c,tk,an,st,res,vid,rec] = await Promise.all([
       fetch("/api/admin/users").then(r=>r.json()),
       fetch("/api/admin/sessions").then(r=>r.json()),
       fetch("/api/admin/tutors").then(r=>r.json()),
@@ -90,16 +98,18 @@ export default function AdminDashboard() {
       fetch("/api/admin/settings").then(r=>r.json()),
       fetch("/api/admin/resources").then(r=>r.json()),
       fetch("/api/admin/videos").then(r=>r.json()),
+      fetch("/api/recordings").then(r=>r.json()),
     ]);
-    if (u.users)      setUsers(u.users);
-    if (s.bookings)   setSessions(s.bookings);
-    if (t.tutors)     setTutors(t.tutors);
-    if (c.courses)    setCourses(c.courses);
-    if (tk.tickets)   setTickets(tk.tickets);
-    if (an.monthly)   setAnalytics(an);
-    if (st.settings)  setDbSettings(s2 => ({ ...s2, ...st.settings }));
-    if (res.resources) setResources(res.resources);
-    if (vid.videos)    setVideos(vid.videos);
+    if (u.users)        setUsers(u.users);
+    if (s.bookings)     setSessions(s.bookings);
+    if (t.tutors)       setTutors(t.tutors);
+    if (c.courses)      setCourses(c.courses);
+    if (tk.tickets)     setTickets(tk.tickets);
+    if (an.monthly)     setAnalytics(an);
+    if (st.settings)    setDbSettings(s2 => ({ ...s2, ...st.settings }));
+    if (res.resources)  setResources(res.resources);
+    if (vid.videos)     setVideos(vid.videos);
+    if (rec.recordings) setRecordings(rec.recordings);
     setLoad("init", false);
   }, []);
 
@@ -932,11 +942,15 @@ export default function AdminDashboard() {
           {section==="content" && (
             <div className="space-y-4">
               {/* Tabs */}
-              <div className="flex gap-2 border-b border-gray-200">
-                {(["resources","videos"] as const).map(tab=>(
+              <div className="flex gap-2 border-b border-gray-200 flex-wrap">
+                {([
+                  ["resources",  `📄 Study Resources (${resources.length})`],
+                  ["videos",     `🎬 Video Lessons (${videos.length})`],
+                  ["recordings", `🔴 Recorded Sessions (${recordings.length})`],
+                ] as const).map(([tab, label])=>(
                   <button key={tab} onClick={()=>setContentTab(tab)}
-                    className={`px-5 py-3 text-sm font-semibold capitalize border-b-2 transition-all ${contentTab===tab?"border-blue-600 text-blue-600":"border-transparent text-gray-500 hover:text-gray-800"}`}>
-                    {tab==="resources" ? `📄 Study Resources (${resources.length})` : `🎬 Video Lessons (${videos.length})`}
+                    className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all ${contentTab===tab?"border-blue-600 text-blue-600":"border-transparent text-gray-500 hover:text-gray-800"}`}>
+                    {label}
                   </button>
                 ))}
               </div>
@@ -1116,6 +1130,192 @@ export default function AdminDashboard() {
                   )}
                 </div>
               )}
+
+              {/* ── RECORDINGS tab ── */}
+              {contentTab==="recordings" && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-wrap gap-3">
+                    <h2 className="font-bold text-gray-900">Recorded Sessions ({recordings.length})</h2>
+                    <button onClick={()=>{ setAddingRecording(a=>!a); setRecUploadMsg(null); }}
+                      className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                      <Plus size={15}/> Add Recording
+                    </button>
+                  </div>
+
+                  {/* Success/error */}
+                  {recUploadMsg && (
+                    <div className={`mx-6 mt-4 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold ${recUploadMsg.type==="ok" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+                      {recUploadMsg.type==="ok" ? <CheckCircle size={15}/> : <XCircle size={15}/>} {recUploadMsg.text}
+                    </div>
+                  )}
+
+                  {/* Add form */}
+                  {addingRecording && (
+                    <div className="p-6 border-b border-gray-100 bg-blue-50/40 space-y-4">
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Play size={16} className="text-blue-600"/> New Recorded Session</h3>
+
+                      {/* Visibility */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Audience</label>
+                        <div className="grid grid-cols-2 gap-3 max-w-md">
+                          {([["individual","Specific Student","Only one student"],["all","All Students","Every student of the tutor"]] as const).map(([val,lbl,sub])=>(
+                            <button key={val} type="button"
+                              onClick={()=>setNewRecording(f=>({...f,visibility:val,studentName:val==="all"?"":f.studentName}))}
+                              className={`p-3 rounded-xl border-2 text-left transition-all ${newRecording.visibility===val?"border-blue-500 bg-blue-50":"border-gray-200 hover:border-blue-300"}`}>
+                              <p className="text-sm font-bold text-gray-800">{lbl}</p>
+                              <p className="text-xs text-gray-500">{sub}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Title *</label>
+                          <input value={newRecording.title} onChange={e=>setNewRecording(f=>({...f,title:e.target.value}))} placeholder="Session title" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Tutor Name</label>
+                          <input value={newRecording.tutorName} onChange={e=>setNewRecording(f=>({...f,tutorName:e.target.value}))} placeholder="Tutor name" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+                        </div>
+                        {newRecording.visibility==="individual" && (
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Student Name *</label>
+                            <input value={newRecording.studentName} onChange={e=>setNewRecording(f=>({...f,studentName:e.target.value}))} placeholder="Student name" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+                          </div>
+                        )}
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Subject</label>
+                          <input value={newRecording.subject} onChange={e=>setNewRecording(f=>({...f,subject:e.target.value}))} placeholder="e.g. Mathematics" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Duration</label>
+                          <input value={newRecording.duration} onChange={e=>setNewRecording(f=>({...f,duration:e.target.value}))} placeholder="e.g. 45:30" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">Description</label>
+                          <input value={newRecording.description} onChange={e=>setNewRecording(f=>({...f,description:e.target.value}))} placeholder="Session summary" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+                        </div>
+                      </div>
+
+                      {/* Source toggle */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-2">Video Source *</label>
+                        <div className="flex gap-2 mb-2">
+                          {([true,false] as const).map(useLink=>(
+                            <button key={String(useLink)} type="button" onClick={()=>setNewRecording(f=>({...f,useLink}))}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${newRecording.useLink===useLink?"border-blue-500 bg-blue-50 text-blue-700":"border-gray-200 text-gray-500 hover:border-blue-300"}`}>
+                              {useLink ? <><LinkIcon size={12}/> Paste Link</> : <><Upload size={12}/> Upload File</>}
+                            </button>
+                          ))}
+                        </div>
+                        {newRecording.useLink ? (
+                          <input value={newRecording.videoUrl} onChange={e=>setNewRecording(f=>({...f,videoUrl:e.target.value}))} placeholder="Zoom cloud link, YouTube, Google Drive…" className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"/>
+                        ) : (
+                          <div className={`border-2 border-dashed rounded-xl p-4 text-center ${recFile?"border-blue-400 bg-blue-50":"border-gray-200 hover:border-blue-300"}`}>
+                            <input type="file" accept="video/*" className="hidden" id="admin-rec-file"
+                              onChange={e=>setRecFile(e.target.files?.[0]??null)}/>
+                            <label htmlFor="admin-rec-file" className="cursor-pointer text-sm text-gray-600">
+                              {recFile ? <span className="text-blue-700 font-semibold">{recFile.name}</span> : "Click to choose video file (MP4, WebM, MOV · Max 500 MB)"}
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button onClick={()=>{setAddingRecording(false);setRecUploadMsg(null);}}
+                          className="px-4 py-2 rounded-xl text-sm font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors">Cancel</button>
+                        <button disabled={addingRecording && loading["recSave"]}
+                          onClick={async()=>{
+                            if(!newRecording.title.trim()||(!newRecording.useLink&&!recFile)||(newRecording.useLink&&!newRecording.videoUrl.trim())||(newRecording.visibility==="individual"&&!newRecording.studentName.trim())){
+                              setRecUploadMsg({type:"err",text:"Please fill required fields."});return;
+                            }
+                            setLoad("recSave",true); setRecUploadMsg(null);
+                            try{
+                              let videoUrl=newRecording.videoUrl.trim(), fileSize="";
+                              if(!newRecording.useLink&&recFile){
+                                const fd=new FormData(); fd.append("file",recFile);
+                                const up=await fetch("/api/recordings/upload",{method:"POST",body:fd});
+                                const ud=await up.json();
+                                if(!up.ok) throw new Error(ud.error??"Upload failed");
+                                videoUrl=ud.url; fileSize=ud.size;
+                              }
+                              const res=await fetch("/api/recordings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...newRecording,videoUrl,fileSize,studentName:newRecording.visibility==="all"?"":newRecording.studentName})});
+                              const d=await res.json();
+                              if(!res.ok) throw new Error(d.error??"Save failed");
+                              setRecordings(p=>[d.recording,...p]);
+                              setNewRecording({title:"",description:"",subject:"",studentName:"",tutorName:"",videoUrl:"",duration:"",visibility:"individual",useLink:true});
+                              setRecFile(null); setAddingRecording(false);
+                              setRecUploadMsg({type:"ok",text:"Recording saved!"});
+                              setTimeout(()=>setRecUploadMsg(null),3000);
+                            }catch(err){setRecUploadMsg({type:"err",text:(err as Error).message??""});}
+                            finally{setLoad("recSave",false);}
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60">
+                          {loading["recSave"] ? "Saving…" : <><Play size={14}/> Save Recording</>}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recordings list */}
+                  {recordings.length===0 ? (
+                    <div className="p-12 text-center">
+                      <div className="text-4xl mb-3">🎬</div>
+                      <p className="font-semibold text-gray-700">No recordings yet</p>
+                      <p className="text-sm text-gray-400 mt-1">Tutors and admins can upload recorded Zoom sessions here.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {recordings.map(r=>(
+                        <div key={r.id} className="flex flex-col sm:flex-row sm:items-center gap-4 px-6 py-4">
+                          {/* Icon */}
+                          <div className="w-14 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
+                            <Play size={20} className="text-blue-500"/>
+                          </div>
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                              <span className="font-semibold text-gray-900 text-sm">{r.title}</span>
+                              {r.subject && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">{r.subject}</span>}
+                              {r.visibility==="all"
+                                ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">All Students</span>
+                                : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">Individual</span>}
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${r.uploadedByRole==="ADMIN"?"bg-orange-50 text-orange-700":"bg-green-50 text-green-700"}`}>
+                                By {r.uploadedByRole}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              🎓 Tutor: <strong>{r.tutorName||"—"}</strong>
+                              {r.visibility==="individual"&&r.studentName && <> · 👦 {r.studentName}</>}
+                              {r.duration && <> · ⏱ {r.duration}</>}
+                              {" · "}{new Date(r.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}
+                            </p>
+                            {r.description && <p className="text-xs text-gray-400 mt-0.5 italic">{r.description}</p>}
+                          </div>
+                          {/* Actions — admin can delete */}
+                          <div className="flex gap-2 shrink-0">
+                            <a href={r.videoUrl} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white hover:opacity-90 transition-all"
+                              style={{backgroundColor:"#2D8CFF"}}>
+                              <Play size={12}/> Watch
+                            </a>
+                            <button onClick={async()=>{
+                              if(!confirm("Delete this recording? This cannot be undone.")) return;
+                              const res=await fetch("/api/recordings",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({recordingId:r.id})});
+                              if(res.ok) setRecordings(p=>p.filter(x=>x.id!==r.id));
+                            }}
+                              className="p-1.5 rounded-xl border border-red-100 text-red-400 hover:bg-red-50 transition-colors" title="Delete">
+                              <Trash2 size={14}/>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
           )}
 

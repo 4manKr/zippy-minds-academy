@@ -168,6 +168,23 @@ const statements = [
     ('r7','Sight Words Flash Cards','PDF','Phonics','1.2 MB','📄','','active'),
     ('r8','Creative Writing Prompts','PDF','English Grammar','0.9 MB','📄','','active')`],
 
+  // ── RecordedSession table ─────────────────────────────────────────────────
+  ["RecordedSession table", `CREATE TABLE IF NOT EXISTS "RecordedSession" (
+    "id"              TEXT NOT NULL PRIMARY KEY,
+    "title"           TEXT NOT NULL,
+    "description"     TEXT NOT NULL DEFAULT '',
+    "subject"         TEXT NOT NULL DEFAULT '',
+    "studentName"     TEXT NOT NULL DEFAULT '',
+    "tutorName"       TEXT NOT NULL DEFAULT '',
+    "videoUrl"        TEXT NOT NULL,
+    "duration"        TEXT NOT NULL DEFAULT '',
+    "fileSize"        TEXT NOT NULL DEFAULT '',
+    "uploadedBy"      TEXT NOT NULL,
+    "uploadedByRole"  TEXT NOT NULL DEFAULT 'TUTOR',
+    "visibility"      TEXT NOT NULL DEFAULT 'individual',
+    "createdAt"       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`],
+
   // ── TutorMaterial table ───────────────────────────────────────────────────
   ["TutorMaterial table", `CREATE TABLE IF NOT EXISTS "TutorMaterial" (
     "id"          TEXT NOT NULL PRIMARY KEY,

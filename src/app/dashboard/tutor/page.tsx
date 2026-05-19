@@ -4,13 +4,13 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  LayoutDashboard, Calendar, Users, CreditCard, User, Settings,
+  LayoutDashboard, Calendar, Users, User, Settings,
   LogOut, Menu, X, Video, Clock, CheckCircle, AlertTriangle,
   ChevronRight, TrendingUp, Search, Star, BookOpen,
   IndianRupee, Phone, Mail, Lock, Save,
-  AlertCircle, Plus, FileText, XCircle,
+  AlertCircle, FileText, XCircle,
   MessageSquare, Award, BarChart2, Upload, Trash2, Download,
-  FolderOpen, ExternalLink,
+  FolderOpen, ExternalLink, Play, Link as LinkIcon,
 } from "lucide-react";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
@@ -21,6 +21,13 @@ interface TMaterial {
   studentName: string; subject: string; title: string;
   fileUrl: string; fileType: string; fileSize: string;
   notes: string; visibility: string; createdAt: string;
+}
+
+interface TRecording {
+  id: string; title: string; description: string; subject: string;
+  studentName: string; tutorName: string; videoUrl: string;
+  duration: string; fileSize: string; uploadedBy: string;
+  uploadedByRole: string; visibility: string; createdAt: string;
 }
 
 interface TSession {
@@ -97,6 +104,19 @@ export default function TutorDashboard() {
   const [matFile, setMatFile]               = useState<File | null>(null);
   const [showMatForm, setShowMatForm]       = useState(false);
 
+  // Recordings
+  const [recordings, setRecordings]             = useState<TRecording[]>([]);
+  const [recTab, setRecTab]                     = useState<"materials" | "recordings">("materials");
+  const [showRecForm, setShowRecForm]           = useState(false);
+  const [recUploading, setRecUploading]         = useState(false);
+  const [recUploadMsg, setRecUploadMsg]         = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [recFile, setRecFile]                   = useState<File | null>(null);
+  const [recForm, setRecForm]                   = useState({
+    title: "", description: "", subject: "", studentName: "",
+    videoUrl: "", duration: "", visibility: "individual" as "individual" | "all",
+    useLink: true, // true = paste URL, false = upload file
+  });
+
   const todayTip = TIPS[new Date().getDay() % TIPS.length];
 
   /* ── Data loading ── */
@@ -105,13 +125,15 @@ export default function TutorDashboard() {
       fetch("/api/auth/profile").then(r => r.json()),
       fetch("/api/tutor/sessions").then(r => r.json()),
       fetch("/api/tutor/materials").then(r => r.json()),
-    ]).then(([profileData, sessData, matData]) => {
+      fetch("/api/recordings").then(r => r.json()),
+    ]).then(([profileData, sessData, matData, recData]) => {
       if (profileData.user) {
         setUser(profileData.user);
         setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
       }
-      if (sessData.sessions) setSessions(sessData.sessions);
-      if (matData.materials) setMaterials(matData.materials);
+      if (sessData.sessions)    setSessions(sessData.sessions);
+      if (matData.materials)    setMaterials(matData.materials);
+      if (recData.recordings)   setRecordings(recData.recordings);
     }).catch(() => router.push("/auth/login"))
       .finally(() => setLoading(false));
   }, [router]);
@@ -262,6 +284,67 @@ export default function TutorDashboard() {
       body: JSON.stringify({ materialId }),
     });
     if (res.ok) setMaterials(prev => prev.filter(m => m.id !== materialId));
+  };
+
+  const handleUploadRecording = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const vis = recForm.visibility;
+    const needsStudent = vis === "individual" && !recForm.studentName.trim();
+    if (!recForm.title.trim() || needsStudent) {
+      setRecUploadMsg({ type: "err", text: "Please fill in title" + (needsStudent ? " and student name" : "") + "." });
+      return;
+    }
+    if (recForm.useLink && !recForm.videoUrl.trim()) {
+      setRecUploadMsg({ type: "err", text: "Please paste a video URL." }); return;
+    }
+    if (!recForm.useLink && !recFile) {
+      setRecUploadMsg({ type: "err", text: "Please select a video file." }); return;
+    }
+
+    setRecUploading(true); setRecUploadMsg(null);
+    try {
+      let videoUrl = recForm.videoUrl.trim();
+      let fileSize = "";
+
+      if (!recForm.useLink && recFile) {
+        const fd = new FormData();
+        fd.append("file", recFile);
+        const uploadRes = await fetch("/api/recordings/upload", { method: "POST", body: fd });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.error ?? "Upload failed");
+        videoUrl = uploadData.url;
+        fileSize = uploadData.size;
+      }
+
+      const res = await fetch("/api/recordings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title:       recForm.title.trim(),
+          description: recForm.description.trim(),
+          subject:     recForm.subject.trim(),
+          studentName: vis === "all" ? "" : recForm.studentName.trim(),
+          tutorName:   user?.name ?? "",
+          videoUrl,
+          duration:    recForm.duration.trim(),
+          fileSize,
+          visibility:  vis,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Save failed");
+
+      setRecordings(prev => [data.recording, ...prev]);
+      setRecForm({ title: "", description: "", subject: "", studentName: "", videoUrl: "", duration: "", visibility: "individual", useLink: true });
+      setRecFile(null);
+      setShowRecForm(false);
+      setRecUploadMsg({ type: "ok", text: "Recording saved successfully!" });
+      setTimeout(() => setRecUploadMsg(null), 3000);
+    } catch (err) {
+      setRecUploadMsg({ type: "err", text: (err as Error).message ?? "Failed." });
+    } finally {
+      setRecUploading(false);
+    }
   };
 
   /* ── Nav ── */
@@ -851,16 +934,43 @@ export default function TutorDashboard() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h2 className="font-display text-2xl font-extrabold text-on-surface">Student Materials</h2>
+                <h2 className="font-display text-2xl font-extrabold text-on-surface">Materials &amp; Recordings</h2>
                 <p className="text-sm text-on-surface-variant mt-1">
-                  Upload PDFs, worksheets and resources for your students
+                  Upload resources and recorded sessions for your students
                 </p>
               </div>
-              <button onClick={() => { setShowMatForm(v => !v); setMatUploadMsg(null); }}
-                className="btn-primary flex items-center gap-2 shrink-0">
-                <Upload size={16} /> Upload Material
-              </button>
+              <div className="flex gap-2">
+                {recTab === "materials" ? (
+                  <button onClick={() => { setShowMatForm(v => !v); setMatUploadMsg(null); }}
+                    className="btn-primary flex items-center gap-2 shrink-0">
+                    <Upload size={16} /> Upload Material
+                  </button>
+                ) : (
+                  <button onClick={() => { setShowRecForm(v => !v); setRecUploadMsg(null); }}
+                    className="btn-primary flex items-center gap-2 shrink-0">
+                    <Upload size={16} /> Add Recording
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Tab switcher */}
+            <div className="flex gap-1 bg-surface-container rounded-2xl p-1 w-fit">
+              {([["materials", FolderOpen, "Materials"], ["recordings", Play, "Recordings"]] as const).map(([id, Icon, label]) => (
+                <button key={id} onClick={() => setRecTab(id as "materials" | "recordings")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                    recTab === id ? "bg-surface-container-lowest shadow text-primary" : "text-on-surface-variant hover:text-on-surface"
+                  }`}>
+                  <Icon size={15} /> {label}
+                  <span className="text-[10px] font-bold bg-surface-container px-1.5 py-0.5 rounded-full text-on-surface-variant">
+                    {id === "materials" ? materials.length : recordings.length}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* ── MATERIALS TAB ── */}
+            {recTab === "materials" && <>
 
             {/* Success/error banner */}
             {matUploadMsg && (
@@ -1110,6 +1220,213 @@ export default function TutorDashboard() {
                   })}
               </div>
             )}
+
+            </> /* end materials tab */}
+
+            {/* ── RECORDINGS TAB ── */}
+            {recTab === "recordings" && <>
+
+              {/* Success/error */}
+              {recUploadMsg && (
+                <div className={`flex items-center gap-3 rounded-2xl px-5 py-3.5 ${
+                  recUploadMsg.type === "ok" ? "bg-green-50 border border-green-200 text-green-800" : "bg-red-50 border border-red-200 text-red-800"
+                }`}>
+                  {recUploadMsg.type === "ok" ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+                  <span className="text-sm font-semibold">{recUploadMsg.text}</span>
+                </div>
+              )}
+
+              {/* Upload form */}
+              {showRecForm && (
+                <div className="bg-surface-container-lowest rounded-2xl border border-primary/20 shadow-card p-6">
+                  <h3 className="font-display font-bold text-on-surface mb-5 flex items-center gap-2">
+                    <Play size={18} className="text-primary" /> Add Recorded Session
+                  </h3>
+                  <form onSubmit={handleUploadRecording} className="space-y-4">
+
+                    {/* Visibility */}
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-2">Who can watch this? <span className="text-red-500">*</span></label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {([["individual", User, "Specific Student", "Only the selected student can watch"], ["all", Users, "All My Students", "Every student you teach can watch"]] as const).map(([val, Icon, lbl, sub]) => (
+                          <button key={val} type="button"
+                            onClick={() => setRecForm(f => ({ ...f, visibility: val, studentName: val === "all" ? "" : f.studentName }))}
+                            className={`flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 transition-all ${
+                              recForm.visibility === val ? "border-primary bg-primary/5 text-primary" : "border-outline-variant text-on-surface-variant hover:border-primary/40"
+                            }`}>
+                            <Icon size={20} />
+                            <span className="text-sm font-bold">{lbl}</span>
+                            <span className="text-[10px] text-center leading-tight opacity-70">{sub}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      {recForm.visibility === "individual" && (
+                        <div>
+                          <label className="block text-sm font-semibold text-on-surface mb-1.5">Student Name <span className="text-red-500">*</span></label>
+                          <input list="rec-student-list" value={recForm.studentName}
+                            onChange={e => setRecForm(f => ({ ...f, studentName: e.target.value }))}
+                            placeholder="Pick a student" required
+                            className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                          <datalist id="rec-student-list">
+                            {Object.keys(studentMap).map(n => <option key={n} value={n} />)}
+                          </datalist>
+                        </div>
+                      )}
+                      <div className={recForm.visibility === "all" ? "sm:col-span-2" : ""}>
+                        <label className="block text-sm font-semibold text-on-surface mb-1.5">Subject</label>
+                        <input list="rec-subject-list" value={recForm.subject}
+                          onChange={e => setRecForm(f => ({ ...f, subject: e.target.value }))}
+                          placeholder="e.g. Mathematics"
+                          className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                        <datalist id="rec-subject-list">
+                          {Object.keys(subjectMap).map(s => <option key={s} value={s} />)}
+                        </datalist>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-1.5">Title <span className="text-red-500">*</span></label>
+                      <input value={recForm.title} onChange={e => setRecForm(f => ({ ...f, title: e.target.value }))}
+                        placeholder="e.g. Session 5 — Division Practice"
+                        required
+                        className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-1.5">Description (optional)</label>
+                      <textarea rows={2} value={recForm.description}
+                        onChange={e => setRecForm(f => ({ ...f, description: e.target.value }))}
+                        placeholder="What topics were covered in this session?"
+                        className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none" />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-1.5">Duration (optional)</label>
+                      <input value={recForm.duration} onChange={e => setRecForm(f => ({ ...f, duration: e.target.value }))}
+                        placeholder="e.g. 45:30"
+                        className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                    </div>
+
+                    {/* Video source toggle */}
+                    <div>
+                      <label className="block text-sm font-semibold text-on-surface mb-2">Video Source <span className="text-red-500">*</span></label>
+                      <div className="flex gap-2 mb-3">
+                        <button type="button" onClick={() => setRecForm(f => ({ ...f, useLink: true }))}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${recForm.useLink ? "border-primary bg-primary/5 text-primary" : "border-outline-variant text-on-surface-variant hover:border-primary/40"}`}>
+                          <LinkIcon size={14} /> Paste Link
+                        </button>
+                        <button type="button" onClick={() => setRecForm(f => ({ ...f, useLink: false }))}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${!recForm.useLink ? "border-primary bg-primary/5 text-primary" : "border-outline-variant text-on-surface-variant hover:border-primary/40"}`}>
+                          <Upload size={14} /> Upload File
+                        </button>
+                      </div>
+
+                      {recForm.useLink ? (
+                        <input value={recForm.videoUrl} onChange={e => setRecForm(f => ({ ...f, videoUrl: e.target.value }))}
+                          placeholder="Zoom cloud link, Google Drive, YouTube, etc."
+                          className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                      ) : (
+                        <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${recFile ? "border-primary bg-primary/5" : "border-outline-variant hover:border-primary/50"}`}>
+                          <input type="file" accept="video/*" className="hidden" id="rec-file-input"
+                            onChange={e => setRecFile(e.target.files?.[0] ?? null)} />
+                          <label htmlFor="rec-file-input" className="cursor-pointer flex flex-col items-center gap-2">
+                            {recFile ? (
+                              <><Play size={28} className="text-primary" />
+                                <span className="text-sm font-semibold text-primary">{recFile.name}</span>
+                                <span className="text-xs text-on-surface-variant">{(recFile.size / (1024*1024)).toFixed(1)} MB · Click to change</span></>
+                            ) : (
+                              <><Upload size={28} className="text-on-surface-variant" />
+                                <span className="text-sm font-semibold text-on-surface">Click to choose video</span>
+                                <span className="text-xs text-on-surface-variant">MP4, WebM, MOV · Max 500 MB</span></>
+                            )}
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3 pt-1">
+                      <button type="button" onClick={() => setShowRecForm(false)}
+                        className="flex-1 py-3 rounded-xl border border-outline-variant text-on-surface-variant font-semibold text-sm hover:bg-surface-container transition-colors">
+                        Cancel
+                      </button>
+                      <button type="submit" disabled={recUploading} className="flex-1 btn-primary disabled:opacity-60 justify-center">
+                        {recUploading ? (
+                          <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {recForm.useLink ? "Saving…" : "Uploading…"}</>
+                        ) : (
+                          <><Upload size={15} /> Save Recording</>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Recordings list */}
+              {recordings.length === 0 ? (
+                <EmptyState icon="🎬" title="No recordings yet"
+                  desc="Add your Zoom session recordings so students can rewatch lessons anytime." />
+              ) : (
+                <div className="space-y-3">
+                  {recordings.map(r => {
+                    const subjectStyle = getSubjectStyle(r.subject);
+                    return (
+                      <div key={r.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                        {/* Thumbnail */}
+                        <div className="w-16 h-12 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+                          <Play size={22} className="text-primary" />
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="font-bold text-on-surface text-sm">{r.title}</span>
+                            {r.subject && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${subjectStyle.bg} ${subjectStyle.color}`}>
+                                {subjectStyle.icon} {r.subject}
+                              </span>
+                            )}
+                            {r.visibility === "all" ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 flex items-center gap-0.5"><Users size={9} /> All Students</span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 flex items-center gap-0.5"><User size={9} /> Individual</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-on-surface-variant">
+                            {r.visibility === "all"
+                              ? <span>👥 All students</span>
+                              : <span>👦 <strong>{r.studentName}</strong></span>
+                            }
+                            {r.duration && <> · ⏱ {r.duration}</>}
+                            {r.fileSize && <> · {r.fileSize}</>}
+                            {" · "}{fmtDate(r.createdAt)}
+                          </p>
+                          {r.description && <p className="text-xs text-on-surface-variant mt-0.5 italic">{r.description}</p>}
+                        </div>
+
+                        {/* Actions — tutor can view but NOT delete */}
+                        <div className="flex gap-2 shrink-0">
+                          <a href={r.videoUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
+                            style={{ backgroundColor: "#2D8CFF" }}>
+                            <Play size={14} /> Watch
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex items-start gap-3">
+                <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-800">Only admins can delete recordings. Contact <strong>zippymindsacademy@gmail.com</strong> to remove a recording.</p>
+              </div>
+
+            </> /* end recordings tab */}
+
           </div>
         )}
 

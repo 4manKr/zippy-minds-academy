@@ -119,6 +119,22 @@ model VideoLesson {
   updatedAt DateTime @updatedAt
 }
 
+model RecordedSession {
+  id            String   @id @default(cuid())
+  title         String
+  description   String   @default("")
+  subject       String   @default("")
+  studentName   String   @default("")          // blank = shared with all parent students of this tutor
+  tutorName     String   @default("")
+  videoUrl      String                         // Zoom cloud link, YouTube, or Vercel Blob URL
+  duration      String   @default("")          // e.g. "45:30"
+  fileSize      String   @default("")
+  uploadedBy    String                         // user name who uploaded
+  uploadedByRole String  @default("TUTOR")     // "ADMIN" | "TUTOR"
+  visibility    String   @default("individual") // "individual" | "all"
+  createdAt     DateTime @default(now())
+}
+
 model TutorMaterial {
   id          String   @id @default(cuid())
   tutorName   String                         // matches session.name
