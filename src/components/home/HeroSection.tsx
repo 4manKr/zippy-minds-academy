@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CheckCircle, Zap } from "lucide-react";
+import DemoCTA from "@/components/DemoCTA";
 
 const featureCards = [
   { icon: "🎓", title: "Top 1% Tutors",   desc: "Rigorous selection from premier Indian institutions.", color: "border-primary" },
@@ -47,9 +48,7 @@ export default function HeroSection() {
 
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <Link href="/book-demo" className="btn-yellow text-base px-8 py-4 justify-center">
-                Book a Demo <ArrowRight size={20} />
-              </Link>
+              <DemoCTA className="btn-yellow text-base px-8 py-4 justify-center flex items-center gap-2" />
               <Link href="/courses" className="btn-secondary text-base px-8 py-4 justify-center">
                 View Courses
               </Link>

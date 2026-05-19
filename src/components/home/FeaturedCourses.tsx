@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Star, Clock, ArrowRight } from "lucide-react";
+import DemoCTA from "@/components/DemoCTA";
 
 const courses = [
   {
@@ -118,10 +119,9 @@ export default function FeaturedCourses() {
         {/* Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {courses.map((course, idx) => (
-            <Link
+            <div
               key={idx}
-              href={`/courses/${course.id}`}
-              className={`group bg-surface-container-lowest rounded-3xl overflow-hidden shadow-card card-hover border-t-8 ${course.borderColor}`}
+              className={`group bg-surface-container-lowest rounded-3xl overflow-hidden shadow-card border-t-8 ${course.borderColor}`}
             >
               {/* Thumbnail */}
               <div className="h-36 bg-surface-container flex items-center justify-center relative">
@@ -156,13 +156,12 @@ export default function FeaturedCourses() {
                   <div className="flex items-center gap-1"><Clock size={11} /> {course.duration}</div>
                 </div>
 
-                <div className="flex items-center justify-between mt-4">
-                  <button className="w-full bg-secondary-container text-on-secondary-fixed font-bold text-xs py-2.5 rounded-full squishy-hover">
-                    Book Free Demo 🎉
-                  </button>
+                <div className="mt-4">
+                  <DemoCTA subject={course.subject}
+                    className="w-full bg-secondary-container text-on-secondary-fixed font-bold text-xs py-2.5 rounded-full squishy-hover flex items-center justify-center gap-1" />
                 </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       </div>

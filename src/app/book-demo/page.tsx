@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle, ChevronRight, User, BookOpen, Calendar,
   Clock, Globe, ArrowRight, Star, Sparkles, Zap, Video,
@@ -99,6 +99,7 @@ interface BookingResult {
 }
 
 function BookDemoInner() {
+  const router = useRouter();
   const [step, setStep]               = useState<Step>(1);
   const [confirmed, setConfirmed]     = useState(false);
   const [confirming, setConfirming]   = useState(false);
@@ -136,6 +137,21 @@ function BookDemoInner() {
       .then((data) => { if (data?.tutorBySubject) setDbTutorBySubject(data.tutorBySubject); })
       .catch(() => {/* silently fall back to tutorPool */});
   }, []);
+
+  // If logged-in user already has a demo booking, redirect to enroll page
+  useEffect(() => {
+    fetch("/api/bookings/status")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.hasDemo) {
+          const dest = preSubject
+            ? `/enroll?subject=${encodeURIComponent(preSubject)}`
+            : "/enroll";
+          router.replace(dest);
+        }
+      })
+      .catch(() => {});
+  }, [preSubject, router]);
 
   // Auto-detect browser timezone on mount
   useEffect(() => {
@@ -190,7 +206,7 @@ function BookDemoInner() {
     setConfirming(true);
     setBookingError("");
     try {
-      // Check if this email already has a demo booking
+      // If this email already has a demo, redirect to enroll instead of showing an error
       const checkRes = await fetch("/api/bookings/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -198,8 +214,10 @@ function BookDemoInner() {
       });
       const checkData = await checkRes.json();
       if (checkData.exists) {
-        setBookingError("This email has already booked a free demo. Please log in to your dashboard or contact support.");
-        setConfirming(false);
+        const dest = form.subject
+          ? `/enroll?subject=${encodeURIComponent(form.subject)}`
+          : "/enroll";
+        router.push(dest);
         return;
       }
 

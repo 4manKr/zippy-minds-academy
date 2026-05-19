@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import DemoCTA from "@/components/DemoCTA";
 
 const navLinks = [
   { label: "About Us", href: "/about" },
@@ -54,9 +55,7 @@ export default function Navbar() {
           <Link href="/auth/signup" className="text-sm font-semibold text-on-surface-variant px-4 py-2 hover:bg-surface-container rounded-xl transition-all border border-outline-variant">
             Sign Up
           </Link>
-          <Link href="/book-demo" className="bg-secondary-container text-on-secondary-fixed font-bold text-sm px-5 py-2.5 rounded-full shadow-sm squishy-hover ml-1">
-            Book Free Demo
-          </Link>
+          <DemoCTA className="bg-secondary-container text-on-secondary-fixed font-bold text-sm px-5 py-2.5 rounded-full shadow-sm squishy-hover ml-1" />
         </div>
 
         {/* Mobile toggle */}
@@ -93,9 +92,7 @@ export default function Navbar() {
                   Sign Up
                 </Link>
               </div>
-              <Link href="/book-demo" onClick={() => setMobileOpen(false)} className="block w-full text-center btn-yellow py-2.5 text-sm justify-center">
-                Book Free Demo
-              </Link>
+              <DemoCTA className="block w-full text-center btn-yellow py-2.5 text-sm justify-center" />
             </div>
           </div>
         </div>

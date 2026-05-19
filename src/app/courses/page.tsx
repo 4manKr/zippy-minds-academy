@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Search, Star, Clock, Filter, BookOpen } from "lucide-react";
 import { SUBJECT_COLORS } from "@/lib/utils";
+import DemoCTA from "@/components/DemoCTA";
 
 const allCourses = [
   {
@@ -233,9 +234,8 @@ export default function CoursesPage() {
                     <div className="flex items-center gap-1"><Clock size={11} /> {course.duration}</div>
                   </div>
 
-                  <Link href={demoUrl} className="w-full btn-yellow justify-center text-xs py-2.5 mt-auto">
-                    <BookOpen size={13} /> Book Free Demo
-                  </Link>
+                  <DemoCTA subject={course.subject}
+                    className="w-full btn-yellow justify-center text-xs py-2.5 mt-auto flex items-center gap-1.5" />
                 </div>
               </div>
             );
