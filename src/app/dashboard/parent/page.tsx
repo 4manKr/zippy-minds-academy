@@ -449,7 +449,9 @@ export default function ParentDashboard() {
                           nextSession.status === "CONFIRMED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
                         }`}>{nextSession.status}</span>
                       </div>
-                      <p className="text-sm text-on-surface-variant">👤 Tutor: {nextSession.tutorName}</p>
+                      <p className="text-sm text-on-surface-variant">
+                        👤 Tutor: {nextSession.status === "CONFIRMED" ? nextSession.tutorName : <span className="italic text-on-surface-variant/60">Will be revealed after confirmation</span>}
+                      </p>
                       <p className="text-sm text-on-surface-variant">👦 Student: {nextSession.childName}</p>
                       <div className="flex flex-wrap gap-3 text-xs text-on-surface-variant mt-1">
                         <span className="flex items-center gap-1"><Calendar size={11} className="text-primary" />{nextSession.date}</span>
@@ -618,7 +620,12 @@ export default function ParentDashboard() {
                         <tr key={b.id} className={`border-b border-outline-variant/50 hover:bg-surface-container/50 transition-colors ${i === bookings.length - 1 ? "border-b-0" : ""}`}>
                           <td className="px-4 py-3 font-semibold text-on-surface whitespace-nowrap">{b.subject}</td>
                           <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{b.childName}</td>
-                          <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{b.tutorName}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {b.status === "CONFIRMED"
+                              ? <span className="text-on-surface-variant">{b.tutorName}</span>
+                              : <span className="text-xs italic text-on-surface-variant/50">Pending assignment</span>
+                            }
+                          </td>
                           <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{b.date}</td>
                           <td className="px-4 py-3 text-on-surface-variant whitespace-nowrap">{b.timeSlot}</td>
                           <td className="px-4 py-3">

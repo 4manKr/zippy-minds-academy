@@ -246,20 +246,17 @@ export default function BookDemoPage() {
             </a>
           )}
 
-          <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-5 flex items-center gap-4 text-left">
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${assignedTutor.color} flex items-center justify-center text-white font-bold font-display shrink-0`}>
-              {assignedTutor.initials}
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5 flex items-center gap-4 text-left">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shrink-0">
+              <Clock size={22} />
             </div>
             <div>
               <div className="flex items-center gap-1.5 mb-0.5">
-                <Zap size={13} className="text-primary" />
-                <span className="text-xs font-semibold text-primary uppercase tracking-wide">Auto-Assigned Tutor</span>
+                <Zap size={13} className="text-amber-600" />
+                <span className="text-xs font-semibold text-amber-600 uppercase tracking-wide">Tutor Assignment Pending</span>
               </div>
-              <p className="font-bold text-on-surface">{assignedTutor.name}</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Star size={11} fill="#fdd000" stroke="#fdd000" />
-                <span className="text-xs text-on-surface-variant">{assignedTutor.rating} · {assignedTutor.experience} exp.</span>
-              </div>
+              <p className="font-bold text-on-surface">Your tutor is being matched</p>
+              <p className="text-xs text-on-surface-variant mt-0.5">You'll see your tutor's name in your dashboard once the session is confirmed</p>
             </div>
           </div>
 
@@ -408,19 +405,16 @@ export default function BookDemoPage() {
 
               {form.subject && (
                 <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getDisplayTutor(form.subject).color} flex items-center justify-center text-white font-bold font-display shrink-0`}>
-                    {getDisplayTutor(form.subject).initials}
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/40 to-primary flex items-center justify-center text-white shrink-0">
+                    <Sparkles size={22} />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-1.5 mb-0.5">
                       <Sparkles size={13} className="text-primary" />
-                      <span className="text-xs font-semibold text-primary uppercase tracking-wide">Auto-Assigned for {form.subject}</span>
+                      <span className="text-xs font-semibold text-primary uppercase tracking-wide">Tutor for {form.subject}</span>
                     </div>
-                    <p className="font-bold text-on-surface">{getDisplayTutor(form.subject).name}</p>
-                    <div className="flex items-center gap-3 text-xs text-on-surface-variant mt-0.5">
-                      <span className="flex items-center gap-1"><Star size={11} fill="#fdd000" stroke="#fdd000" /> {getDisplayTutor(form.subject).rating}</span>
-                      <span>{getDisplayTutor(form.subject).experience} experience</span>
-                    </div>
+                    <p className="font-bold text-on-surface">Best-matched tutor will be assigned</p>
+                    <p className="text-xs text-on-surface-variant mt-0.5">You'll see your tutor's details after the session is confirmed</p>
                   </div>
                   <CheckCircle size={20} className="text-primary shrink-0" />
                 </div>
@@ -483,20 +477,18 @@ export default function BookDemoPage() {
               </h2>
 
               <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-5 flex items-center gap-4">
-                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${assignedTutor.color} flex items-center justify-center text-white font-bold font-display text-lg shrink-0`}>
-                  {assignedTutor.initials}
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/30 to-primary/70 flex items-center justify-center text-white shrink-0">
+                  <Zap size={24} />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Zap size={13} className="text-primary" />
-                    <span className="text-xs font-semibold text-primary uppercase tracking-wide">Auto-Assigned Tutor</span>
+                    <span className="text-xs font-semibold text-primary uppercase tracking-wide">Tutor Assignment</span>
                   </div>
-                  <p className="font-bold text-on-surface">{assignedTutor.name}</p>
-                  <div className="flex items-center gap-3 text-xs text-on-surface-variant mt-0.5">
-                    <span className="flex items-center gap-1"><Star size={11} fill="#fdd000" stroke="#fdd000" /> {assignedTutor.rating}</span>
-                    <span>{assignedTutor.experience} exp.</span>
-                  </div>
+                  <p className="font-bold text-on-surface">Our best tutor for {form.subject || "your subject"}</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">Tutor details will be revealed once the session is confirmed by our team</p>
                 </div>
+                <Clock size={18} className="text-on-surface-variant shrink-0" />
               </div>
 
               <div className="bg-surface-container rounded-2xl p-5 space-y-3 mb-5 text-sm">
