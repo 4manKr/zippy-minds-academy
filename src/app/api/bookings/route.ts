@@ -25,6 +25,18 @@ export async function POST(req: NextRequest) {
     const resolvedParentEmail = parentEmail || session.email || "guest@zippy.com";
     const resolvedTimezone    = timezone    || "Asia/Kolkata";
 
+    // ── One free demo per email ───────────────────────────────────────────
+    const existing = await prisma.booking.findFirst({
+      where: { parentEmail: resolvedParentEmail },
+      select: { id: true },
+    });
+    if (existing) {
+      return NextResponse.json(
+        { error: "You have already booked a free demo session. Please check your dashboard or contact support to schedule more sessions." },
+        { status: 409 }
+      );
+    }
+
     // ── Verify OTP if provided (guest booking) ────────────────────────────
     if (otp && !session.isLoggedIn) {
       const record = await prisma.otpCode.findFirst({

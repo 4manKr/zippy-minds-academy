@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   CheckCircle, ChevronRight, User, BookOpen, Calendar,
   Clock, Globe, ArrowRight, Star, Sparkles, Zap, Video,
@@ -97,7 +98,7 @@ interface BookingResult {
   booking?:   { id: string; date?: string; timeSlot?: string };
 }
 
-export default function BookDemoPage() {
+function BookDemoInner() {
   const [step, setStep]               = useState<Step>(1);
   const [confirmed, setConfirmed]     = useState(false);
   const [confirming, setConfirming]   = useState(false);
@@ -112,11 +113,18 @@ export default function BookDemoPage() {
   // Build dynamic calendar dates once (client-side only to avoid SSR mismatch)
   const calendarDates = useMemo(() => buildCalendarDates(), []);
 
+  // Read ?subject= from URL (set when coming from the Courses page)
+  const searchParams = useSearchParams();
+  const preSubject = useMemo(() => {
+    const s = searchParams.get("subject") ?? "";
+    return SUBJECTS.includes(s) ? s : "";
+  }, [searchParams]);
+
   const [form, setForm] = useState({
     parentName: "", parentEmail: "",
     childName: "", childAge: "", grade: "",
-    timezone: "Asia/Kolkata", subject: "",
-    selectedDateIdx: 0,       // index into calendarDates
+    timezone: "Asia/Kolkata", subject: preSubject,
+    selectedDateIdx: 0,
     selectedSlot: null as number | null,
     notes: "",
   });
@@ -134,6 +142,24 @@ export default function BookDemoPage() {
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (detected) setForm((f) => ({ ...f, timezone: detected }));
   }, []);
+
+  // When subject is pre-filled from URL, skip Step 2 (go 1 → 3 → 4)
+  const nextStep = () => {
+    setStep((s) => {
+      const next = s + 1;
+      // Skip step 2 if subject already pre-selected from URL
+      if (next === 2 && preSubject) return 3;
+      return Math.min(4, next) as Step;
+    });
+  };
+  const prevStep = () => {
+    setStep((s) => {
+      const prev = s - 1;
+      // Skip step 2 going back if subject was pre-selected
+      if (prev === 2 && preSubject) return 1;
+      return Math.max(1, prev) as Step;
+    });
+  };
 
   // Resolve display tutor: DB first → fallback pool → DEFAULT
   function getDisplayTutor(subject: string): DisplayTutor {
@@ -158,15 +184,25 @@ export default function BookDemoPage() {
   const selectedSlotLabel   = timeSlots.find((s) => s.id === form.selectedSlot)?.time ?? "Not selected";
   const tzLabel             = TIMEZONES.find((t) => t.value === form.timezone)?.label ?? form.timezone;
 
-  const nextStep = () => setStep((s) => Math.min(4, s + 1) as Step);
-  const prevStep = () => setStep((s) => Math.max(1, s - 1) as Step);
-
-  // Step 4 phase 1: send OTP
+  // Step 4 phase 1: check duplicate → send OTP
   const handleSendOtp = async () => {
     if (!form.parentEmail) { setBookingError("Please enter your email address."); return; }
     setConfirming(true);
     setBookingError("");
     try {
+      // Check if this email already has a demo booking
+      const checkRes = await fetch("/api/bookings/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.parentEmail }),
+      });
+      const checkData = await checkRes.json();
+      if (checkData.exists) {
+        setBookingError("This email has already booked a free demo. Please log in to your dashboard or contact support.");
+        setConfirming(false);
+        return;
+      }
+
       const res = await fetch("/api/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -303,6 +339,12 @@ export default function BookDemoPage() {
           <p className="text-on-surface-variant mt-2">
             We&apos;ll match you with the best available tutor for your subject automatically.
           </p>
+          {/* Pre-selected subject banner (when arriving from Courses page) */}
+          {preSubject && (
+            <div className="mt-4 inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-4 py-2 text-sm font-semibold text-green-700">
+              <CheckCircle size={15} /> Subject pre-selected: <span className="font-bold">{preSubject}</span>
+            </div>
+          )}
         </div>
 
         {/* Progress stepper */}
@@ -310,11 +352,11 @@ export default function BookDemoPage() {
           {steps.map((s, i) => (
             <div key={s.id} className="flex items-center gap-2 flex-1">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 transition-all ${
-                step > s.id   ? "bg-green-500 text-white" :
+                (step > s.id || (s.id === 2 && preSubject)) ? "bg-green-500 text-white" :
                 step === s.id ? "bg-primary text-on-primary" :
                                 "bg-surface-container text-on-surface-variant"
               }`}>
-                {step > s.id ? <CheckCircle size={16} /> : s.id}
+                {(step > s.id || (s.id === 2 && preSubject)) ? <CheckCircle size={16} /> : s.id}
               </div>
               <span className={`text-xs font-medium hidden sm:block ${step >= s.id ? "text-on-surface" : "text-on-surface-variant"}`}>
                 {s.label}
@@ -577,5 +619,17 @@ export default function BookDemoPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BookDemoPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    }>
+      <BookDemoInner />
+    </Suspense>
   );
 }

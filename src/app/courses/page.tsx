@@ -188,11 +188,11 @@ export default function CoursesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filtered.map((course) => {
             const colors = SUBJECT_COLORS[course.subject] ?? SUBJECT_COLORS["Science"];
+            const demoUrl = `/book-demo?subject=${encodeURIComponent(course.subject)}`;
             return (
-              <Link
+              <div
                 key={course.id}
-                href={`/courses/${course.id}`}
-                className="group bg-surface-container-lowest rounded-3xl overflow-hidden shadow-card card-hover border border-outline-variant"
+                className="group bg-surface-container-lowest rounded-3xl overflow-hidden shadow-card border border-outline-variant flex flex-col"
               >
                 {/* Thumbnail */}
                 <div className={`h-40 bg-gradient-to-br ${colors.gradient} flex items-center justify-center relative`}>
@@ -203,16 +203,16 @@ export default function CoursesPage() {
                     <span className="badge bg-white/90 text-on-surface font-semibold text-xs">{course.ageGroup}</span>
                   </div>
                   <div className="absolute bottom-3 left-3">
-                    <span className="badge bg-white font-bold text-primary text-xs">₹{course.price}/mo</span>
+                    <span className="badge bg-green-100 text-green-700 font-bold text-xs">Free Demo Available</span>
                   </div>
                 </div>
 
                 {/* Content */}
-                <div className="p-5">
+                <div className="p-5 flex flex-col flex-1">
                   <span className={`badge text-xs mb-2 inline-block ${colors.bg} ${colors.text}`}>
                     {course.subject}
                   </span>
-                  <h3 className="font-display font-bold text-on-surface text-base mb-1 group-hover:text-primary transition-colors leading-snug">
+                  <h3 className="font-display font-bold text-on-surface text-base mb-1 leading-snug">
                     {course.title}
                   </h3>
                   <p className="text-xs text-on-surface-variant mb-3 leading-snug">{course.tagline}</p>
@@ -233,11 +233,11 @@ export default function CoursesPage() {
                     <div className="flex items-center gap-1"><Clock size={11} /> {course.duration}</div>
                   </div>
 
-                  <button className="w-full btn-yellow justify-center text-xs py-2.5">
+                  <Link href={demoUrl} className="w-full btn-yellow justify-center text-xs py-2.5 mt-auto">
                     <BookOpen size={13} /> Book Free Demo
-                  </button>
+                  </Link>
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
