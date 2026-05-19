@@ -75,12 +75,12 @@ export default function Footer() {
               1-to-1 online learning sessions. Premium education, globally accessible.
             </p>
             <div className="space-y-3">
-              <a href="mailto:hello@zippymindsacademy.com"
+              <a href="mailto:zippymindsacademy@gmail.com"
                 className="flex items-center gap-3 text-sm text-white/60 hover:text-yellow-300 transition-colors group">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-yellow-400/20 transition-colors shrink-0">
                   <Mail size={14} className="text-yellow-400" />
                 </div>
-                hello@zippymindsacademy.com
+                zippymindsacademy@gmail.com
               </a>
               <a href="tel:+919311483555"
                 className="flex items-center gap-3 text-sm text-white/60 hover:text-yellow-300 transition-colors group">

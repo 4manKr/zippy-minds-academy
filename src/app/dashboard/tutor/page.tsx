@@ -20,7 +20,7 @@ interface TMaterial {
   id: string; tutorName: string; tutorEmail: string;
   studentName: string; subject: string; title: string;
   fileUrl: string; fileType: string; fileSize: string;
-  notes: string; createdAt: string;
+  notes: string; visibility: string; createdAt: string;
 }
 
 interface TSession {
@@ -93,7 +93,7 @@ export default function TutorDashboard() {
   const [matStudentFilter, setMatStudentFilter] = useState<string>("All");
   const [matUploading, setMatUploading]     = useState(false);
   const [matUploadMsg, setMatUploadMsg]     = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  const [matForm, setMatForm]               = useState({ studentName: "", subject: "", title: "", notes: "" });
+  const [matForm, setMatForm]               = useState({ studentName: "", subject: "", title: "", notes: "", visibility: "individual" as "individual" | "all" });
   const [matFile, setMatFile]               = useState<File | null>(null);
   const [showMatForm, setShowMatForm]       = useState(false);
 
@@ -209,8 +209,9 @@ export default function TutorDashboard() {
 
   const handleUploadMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!matFile || !matForm.studentName.trim() || !matForm.title.trim()) {
-      setMatUploadMsg({ type: "err", text: "Please fill in student name, title and select a file." });
+    const needsStudent = matForm.visibility === "individual" && !matForm.studentName.trim();
+    if (!matFile || !matForm.title.trim() || needsStudent) {
+      setMatUploadMsg({ type: "err", text: matForm.visibility === "individual" ? "Please fill in student name, title and select a file." : "Please fill in title and select a file." });
       return;
     }
     setMatUploading(true); setMatUploadMsg(null);
@@ -227,10 +228,11 @@ export default function TutorDashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          studentName: matForm.studentName.trim(),
+          studentName: matForm.visibility === "all" ? "" : matForm.studentName.trim(),
           subject:     matForm.subject.trim(),
           title:       matForm.title.trim(),
           notes:       matForm.notes.trim(),
+          visibility:  matForm.visibility,
           fileUrl:     uploadData.url,
           fileType:    uploadData.type?.includes("pdf") ? "PDF" : uploadData.type?.includes("image") ? "Image" : "Doc",
           fileSize:    uploadData.size,
@@ -240,7 +242,7 @@ export default function TutorDashboard() {
       if (!res.ok) throw new Error(data.error ?? "Save failed");
 
       setMaterials(prev => [data.material, ...prev]);
-      setMatForm({ studentName: "", subject: "", title: "", notes: "" });
+      setMatForm({ studentName: "", subject: "", title: "", notes: "", visibility: "individual" });
       setMatFile(null);
       setShowMatForm(false);
       setMatUploadMsg({ type: "ok", text: "Material uploaded successfully!" });
@@ -377,7 +379,7 @@ export default function TutorDashboard() {
             <XCircle size={18} className="text-red-600 mt-0.5 shrink-0" />
             <div>
               <p className="font-bold text-sm">Application not approved</p>
-              <p className="text-xs mt-0.5">Please contact support@zippymindsacademy.com to understand the reason and reapply.</p>
+              <p className="text-xs mt-0.5">Please contact zippymindsacademy@gmail.com to understand the reason and reapply.</p>
             </div>
           </div>
         )}
@@ -835,7 +837,7 @@ export default function TutorDashboard() {
             <div className="bg-surface-container rounded-2xl border border-outline-variant p-5 flex items-start gap-3">
               <AlertCircle size={18} className="text-on-surface-variant mt-0.5 shrink-0" />
               <p className="text-sm text-on-surface-variant">
-                Payments are processed monthly by Zippy Minds. For queries contact <strong>accounts@zippymindsacademy.com</strong>
+                Payments are processed monthly by Zippy Minds. For queries contact <strong>zippymindsacademy@gmail.com</strong>
               </p>
             </div>
           </div>
@@ -877,22 +879,55 @@ export default function TutorDashboard() {
                   <Upload size={18} className="text-primary" /> New Material
                 </h3>
                 <form onSubmit={handleUploadMaterial} className="space-y-4">
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-on-surface mb-1.5">Student Name <span className="text-red-500">*</span></label>
-                      <input
-                        list="student-names-list"
-                        value={matForm.studentName}
-                        onChange={e => setMatForm(f => ({ ...f, studentName: e.target.value }))}
-                        placeholder="Type or pick a student name"
-                        className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                        required
-                      />
-                      <datalist id="student-names-list">
-                        {Object.keys(studentMap).map(n => <option key={n} value={n} />)}
-                      </datalist>
+
+                  {/* Visibility toggle */}
+                  <div>
+                    <label className="block text-sm font-semibold text-on-surface mb-2">Who can see this material? <span className="text-red-500">*</span></label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button type="button"
+                        onClick={() => setMatForm(f => ({ ...f, visibility: "individual" }))}
+                        className={`flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 transition-all ${
+                          matForm.visibility === "individual"
+                            ? "border-primary bg-primary/5 text-primary"
+                            : "border-outline-variant text-on-surface-variant hover:border-primary/40"
+                        }`}>
+                        <User size={20} />
+                        <span className="text-sm font-bold">Specific Student</span>
+                        <span className="text-[10px] text-center leading-tight opacity-70">Only the selected student will see this</span>
+                      </button>
+                      <button type="button"
+                        onClick={() => setMatForm(f => ({ ...f, visibility: "all", studentName: "" }))}
+                        className={`flex flex-col items-center gap-1.5 p-4 rounded-xl border-2 transition-all ${
+                          matForm.visibility === "all"
+                            ? "border-primary bg-primary/5 text-primary"
+                            : "border-outline-variant text-on-surface-variant hover:border-primary/40"
+                        }`}>
+                        <Users size={20} />
+                        <span className="text-sm font-bold">All My Students</span>
+                        <span className="text-[10px] text-center leading-tight opacity-70">Every student you teach can see this</span>
+                      </button>
                     </div>
-                    <div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {/* Student name — only shown for individual */}
+                    {matForm.visibility === "individual" && (
+                      <div>
+                        <label className="block text-sm font-semibold text-on-surface mb-1.5">Student Name <span className="text-red-500">*</span></label>
+                        <input
+                          list="student-names-list"
+                          value={matForm.studentName}
+                          onChange={e => setMatForm(f => ({ ...f, studentName: e.target.value }))}
+                          placeholder="Type or pick a student name"
+                          className="w-full px-4 py-3 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                          required={matForm.visibility === "individual"}
+                        />
+                        <datalist id="student-names-list">
+                          {Object.keys(studentMap).map(n => <option key={n} value={n} />)}
+                        </datalist>
+                      </div>
+                    )}
+                    <div className={matForm.visibility === "all" ? "sm:col-span-2" : ""}>
                       <label className="block text-sm font-semibold text-on-surface mb-1.5">Subject</label>
                       <input
                         list="subject-list"
@@ -1007,7 +1042,11 @@ export default function TutorDashboard() {
             ) : (
               <div className="space-y-3">
                 {materials
-                  .filter(m => matStudentFilter === "All" || m.studentName === matStudentFilter)
+                  .filter(m =>
+                    matStudentFilter === "All" ||
+                    m.visibility === "all" ||          // "all students" materials always show
+                    m.studentName === matStudentFilter
+                  )
                   .map(m => {
                     const fileIcon = m.fileType === "PDF" ? "📄" : m.fileType === "Image" ? "🖼️" : "📋";
                     const subjectStyle = getSubjectStyle(m.subject);
@@ -1028,11 +1067,23 @@ export default function TutorDashboard() {
                                 {subjectStyle.icon} {m.subject}
                               </span>
                             )}
+                            {m.visibility === "all" ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 flex items-center gap-0.5">
+                                <Users size={9} /> All Students
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 flex items-center gap-0.5">
+                                <User size={9} /> Individual
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-on-surface-variant">
-                            👦 <strong>{m.studentName}</strong>
+                            {m.visibility === "all"
+                              ? <span>👥 Visible to <strong>all your students</strong></span>
+                              : <span>👦 For: <strong>{m.studentName}</strong></span>
+                            }
                             {m.fileSize && <> · {m.fileSize}</>}
-                            · {fmtDate(m.createdAt)}
+                            {" · "}{fmtDate(m.createdAt)}
                           </p>
                           {m.notes && (
                             <p className="text-xs text-primary/70 mt-1 italic">{m.notes}</p>

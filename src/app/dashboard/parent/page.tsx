@@ -49,7 +49,7 @@ interface VideoLesson {
 interface TutorMaterial {
   id: string; tutorName: string; studentName: string; subject: string;
   title: string; fileUrl: string; fileType: string; fileSize: string;
-  notes: string; createdAt: string;
+  notes: string; visibility: string; createdAt: string;
 }
 
 const FAQS = [
@@ -856,7 +856,11 @@ export default function ParentDashboard() {
                           </div>
                           <p className="text-xs text-on-surface-variant">
                             👤 From: <strong>{m.tutorName}</strong>
-                            {" · "}👦 For: <strong>{m.studentName}</strong>
+                            {" · "}
+                            {m.visibility === "all"
+                              ? <span>👥 For <strong>all students</strong></span>
+                              : <span>👦 For <strong>{m.studentName}</strong></span>
+                            }
                             {m.fileSize && <> · {m.fileSize}</>}
                             {" · "}{new Date(m.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                           </p>
@@ -1123,14 +1127,14 @@ export default function ParentDashboard() {
 
                 {/* Quick contact */}
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <a href="mailto:support@zippymindsacademy.com"
+                  <a href="mailto:zippymindsacademy@gmail.com"
                     className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-4 flex items-center gap-3 hover:shadow-card transition-shadow">
                     <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
                       <Mail size={18} className="text-primary" />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-on-surface">Email Us</p>
-                      <p className="text-xs text-on-surface-variant">support@zippymindsacademy.com</p>
+                      <p className="text-xs text-on-surface-variant">zippymindsacademy@gmail.com</p>
                     </div>
                   </a>
                   <a href="https://wa.me/919999999999" target="_blank" rel="noopener noreferrer"

@@ -26,29 +26,37 @@ export async function GET() {
   }
 }
 
-// POST — create a material record (after file is uploaded)
+// POST — create a material record (after file is uploaded via /upload)
 export async function POST(req: NextRequest) {
   try {
     const session = await requireTutor();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { studentName, subject, title, fileUrl, fileType, fileSize, notes } = await req.json();
+    const { studentName, subject, title, fileUrl, fileType, fileSize, notes, visibility } = await req.json();
 
-    if (!studentName || !title || !fileUrl) {
-      return NextResponse.json({ error: "studentName, title, and fileUrl are required" }, { status: 400 });
+    if (!title || !fileUrl) {
+      return NextResponse.json({ error: "title and fileUrl are required" }, { status: 400 });
+    }
+
+    const vis = visibility === "all" ? "all" : "individual";
+
+    // If individual, studentName is required
+    if (vis === "individual" && !studentName?.trim()) {
+      return NextResponse.json({ error: "studentName is required for individual visibility" }, { status: 400 });
     }
 
     const material = await prisma.tutorMaterial.create({
       data: {
         tutorName:   session.name ?? "",
         tutorEmail:  session.email ?? "",
-        studentName,
-        subject:     subject  ?? "",
-        title,
+        studentName: vis === "all" ? "" : (studentName?.trim() ?? ""),
+        subject:     subject?.trim()   ?? "",
+        title:       title.trim(),
         fileUrl,
-        fileType:    fileType  ?? "PDF",
-        fileSize:    fileSize  ?? "",
-        notes:       notes     ?? "",
+        fileType:    fileType   ?? "PDF",
+        fileSize:    fileSize   ?? "",
+        notes:       notes?.trim() ?? "",
+        visibility:  vis,
       },
     });
 
@@ -71,11 +79,10 @@ export async function DELETE(req: NextRequest) {
     });
     if (!existing) return NextResponse.json({ error: "Material not found" }, { status: 404 });
 
-    // Delete the blob from Vercel Blob storage
+    // Delete blob from Vercel Blob storage
     try { await del(existing.fileUrl); } catch { /* blob may already be gone */ }
 
     await prisma.tutorMaterial.delete({ where: { id: materialId } });
-
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Failed to delete material" }, { status: 500 });

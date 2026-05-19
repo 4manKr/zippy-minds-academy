@@ -123,12 +123,13 @@ model TutorMaterial {
   id          String   @id @default(cuid())
   tutorName   String                         // matches session.name
   tutorEmail  String   @default("")
-  studentName String                         // which child this is for
+  studentName String   @default("")          // blank when visibility = "all"
   subject     String   @default("")
   title       String
   fileUrl     String                         // Vercel Blob URL
   fileType    String   @default("PDF")       // PDF | Image | Doc | Other
   fileSize    String   @default("")
   notes       String   @default("")
+  visibility  String   @default("individual") // "individual" | "all"
   createdAt   DateTime @default(now())
 }

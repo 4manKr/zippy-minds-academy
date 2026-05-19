@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Mail, Phone, Globe, Clock, Send, MessageSquare, CheckCircle } from "lucide-react";
 
 const contactInfo = [
-  { icon: Mail,  title: "Email Us",      detail: "hello@zippymindsacademy.com", sub: "Reply within 4 hours",         href: "mailto:hello@zippymindsacademy.com" },
+  { icon: Mail,  title: "Email Us",      detail: "zippymindsacademy@gmail.com", sub: "Reply within 4 hours",         href: "mailto:zippymindsacademy@gmail.com" },
   { icon: Phone, title: "Call / WhatsApp",detail: "+91 93114 83555",            sub: "Mon–Sat, 9 AM–8 PM IST",       href: "tel:+919311483555" },
   { icon: Globe, title: "Website",       detail: "www.zippymindsacademy.com",   sub: "Explore all courses & tutors", href: "https://www.zippymindsacademy.com" },
   { icon: Clock, title: "Support Hours", detail: "24/7 for urgent issues",      sub: "Standard: Mon–Sat 9–8 IST",    href: undefined },
@@ -49,9 +49,9 @@ export default function ContactPage() {
 
           {/* Quick contact chips */}
           <div className="flex flex-wrap justify-center gap-3">
-            <a href="mailto:hello@zippymindsacademy.com"
+            <a href="mailto:zippymindsacademy@gmail.com"
                className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-white/20 transition-all">
-              <Mail size={14} /> hello@zippymindsacademy.com
+              <Mail size={14} /> zippymindsacademy@gmail.com
             </a>
             <a href="tel:+919311483555"
                className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-white/20 transition-all">

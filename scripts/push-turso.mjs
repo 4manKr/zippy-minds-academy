@@ -173,15 +173,18 @@ const statements = [
     "id"          TEXT NOT NULL PRIMARY KEY,
     "tutorName"   TEXT NOT NULL,
     "tutorEmail"  TEXT NOT NULL DEFAULT '',
-    "studentName" TEXT NOT NULL,
+    "studentName" TEXT NOT NULL DEFAULT '',
     "subject"     TEXT NOT NULL DEFAULT '',
     "title"       TEXT NOT NULL,
     "fileUrl"     TEXT NOT NULL,
     "fileType"    TEXT NOT NULL DEFAULT 'PDF',
     "fileSize"    TEXT NOT NULL DEFAULT '',
     "notes"       TEXT NOT NULL DEFAULT '',
+    "visibility"  TEXT NOT NULL DEFAULT 'individual',
     "createdAt"   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`],
+
+  ["TutorMaterial.visibility column (ALTER)", `ALTER TABLE "TutorMaterial" ADD COLUMN "visibility" TEXT NOT NULL DEFAULT 'individual'`],
 
   // ── Seed video lessons ────────────────────────────────────────────────────
   ["Seed videos", `INSERT OR IGNORE INTO "VideoLesson" ("id","title","subject","duration","thumbnail","videoUrl","views","status") VALUES
