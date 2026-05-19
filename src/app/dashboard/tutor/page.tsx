@@ -83,8 +83,9 @@ export default function TutorDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Sessions
-  const [sessionTab, setSessionTab]       = useState<"upcoming" | "all" | "cancelled">("upcoming");
+  const [sessionTab, setSessionTab]       = useState<"requests" | "upcoming" | "all" | "cancelled">("requests");
   const [sessionSearch, setSessionSearch] = useState("");
+  const [actioning, setActioning]         = useState<Record<string, boolean>>({});
 
   // Profile
   const [profileForm, setProfileForm]     = useState({ name: "", phone: "", subjects: [] as string[] });
@@ -189,12 +190,16 @@ export default function TutorDashboard() {
   }, [confirmedSessions]);
   const maxEarnings = Math.max(...monthlyEarnings.map(m => m.earnings), 1);
 
+  // Pending requests = sessions the tutor hasn't acted on yet
+  const pendingRequests = useMemo(() => sessions.filter(s => s.status === "PENDING"), [sessions]);
+
   // Filtered sessions
   const filteredSessions = useMemo(() => {
     return sessions.filter(s => {
       const matchesTab =
-        sessionTab === "upcoming"  ? s.status !== "CANCELLED" :
-        sessionTab === "cancelled" ? s.status === "CANCELLED" : true;
+        sessionTab === "requests"  ? s.status === "PENDING" :
+        sessionTab === "upcoming"  ? s.status === "CONFIRMED" :
+        sessionTab === "cancelled" ? s.status === "CANCELLED" || s.status === "REJECTED" : true;
       const q = sessionSearch.toLowerCase();
       const matchesSearch = !q || s.childName.toLowerCase().includes(q) || s.subject.toLowerCase().includes(q) || s.parentName.toLowerCase().includes(q);
       return matchesTab && matchesSearch;
@@ -214,6 +219,28 @@ export default function TutorDashboard() {
     if (res.ok) { setUser(data.user); setProfileForm(f => ({ ...f, subjects: data.user.subjects ?? [] })); setProfileMsg("Saved!"); setProfileEdit(false); setTimeout(() => setProfileMsg(""), 2000); }
     else setProfileMsg(data.error ?? "Failed to save.");
     setProfileSaving(false);
+  };
+
+  // Accept or reject a demo request
+  const handleSessionAction = async (bookingId: string, action: "accept" | "reject") => {
+    setActioning(p => ({ ...p, [bookingId]: true }));
+    try {
+      const res = await fetch("/api/tutor/sessions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId, action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      // Update in place
+      setSessions(prev => prev.map(s => s.id === bookingId ? { ...s, ...data.session } : s));
+      // Switch to upcoming tab after accepting
+      if (action === "accept") setSessionTab("upcoming");
+    } catch {
+      // silently ignore, let the UI stay as-is
+    } finally {
+      setActioning(p => ({ ...p, [bookingId]: false }));
+    }
   };
 
   const handleSaveNote = async () => {
@@ -382,10 +409,16 @@ export default function TutorDashboard() {
       <nav className="flex flex-col flex-grow gap-0.5 px-2">
         {navItems.map(item => {
           const Icon = item.icon;
+          const badge = item.id === "sessions" && pendingRequests.length > 0 ? pendingRequests.length : null;
           return (
             <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }}
               className={section === item.id ? "sidebar-link-active" : "sidebar-link"}>
               <Icon size={18} /><span>{item.label}</span>
+              {badge && (
+                <span className="ml-auto min-w-[20px] h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                  {badge}
+                </span>
+              )}
             </button>
           );
         })}
@@ -635,9 +668,19 @@ export default function TutorDashboard() {
         ══════════════════════════════════════════ */}
         {section === "sessions" && (
           <div className="space-y-6">
-            <div>
-              <h2 className="font-display text-2xl font-extrabold text-on-surface">My Sessions</h2>
-              <p className="text-sm text-on-surface-variant mt-1">{sessions.length} total sessions assigned to you</p>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="font-display text-2xl font-extrabold text-on-surface">My Sessions</h2>
+                <p className="text-sm text-on-surface-variant mt-1">{sessions.length} total sessions assigned to you</p>
+              </div>
+              {pendingRequests.length > 0 && (
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                  <span className="text-sm font-semibold text-amber-700">
+                    {pendingRequests.length} new demo request{pendingRequests.length > 1 ? "s" : ""} awaiting your response
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Search + filter */}
@@ -648,17 +691,23 @@ export default function TutorDashboard() {
                   placeholder="Search student, subject…"
                   className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-outline-variant bg-surface-container-lowest text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
               </div>
-              <div className="flex gap-2">
-                {(["upcoming", "all", "cancelled"] as const).map(tab => (
-                  <button key={tab} onClick={() => setSessionTab(tab)}
-                    className={`px-4 py-2 rounded-full text-xs font-bold capitalize transition-all ${
-                      sessionTab === tab ? "bg-primary text-on-primary" : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+              <div className="flex gap-2 flex-wrap">
+                {([
+                  { id: "requests",  label: "Requests",  count: sessions.filter(s => s.status === "PENDING").length },
+                  { id: "upcoming",  label: "Upcoming",  count: sessions.filter(s => s.status === "CONFIRMED").length },
+                  { id: "all",       label: "All",       count: sessions.length },
+                  { id: "cancelled", label: "Cancelled", count: sessions.filter(s => s.status === "CANCELLED" || s.status === "REJECTED").length },
+                ] as const).map(tab => (
+                  <button key={tab.id} onClick={() => setSessionTab(tab.id)}
+                    className={`relative px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                      sessionTab === tab.id
+                        ? tab.id === "requests" ? "bg-amber-500 text-white" : "bg-primary text-on-primary"
+                        : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
                     }`}>
-                    {tab} ({
-                      tab === "upcoming"  ? sessions.filter(s => s.status !== "CANCELLED").length :
-                      tab === "cancelled" ? sessions.filter(s => s.status === "CANCELLED").length :
-                      sessions.length
-                    })
+                    {tab.label} ({tab.count})
+                    {tab.id === "requests" && tab.count > 0 && sessionTab !== "requests" && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -666,14 +715,22 @@ export default function TutorDashboard() {
 
             {/* Sessions list */}
             {filteredSessions.length === 0 ? (
-              <EmptyState icon="📅" title="No sessions found"
-                desc={sessionTab === "cancelled" ? "No cancelled sessions." : "No sessions assigned yet. Admin will assign sessions when parents book."}
+              <EmptyState icon={sessionTab === "requests" ? "📬" : "📅"}
+                title={sessionTab === "requests" ? "No pending requests" : "No sessions found"}
+                desc={
+                  sessionTab === "requests"  ? "New demo requests from parents will appear here for you to accept or decline." :
+                  sessionTab === "cancelled" ? "No cancelled or rejected sessions." :
+                  sessionTab === "upcoming"  ? "No confirmed sessions yet. Accept a request to see it here." :
+                  "No sessions assigned yet."
+                }
               />
             ) : (
               <div className="space-y-3">
                 {filteredSessions.map(s => (
                   <div key={s.id} className={`bg-surface-container-lowest rounded-2xl border shadow-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${
-                    s.status === "CANCELLED" ? "border-red-200 opacity-70" : "border-outline-variant"
+                    s.status === "CANCELLED" || s.status === "REJECTED" ? "border-red-200 opacity-70" :
+                    s.status === "PENDING" ? "border-amber-300 bg-amber-50/30" :
+                    "border-outline-variant"
                   }`}>
                     {/* Date badge */}
                     <div className={`rounded-xl px-4 py-3 text-center min-w-[70px] shrink-0 ${s.status === "CANCELLED" ? "bg-red-50" : "bg-primary/10"}`}>
@@ -689,9 +746,12 @@ export default function TutorDashboard() {
                         <span className="font-bold text-on-surface">{s.subject}</span>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                           s.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
-                          s.status === "PENDING"   ? "bg-yellow-100 text-yellow-700" :
+                          s.status === "PENDING"   ? "bg-amber-100 text-amber-700" :
+                          s.status === "REJECTED"  ? "bg-red-100 text-red-600" :
                           "bg-red-100 text-red-600"
-                        }`}>{s.status}</span>
+                        }`}>
+                          {s.status === "PENDING" ? "⏳ Awaiting Your Response" : s.status}
+                        </span>
                         {s.monthlyPrice > 0 && <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">₹{s.monthlyPrice}/mo</span>}
                       </div>
                       <p className="text-sm text-on-surface-variant">👦 {s.childName} &nbsp;·&nbsp; 👤 Parent: {s.parentName}</p>
@@ -706,28 +766,52 @@ export default function TutorDashboard() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-2 shrink-0">
-                      {s.status !== "CANCELLED" && (
-                        s.zoomStartUrl ? (
-                          <a href={s.zoomStartUrl} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
-                            style={{ backgroundColor: "#2D8CFF" }}>
-                            <Video size={14} /> Start
-                          </a>
-                        ) : s.zoomLink ? (
-                          <a href={s.zoomLink} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
-                            style={{ backgroundColor: "#2D8CFF" }}>
-                            <Video size={14} /> Join
-                          </a>
-                        ) : null
+                    <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+                      {s.status === "PENDING" ? (
+                        /* ── Demo request: Accept / Reject ── */
+                        <>
+                          <button
+                            onClick={() => handleSessionAction(s.id, "accept")}
+                            disabled={actioning[s.id]}
+                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm bg-green-500 text-white hover:bg-green-600 transition-all disabled:opacity-60">
+                            {actioning[s.id]
+                              ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              : <CheckCircle size={15} />}
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleSessionAction(s.id, "reject")}
+                            disabled={actioning[s.id]}
+                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm bg-surface-container border border-outline-variant text-red-500 hover:bg-red-50 hover:border-red-200 transition-all disabled:opacity-60">
+                            <XCircle size={15} /> Decline
+                          </button>
+                        </>
+                      ) : (
+                        /* ── Confirmed: Zoom link + Notes ── */
+                        <>
+                          {s.status === "CONFIRMED" && (
+                            s.zoomStartUrl ? (
+                              <a href={s.zoomStartUrl} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
+                                style={{ backgroundColor: "#2D8CFF" }}>
+                                <Video size={14} /> Start
+                              </a>
+                            ) : s.zoomLink ? (
+                              <a href={s.zoomLink} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
+                                style={{ backgroundColor: "#2D8CFF" }}>
+                                <Video size={14} /> Join
+                              </a>
+                            ) : null
+                          )}
+                          <button
+                            onClick={() => { setNoteOpen(s.id); setNoteText(s.notes ?? ""); }}
+                            className="p-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-primary/10 hover:text-primary hover:border-primary transition-all"
+                            title="Add note">
+                            <FileText size={15} />
+                          </button>
+                        </>
                       )}
-                      <button
-                        onClick={() => { setNoteOpen(s.id); setNoteText(s.notes ?? ""); }}
-                        className="p-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-primary/10 hover:text-primary hover:border-primary transition-all"
-                        title="Add note">
-                        <FileText size={15} />
-                      </button>
                     </div>
                   </div>
                 ))}

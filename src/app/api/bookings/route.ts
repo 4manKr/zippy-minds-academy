@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { createZoomMeeting } from "@/lib/zoom";
 
 // POST — create a new demo booking + auto-generate Zoom meeting
 export async function POST(req: NextRequest) {
@@ -48,7 +47,8 @@ export async function POST(req: NextRequest) {
       await prisma.otpCode.update({ where: { id: record.id }, data: { used: true } });
     }
 
-    // ── Step 1: Create the booking (without zoom link first) ───────────────
+    // ── Create the booking — always PENDING until tutor accepts ──────────
+    // Zoom link is generated only when the tutor confirms via their dashboard.
     const booking = await prisma.booking.create({
       data: {
         userId:        userId ?? null,
@@ -69,33 +69,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // ── Step 2: Create Zoom meeting ────────────────────────────────────────
-    const zoom = await createZoomMeeting({
-      topic:    `Zippy Minds Demo — ${subject} with ${childName}`,
-      date,
-      timeSlot,
-      timezone: resolvedTimezone,
-      duration: 30, // free demo = 30 min
-      agenda:   `Free demo session booked by ${resolvedParentName} for ${childName} (${grade})`,
-    });
-
-    // ── Step 3: Update booking with Zoom URLs if generated ─────────────────
-    const updatedBooking = zoom
-      ? await prisma.booking.update({
-          where: { id: booking.id },
-          data: {
-            zoomLink:      zoom.joinUrl,
-            zoomStartUrl:  zoom.startUrl,
-            zoomMeetingId: zoom.meetingId,
-            status:        "CONFIRMED",
-          },
-        })
-      : booking; // keep PENDING if Zoom not configured yet
-
     return NextResponse.json({
-      success: true,
-      booking: updatedBooking,
-      zoomReady: !!zoom,
+      success:   true,
+      booking,
+      zoomReady: false,
     });
   } catch (err) {
     console.error("bookings POST error:", err);

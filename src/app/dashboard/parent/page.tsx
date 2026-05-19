@@ -446,8 +446,12 @@ export default function ParentDashboard() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-lg font-bold text-on-surface">{nextSession.subject}</span>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                          nextSession.status === "CONFIRMED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
-                        }`}>{nextSession.status}</span>
+                          nextSession.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
+                          nextSession.status === "PENDING"   ? "bg-amber-100 text-amber-700" :
+                          "bg-red-100 text-red-600"
+                        }`}>
+                          {nextSession.status === "PENDING" ? "⏳ Awaiting Tutor Confirmation" : nextSession.status}
+                        </span>
                       </div>
                       <p className="text-sm text-on-surface-variant">
                         👤 Tutor: {nextSession.status === "CONFIRMED" ? nextSession.tutorName : <span className="italic text-on-surface-variant/60">Will be revealed after confirmation</span>}
@@ -631,10 +635,12 @@ export default function ParentDashboard() {
                           <td className="px-4 py-3">
                             <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
                               b.status === "CONFIRMED"  ? "bg-green-100 text-green-700"   :
-                              b.status === "PENDING"    ? "bg-yellow-100 text-yellow-700" :
-                              b.status === "CANCELLED"  ? "bg-red-100 text-red-600"       :
+                              b.status === "PENDING"    ? "bg-amber-100 text-amber-700"   :
+                              b.status === "CANCELLED" || b.status === "REJECTED"  ? "bg-red-100 text-red-600" :
                               "bg-surface-container text-on-surface-variant"
-                            }`}>{b.status}</span>
+                            }`}>
+                              {b.status === "PENDING" ? "⏳ Awaiting Tutor" : b.status === "REJECTED" ? "Declined — contact support" : b.status}
+                            </span>
                           </td>
                           <td className="px-4 py-3">
                             {b.zoomLink && b.status !== "CANCELLED" && (
