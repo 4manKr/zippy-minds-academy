@@ -233,17 +233,23 @@ function BookDemoInner() {
   const assignedTutor       = getDisplayTutor(form.subject);
   const selectedSlotLabel   = ALL_TIME_SLOTS.find((s) => s.id === form.selectedSlot)?.time ?? "Not selected";
 
+  // Derive tutor availability map and which days have declared slots
+  const tutorAvail: Record<string, string[]> = useMemo(() => {
+    const dbTutor = dbTutorBySubject[form.subject];
+    return dbTutor?.availability ?? {};
+  }, [dbTutorBySubject, form.subject]);
+
+  const tutorHasAnyAvail = useMemo(
+    () => Object.values(tutorAvail).some(v => Array.isArray(v) && v.length > 0),
+    [tutorAvail],
+  );
+
   // Compute available time slots for the selected date based on tutor's availability
   const timeSlots = useMemo(() => {
     const dateEntry = calendarDates[form.selectedDateIdx];
     const dayName   = dateEntry?.dayShort ?? "";
 
-    const dbTutor   = dbTutorBySubject[form.subject];
-    const tutorAvail: Record<string, string[]> = dbTutor?.availability ?? {};
-
     // Use the tutor's slots for this specific day if declared; otherwise show all slots.
-    // This ensures parents always see bookable times even if the tutor hasn't filled in
-    // every day of their availability schedule.
     const declaredDaySlots = tutorAvail[dayName];
     const daySlots: string[] = (Array.isArray(declaredDaySlots) && declaredDaySlots.length > 0)
       ? declaredDaySlots
@@ -641,25 +647,66 @@ function BookDemoInner() {
               <h2 className="font-display text-xl font-bold text-on-surface mb-1 flex items-center gap-2">
                 <Calendar size={22} className="text-primary" /> Select Date &amp; Time
               </h2>
-              <p className="text-sm text-on-surface-variant mb-6">
+              <p className="text-sm text-on-surface-variant mb-4">
                 Showing times in <span className="font-medium text-on-surface">{tzLabel}</span>
-                {" · "}Slots shown for your assigned tutor&apos;s availability
+                {tutorHasAnyAvail && (
+                  <> · <span className="text-primary font-medium">
+                    {assignedTutor.name}&apos;s available slots
+                  </span></>
+                )}
               </p>
+
+              {/* Tutor availability summary — only when the DB tutor has declared slots */}
+              {tutorHasAnyAvail && (
+                <div className="mb-5 p-3 bg-primary/5 border border-primary/15 rounded-2xl flex flex-wrap gap-2 items-center">
+                  <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mr-1">
+                    Available days:
+                  </span>
+                  {(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"] as const).map(day => {
+                    const slots = tutorAvail[day];
+                    const hasSlots = Array.isArray(slots) && slots.length > 0;
+                    return hasSlots ? (
+                      <span key={day}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20"
+                        title={slots.join(", ")}>
+                        {day} · {slots.length} slot{slots.length > 1 ? "s" : ""}
+                      </span>
+                    ) : null;
+                  })}
+                  <span className="text-[11px] text-on-surface-variant ml-auto">
+                    ● green dot = preferred day
+                  </span>
+                </div>
+              )}
 
               {/* Date picker */}
               <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                {calendarDates.map((d, i) => (
-                  <button key={d.fullDate} onClick={() => setForm({ ...form, selectedDateIdx: i, selectedSlot: null })}
-                    className={`flex flex-col items-center p-3 rounded-2xl min-w-[60px] transition-all ${
-                      form.selectedDateIdx === i
-                        ? "bg-primary text-on-primary shadow-sm"
-                        : "bg-surface-container hover:bg-surface-container-high text-on-surface-variant"
-                    }`}>
-                    <span className="text-xs font-medium">{d.dayShort}</span>
-                    <span className="text-lg font-bold mt-0.5">{d.dateNum}</span>
-                    <span className="text-[10px] font-medium mt-0.5 opacity-80">{d.monthShort}</span>
-                  </button>
-                ))}
+                {calendarDates.map((d, i) => {
+                  const dayDeclaredSlots = tutorAvail[d.dayShort];
+                  const hasDeclaredSlots = Array.isArray(dayDeclaredSlots) && dayDeclaredSlots.length > 0;
+                  // Dim if tutor has availability on OTHER days but not this one
+                  const dimDay = tutorHasAnyAvail && !hasDeclaredSlots;
+                  return (
+                    <button key={d.fullDate}
+                      onClick={() => setForm({ ...form, selectedDateIdx: i, selectedSlot: null })}
+                      title={dimDay ? `${assignedTutor.name} has no declared slots on ${d.dayShort}s — all times shown as fallback` : ""}
+                      className={`relative flex flex-col items-center p-3 rounded-2xl min-w-[60px] transition-all ${
+                        form.selectedDateIdx === i
+                          ? "bg-primary text-on-primary shadow-sm"
+                          : dimDay
+                          ? "bg-surface-container text-on-surface-variant/40"
+                          : "bg-surface-container hover:bg-surface-container-high text-on-surface-variant"
+                      }`}>
+                      <span className="text-xs font-medium">{d.dayShort}</span>
+                      <span className="text-lg font-bold mt-0.5">{d.dateNum}</span>
+                      <span className="text-[10px] font-medium mt-0.5 opacity-80">{d.monthShort}</span>
+                      {/* Green dot for days with declared tutor slots */}
+                      {hasDeclaredSlots && form.selectedDateIdx !== i && (
+                        <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-green-400" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
               {timeSlots.every(s => !s.available) ? (
@@ -673,7 +720,9 @@ function BookDemoInner() {
                   <p className="text-sm text-on-surface-variant mt-1">
                     {timeSlots.some(s => s.isPast)
                       ? "Please select a future date to book your demo."
-                      : "Your assigned tutor is not available on this day. Please select a different date."}
+                      : tutorHasAnyAvail
+                      ? `${assignedTutor.name} hasn't declared slots on ${selectedDateEntry?.dayShort}s. Try a day with a 🟢 dot.`
+                      : "Please select a different date."}
                   </p>
                 </div>
               ) : (
@@ -701,7 +750,9 @@ function BookDemoInner() {
                     })}
                   </div>
                   <p className="text-xs text-on-surface-variant/60 mt-4 text-center">
-                    Dimmed slots are unavailable · Times shown in your local timezone
+                    {tutorHasAnyAvail
+                      ? `Dimmed slots = outside ${assignedTutor.name}'s declared hours · Times in your timezone`
+                      : "Dimmed slots have already passed · Times shown in your local timezone"}
                   </p>
                 </>
               )}
