@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Star, Clock, Filter, IndianRupee } from "lucide-react";
+import { Search, Star, Filter, IndianRupee, BookOpen } from "lucide-react";
 import { SUBJECT_COLORS } from "@/lib/utils";
 import DemoCTA from "@/components/DemoCTA";
 
@@ -12,80 +12,79 @@ const COURSE_META: Record<string, {
   tutor: string;
   rating: number;
   reviews: number;
-  duration: string;
   students: number;
   tagline: string;
   tags: string[];
 }> = {
   "Phonics": {
     ageGroup: "Ages 3–7", tutor: "Ms. Ananya Singh", rating: 4.9, reviews: 512,
-    duration: "30 min/session", students: 2100,
+    students: 2100,
     tagline: "Build strong reading and speaking foundations",
     tags: ["Letter Sounds", "Blending", "Sight Words"],
   },
   "English Grammar": {
     ageGroup: "Ages 6–12", tutor: "Ms. Priya Sharma", rating: 4.8, reviews: 389,
-    duration: "45 min/session", students: 1540,
+    students: 1540,
     tagline: "Learn better, express better — every day",
     tags: ["Grammar", "Vocabulary", "Comprehension"],
   },
   "Mathematics": {
     ageGroup: "Ages 5–15", tutor: "Mr. Rahul Verma", rating: 4.9, reviews: 634,
-    duration: "45 min/session", students: 1890,
+    students: 1890,
     tagline: "Understand concepts, solve with confidence",
     tags: ["Arithmetic", "Algebra", "Problem Solving"],
   },
   "Public Speaking": {
     ageGroup: "Ages 7–15", tutor: "Ms. Kavya Nair", rating: 4.8, reviews: 278,
-    duration: "30 min/session", students: 980,
+    students: 980,
     tagline: "Speak up, stand out, be confident",
     tags: ["Confidence", "Debate", "Presentation"],
   },
   "Coding": {
     ageGroup: "Ages 8–15", tutor: "Mr. Arjun Mehta", rating: 4.9, reviews: 341,
-    duration: "45 min/session", students: 1120,
+    students: 1120,
     tagline: "Build apps, games & the future",
     tags: ["Scratch", "Python", "Web Dev"],
   },
   "Writing & Communication": {
     ageGroup: "Ages 6–12", tutor: "Ms. Sunita Rao", rating: 4.7, reviews: 267,
-    duration: "30 min/session", students: 870,
+    students: 870,
     tagline: "Write clearly, think creatively",
     tags: ["Story Writing", "Essays", "Journaling"],
   },
   "Science": {
     ageGroup: "Ages 8–15", tutor: "Dr. Meera Patel", rating: 4.8, reviews: 198,
-    duration: "45 min/session", students: 760,
+    students: 760,
     tagline: "Discover, experiment & wonder",
     tags: ["Biology", "Physics", "Chemistry"],
   },
   "Life Skills": {
     ageGroup: "Ages 6–15", tutor: "Mr. Rohan Gupta", rating: 4.7, reviews: 189,
-    duration: "30 min/session", students: 650,
+    students: 650,
     tagline: "Leadership, mindset & real-world readiness",
     tags: ["Leadership", "Mindset", "Social Skills"],
   },
   "Hindi": {
     ageGroup: "Ages 4–14", tutor: "Ms. Seema Joshi", rating: 4.8, reviews: 154,
-    duration: "45 min/session", students: 540,
+    students: 540,
     tagline: "Master Hindi reading, writing & conversation",
     tags: ["Reading", "Writing", "Conversation"],
   },
   "General Knowledge": {
     ageGroup: "Ages 6–15", tutor: "Mr. Vikram Singh", rating: 4.7, reviews: 112,
-    duration: "30 min/session", students: 430,
+    students: 430,
     tagline: "Curious minds, smarter kids",
     tags: ["World Affairs", "Science Facts", "Current Events"],
   },
   "Creative Arts": {
     ageGroup: "Ages 4–12", tutor: "Ms. Riya Mehta", rating: 4.8, reviews: 203,
-    duration: "45 min/session", students: 680,
+    students: 680,
     tagline: "Express yourself through art & creativity",
     tags: ["Drawing", "Painting", "Craft"],
   },
   "Social Studies": {
     ageGroup: "Ages 7–14", tutor: "Ms. Divya Rao", rating: 4.7, reviews: 134,
-    duration: "45 min/session", students: 510,
+    students: 510,
     tagline: "Understand the world around you",
     tags: ["Geography", "History", "Civics"],
   },
@@ -93,7 +92,7 @@ const COURSE_META: Record<string, {
 
 const DEFAULT_META = {
   ageGroup: "Ages 4–15", tutor: "Expert Tutor", rating: 4.8, reviews: 100,
-  duration: "45 min/session", students: 500,
+  students: 500,
   tagline: "Expert 1-on-1 tutoring with personalised learning",
   tags: ["Live Sessions", "Personalised", "Progress Reports"],
 };
@@ -104,6 +103,8 @@ interface Course {
   description: string;
   price: number;
   status: string;
+  durationValue?: number;
+  durationUnit?: string;
 }
 
 export default function CoursesPage() {
@@ -271,9 +272,6 @@ export default function CoursesPage() {
                     <div className="absolute top-3 right-3">
                       <span className="badge bg-white/90 text-on-surface font-semibold text-xs">{meta.ageGroup}</span>
                     </div>
-                    <div className="absolute bottom-3 left-3">
-                      <span className="badge bg-green-100 text-green-700 font-bold text-xs">Free Demo Available</span>
-                    </div>
                   </div>
 
                   {/* Content */}
@@ -303,14 +301,17 @@ export default function CoursesPage() {
                         <span className="font-bold text-on-surface">{meta.rating}</span>
                         <span>({meta.reviews})</span>
                       </div>
-                      <div className="flex items-center gap-1"><Clock size={11} /> {meta.duration}</div>
+                      <div className="flex items-center gap-1">
+                        <BookOpen size={11} />
+                        {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
+                      </div>
                     </div>
 
                     {/* Price */}
                     <div className="flex items-baseline gap-0.5 mb-4">
                       <IndianRupee size={15} className="text-primary mb-0.5 shrink-0" />
                       <span className="font-display text-2xl font-extrabold text-primary leading-none">{course.price}</span>
-                      <span className="text-xs text-on-surface-variant ml-1">/month</span>
+                      <span className="text-xs text-on-surface-variant ml-1">for {course.durationValue ?? 1} {course.durationUnit ?? "months"}</span>
                     </div>
 
                     <DemoCTA subject={course.name}
