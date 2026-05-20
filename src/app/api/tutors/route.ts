@@ -24,15 +24,26 @@ export async function GET() {
       where: { monthYear: { in: relevantMonths } },
       orderBy: { monthYear: "asc" }, // earlier month first → prefer current month
     });
-    // Build map: tutorId → slots (first/earliest month wins for current period)
+    // Build map: tutorId → union of slots across all relevant months.
+    // A slot is available if the tutor declared it in ANY of the relevant months.
     const monthlySlotsByTutorId: Record<string, Record<string, string[]>> = {};
     for (const rec of monthlyRecords) {
-      if (!monthlySlotsByTutorId[rec.tutorId]) {
-        try {
-          const parsed = JSON.parse(rec.slots) as Record<string, string[]>;
-          if (parsed && typeof parsed === "object") monthlySlotsByTutorId[rec.tutorId] = parsed;
-        } catch { /* skip */ }
-      }
+      try {
+        const parsed = JSON.parse(rec.slots) as Record<string, string[]>;
+        if (!parsed || typeof parsed !== "object") continue;
+
+        if (!monthlySlotsByTutorId[rec.tutorId]) {
+          monthlySlotsByTutorId[rec.tutorId] = {};
+        }
+        const merged = monthlySlotsByTutorId[rec.tutorId];
+        for (const [day, slots] of Object.entries(parsed)) {
+          if (!Array.isArray(slots)) continue;
+          if (!merged[day]) merged[day] = [];
+          for (const slot of slots) {
+            if (!merged[day].includes(slot)) merged[day].push(slot);
+          }
+        }
+      } catch { /* skip malformed record */ }
     }
 
     // Parse each tutor's declared subjects
@@ -77,18 +88,44 @@ export async function GET() {
       }
     }
 
-    // Build a map: subject → first available tutor (for book-demo auto-assignment)
+    // Build a map: subject → merged availability across ALL tutors for that subject.
+    // Slot is available if ANY tutor for the subject teaches at that time.
+    // Name/initials come from the tutor with the most declared slots (best representative).
     const tutorBySubject: Record<string, { id: string; name: string; initials: string; availability: Record<string, string[]> }> = {};
+
     for (const tutor of tutors) {
       const subjects = subjectsByTutor[tutor.name];
+      const avail    = availabilityByTutor[tutor.name] ?? {};
+
       for (const subject of subjects) {
         if (!tutorBySubject[subject]) {
+          // First tutor for this subject — initialise entry
           tutorBySubject[subject] = {
             id:           tutor.id,
             name:         tutor.name,
             initials:     tutor.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
-            availability: availabilityByTutor[tutor.name] ?? {},
+            availability: {},
           };
+        }
+
+        // Union: merge this tutor's slots into the subject's availability map
+        const merged = tutorBySubject[subject].availability;
+        for (const [day, slots] of Object.entries(avail)) {
+          if (!Array.isArray(slots)) continue;
+          if (!merged[day]) merged[day] = [];
+          for (const slot of slots) {
+            if (!merged[day].includes(slot)) merged[day].push(slot);
+          }
+        }
+
+        // Prefer the tutor with more total declared slots as the display representative
+        const currentTotalSlots = Object.values(tutorBySubject[subject].availability)
+          .reduce((sum, s) => sum + s.length, 0);
+        const thisTutorSlots    = Object.values(avail).reduce((sum, s) => sum + s.length, 0);
+        if (thisTutorSlots > currentTotalSlots) {
+          tutorBySubject[subject].id       = tutor.id;
+          tutorBySubject[subject].name     = tutor.name;
+          tutorBySubject[subject].initials = tutor.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
         }
       }
     }
