@@ -176,10 +176,10 @@ function EnrollInner() {
                     </p>
 
                     <div className="mt-auto space-y-2">
-                      <Link href={`/payment?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}`}
+                      <Link href={`/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}`}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-white text-sm transition-all hover:opacity-90 active:scale-95 bg-primary">
                         <CreditCard size={16} />
-                        Pay & Subscribe
+                        Pick Slot &amp; Subscribe
                       </Link>
                       <a href={waLink} target="_blank" rel="noopener noreferrer"
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl font-semibold text-sm transition-all hover:opacity-90 border border-outline-variant text-on-surface-variant hover:text-on-surface">

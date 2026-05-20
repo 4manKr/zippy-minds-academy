@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendSessionReminderEmail } from "@/lib/emails";
+import { sendSessionReminderEmail, sendDailySessionReminderEmail } from "@/lib/emails";
 
 /**
- * Converts a booking's date + timeSlot + timezone into a UTC timestamp.
+ * Converts a date + timeSlot + timezone into a UTC timestamp.
  * Handles all UTC offsets including half-hour (e.g. IST +5:30, NPT +5:45).
  */
 function sessionToUTC(dateStr: string, timeSlot: string, tz: string): Date | null {
@@ -16,121 +16,145 @@ function sessionToUTC(dateStr: string, timeSlot: string, tz: string): Date | nul
 
     const [year, month, day] = dateStr.split("-").map(Number);
 
-    // Get the UTC offset for this timezone on this date
-    // by formatting a known UTC noon and reading back local time parts
     const refUTC = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
     const fmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hour: "2-digit", minute: "2-digit",
-      hour12: false,
+      timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false,
     });
     const parts = fmt.formatToParts(refUTC);
     const localH = parseInt(parts.find(p => p.type === "hour")!.value);
     const localM = parseInt(parts.find(p => p.type === "minute")!.value);
 
-    // offsetMinutes = local_noon_minutes - UTC_noon_minutes (720)
-    // Handle "24" which Intl sometimes returns for midnight
     const localNoonMinutes = (localH === 24 ? 0 : localH) * 60 + localM;
-    const offsetMinutes = localNoonMinutes - 720;
-
-    // UTC session time = local session time - offset
-    const localSessionMinutes = h * 60 + mins;
-    const utcSessionMinutes   = localSessionMinutes - offsetMinutes;
+    const offsetMinutes    = localNoonMinutes - 720;
+    const utcSessionMinutes = h * 60 + mins - offsetMinutes;
 
     return new Date(Date.UTC(year, month - 1, day, 0, utcSessionMinutes, 0));
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-// POST — called by Vercel Cron every minute; sends reminders for sessions starting in ~30 min
+/** Returns true if it is currently 8–10 AM in the given timezone */
+function isMorningIn(tz: string): boolean {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "2-digit", hour12: false });
+    const hour = parseInt(fmt.format(new Date()));
+    return hour >= 8 && hour < 10;
+  } catch { return false; }
+}
+
+/** Returns today's date string in a timezone, e.g. "2026-05-20" */
+function todayIn(tz: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
+
 export async function POST(req: NextRequest) {
   // Verify cron secret — accept via Authorization header OR ?secret= query param
-  const authHeader = req.headers.get("authorization");
+  const authHeader  = req.headers.get("authorization");
   const querySecret = req.nextUrl.searchParams.get("secret");
-  const secret = process.env.CRON_SECRET;
+  const secret      = process.env.CRON_SECRET;
   if (secret) {
-    const headerOk = authHeader === `Bearer ${secret}`;
-    const queryOk  = querySecret === secret;
-    if (!headerOk && !queryOk) {
+    if (authHeader !== `Bearer ${secret}` && querySecret !== secret) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
 
   try {
-    const now = new Date();
+    const now  = new Date();
+    const sent30:    string[] = [];
+    const sentDaily: string[] = [];
 
-    // Find all CONFIRMED bookings where reminder hasn't been sent yet
+    // ── A) 30-min reminders for demo Bookings (CONFIRMED) ─────────────────
     const bookings = await prisma.booking.findMany({
       where: { status: "CONFIRMED", reminderSent: false },
     });
-
-    const sent: string[] = [];
 
     for (const booking of bookings) {
       const sessionUTC = sessionToUTC(booking.date, booking.timeSlot, booking.timezone);
       if (!sessionUTC) continue;
 
       const minutesUntil = (sessionUTC.getTime() - now.getTime()) / 60_000;
+      if (minutesUntil < 25 || minutesUntil > 35) continue;
 
-      // Send if between 25 and 35 minutes away (±5 min window around 30)
-      if (minutesUntil >= 25 && minutesUntil <= 35) {
-        // Get tutor's email
-        const tutor = await prisma.user.findFirst({
-          where: { name: booking.tutorName, role: "TUTOR" },
-          select: { email: true, name: true },
-        });
+      const tutor = await prisma.user.findFirst({
+        where: { name: booking.tutorName, role: "TUTOR" },
+        select: { email: true, name: true },
+      });
 
-        // Send to parent
+      sendSessionReminderEmail({
+        to: booking.parentEmail, toName: booking.parentName, role: "parent",
+        childName: booking.childName, subject: booking.subject,
+        date: booking.date, timeSlot: booking.timeSlot, timezone: booking.timezone,
+        tutorName: booking.tutorName, zoomLink: booking.zoomLink, zoomStartUrl: booking.zoomStartUrl,
+      });
+      if (tutor?.email) {
         sendSessionReminderEmail({
-          to:          booking.parentEmail,
-          toName:      booking.parentName,
-          role:        "parent",
-          childName:   booking.childName,
-          subject:     booking.subject,
-          date:        booking.date,
-          timeSlot:    booking.timeSlot,
-          timezone:    booking.timezone,
-          tutorName:   booking.tutorName,
-          zoomLink:    booking.zoomLink,
-          zoomStartUrl: booking.zoomStartUrl,
+          to: tutor.email, toName: tutor.name, role: "tutor",
+          childName: booking.childName, subject: booking.subject,
+          date: booking.date, timeSlot: booking.timeSlot, timezone: booking.timezone,
+          tutorName: booking.tutorName, zoomLink: booking.zoomLink, zoomStartUrl: booking.zoomStartUrl,
         });
-
-        // Send to tutor
-        if (tutor?.email) {
-          sendSessionReminderEmail({
-            to:          tutor.email,
-            toName:      tutor.name,
-            role:        "tutor",
-            childName:   booking.childName,
-            subject:     booking.subject,
-            date:        booking.date,
-            timeSlot:    booking.timeSlot,
-            timezone:    booking.timezone,
-            tutorName:   booking.tutorName,
-            zoomLink:    booking.zoomLink,
-            zoomStartUrl: booking.zoomStartUrl,
-          });
-        }
-
-        // Mark reminder sent
-        await prisma.booking.update({
-          where: { id: booking.id },
-          data:  { reminderSent: true },
-        });
-
-        sent.push(booking.id);
       }
+      await prisma.booking.update({ where: { id: booking.id }, data: { reminderSent: true } });
+      sent30.push(booking.id);
     }
 
-    return NextResponse.json({ ok: true, remindersSent: sent.length, ids: sent });
+    // ── B) Monthly sessions — 30-min reminders ────────────────────────────
+    const ms30 = await prisma.monthlySession.findMany({
+      where: { status: "SCHEDULED", reminderSent: false },
+    });
+
+    for (const ms of ms30) {
+      const sessionUTC = sessionToUTC(ms.date, ms.timeSlot, ms.timezone);
+      if (!sessionUTC) continue;
+      const minutesUntil = (sessionUTC.getTime() - now.getTime()) / 60_000;
+      if (minutesUntil < 25 || minutesUntil > 35) continue;
+
+      sendSessionReminderEmail({
+        to: ms.parentEmail, toName: ms.parentName, role: "parent",
+        childName: ms.childName, subject: ms.subject,
+        date: ms.date, timeSlot: ms.timeSlot, timezone: ms.timezone,
+        tutorName: ms.tutorName, zoomLink: ms.zoomLink, zoomStartUrl: ms.zoomStartUrl,
+      });
+      await prisma.monthlySession.update({ where: { id: ms.id }, data: { reminderSent: true } });
+      sent30.push(ms.id);
+    }
+
+    // ── C) Monthly sessions — daily morning reminder (8-10 AM in their tz) ─
+    const msDaily = await prisma.monthlySession.findMany({
+      where: { status: "SCHEDULED", dailyReminderSent: false },
+    });
+
+    for (const ms of msDaily) {
+      // Only send if it's morning in their timezone AND the session is TODAY
+      if (!isMorningIn(ms.timezone)) continue;
+      if (ms.date !== todayIn(ms.timezone)) continue;
+
+      sendDailySessionReminderEmail({
+        to:        ms.parentEmail,
+        toName:    ms.parentName,
+        childName: ms.childName,
+        subject:   ms.subject,
+        date:      ms.date,
+        timeSlot:  ms.timeSlot,
+        timezone:  ms.timezone,
+        zoomLink:  ms.zoomLink,
+      });
+      await prisma.monthlySession.update({ where: { id: ms.id }, data: { dailyReminderSent: true } });
+      sentDaily.push(ms.id);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      reminders30min: sent30.length,
+      remindersDaily: sentDaily.length,
+      ids30: sent30,
+      idsDaily: sentDaily,
+    });
   } catch (err) {
     console.error("[cron/reminders]", err);
     return NextResponse.json({ error: "Cron failed" }, { status: 500 });
   }
 }
 
-// Also allow GET so Vercel Cron (which uses GET by default) works
-export async function GET(req: NextRequest) {
-  return POST(req);
-}
+export async function GET(req: NextRequest) { return POST(req); }

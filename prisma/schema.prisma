@@ -184,3 +184,45 @@ model AvailabilityChangeRequest {
   createdAt       DateTime @default(now())
   expiresAt       DateTime
 }
+
+model Payment {
+  id          String   @id @default(cuid())
+  userId      String?
+  parentEmail String
+  parentName  String
+  childName   String   @default("")
+  amount      Float
+  currency    String   @default("INR")
+  gateway     String
+  gatewayId   String?
+  status      String   @default("PENDING")  // PENDING | PAID | FAILED
+  courseName  String
+  courseId    String?
+  createdAt   DateTime @default(now())
+  sessions    MonthlySession[]
+}
+
+model MonthlySession {
+  id                String   @id @default(cuid())
+  paymentId         String?
+  parentEmail       String
+  parentName        String
+  childName         String
+  subject           String
+  grade             String   @default("")
+  tutorName         String   @default("TBD")
+  tutorInitials     String   @default("??")
+  dayOfWeek         String
+  date              String   // YYYY-MM-DD
+  timeSlot          String   // e.g. "4:00 PM"
+  timezone          String   @default("Asia/Kolkata")
+  zoomLink          String?
+  zoomStartUrl      String?
+  zoomMeetingId     String?
+  status            String   @default("SCHEDULED")  // SCHEDULED | COMPLETED | CANCELLED
+  reminderSent      Boolean  @default(false)
+  dailyReminderSent Boolean  @default(false)
+  sessionNumber     Int      @default(1)
+  createdAt         DateTime @default(now())
+  payment           Payment? @relation(fields: [paymentId], references: [id])
+}
