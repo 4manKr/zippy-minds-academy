@@ -162,8 +162,21 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "Unknown gateway" }, { status: 400 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("Payment create-order error:", msg);
+    console.error("Payment create-order error:", JSON.stringify(err));
+    // Razorpay SDK throws plain objects — extract nested message if present
+    let msg = "Unknown error";
+    if (err instanceof Error) {
+      msg = err.message;
+    } else if (typeof err === "object" && err !== null) {
+      const e = err as Record<string, unknown>;
+      // Razorpay error shape: { statusCode, error: { code, description, ... } }
+      if (e.error && typeof e.error === "object") {
+        const inner = e.error as Record<string, unknown>;
+        msg = String(inner.description ?? inner.code ?? JSON.stringify(e.error));
+      } else {
+        msg = String(e.message ?? e.description ?? JSON.stringify(err));
+      }
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
