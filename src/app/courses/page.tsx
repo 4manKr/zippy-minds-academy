@@ -311,7 +311,6 @@ export default function CoursesPage() {
                     <div className="flex items-baseline gap-0.5 mb-4">
                       <IndianRupee size={15} className="text-primary mb-0.5 shrink-0" />
                       <span className="font-display text-2xl font-extrabold text-primary leading-none">{course.price}</span>
-                      <span className="text-xs text-on-surface-variant ml-1">for {course.durationValue ?? 1} {course.durationUnit ?? "months"}</span>
                     </div>
 
                     <DemoCTA subject={course.name}

@@ -173,7 +173,7 @@ function EnrollInner() {
                       <span className="font-display text-3xl font-extrabold text-primary">{course.price}</span>
                     </div>
                     <p className="text-xs text-on-surface-variant mb-4 flex items-center gap-1">
-                      <BookOpen size={11} /> for {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
+                      <BookOpen size={11} /> {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
                     </p>
 
                     <div className="mt-auto space-y-2">

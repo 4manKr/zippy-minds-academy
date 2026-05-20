@@ -494,7 +494,7 @@ function SubscribeInner() {
                           {currInfo.symbol}{converted.toLocaleString("en",{minimumFractionDigits:2,maximumFractionDigits:2})}
                         </span>
                     }
-                    <p className="text-xs text-on-surface-variant">for {durationValue} {durationUnit}</p>
+                    <p className="text-xs text-on-surface-variant">{durationValue} {durationUnit} course</p>
                     {!isINR && !ratesLoading && <p className="text-[11px] text-on-surface-variant/60 mt-0.5">Base: ₹{priceINR}</p>}
                   </div>
                 </div>
