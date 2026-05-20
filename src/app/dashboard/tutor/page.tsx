@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  LayoutDashboard, Calendar, Users, User, Settings,
+  LayoutDashboard, Calendar, CalendarDays, Users, User, Settings,
   LogOut, Menu, X, Video, Clock, CheckCircle, AlertTriangle,
   ChevronRight, TrendingUp, Search, Star, BookOpen,
   IndianRupee, Phone, Mail, Lock, Save,
@@ -12,10 +12,13 @@ import {
   MessageSquare, Award, BarChart2, Upload, Trash2, Download,
   FolderOpen, ExternalLink, Play, Link as LinkIcon,
 } from "lucide-react";
+
+const ALL_DAYS       = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const ALL_AVAIL_SLOTS = ["9:00 AM", "10:00 AM", "11:00 AM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM"] as const;
 import { SUBJECTS } from "@/lib/utils";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
-type Section = "dashboard" | "sessions" | "students" | "earnings" | "materials" | "profile";
+type Section = "dashboard" | "sessions" | "students" | "earnings" | "materials" | "availability" | "profile";
 
 interface TMaterial {
   id: string; tutorName: string; tutorEmail: string;
@@ -43,6 +46,7 @@ interface UserInfo {
   id: string; name: string; email: string; phone?: string | null;
   role: string; approvalStatus?: string; createdAt?: string;
   subjects?: string[];
+  availability?: Record<string, string[]>;
 }
 
 /* ─── Helpers ───────────────────────────────────────────────────────────── */
@@ -59,6 +63,21 @@ function getSubjectStyle(subject: string) {
 function fmtDate(iso?: string) {
   if (!iso) return "";
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function formatMonthYear(my: string): string {
+  const [y, m] = my.split("-");
+  return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+}
+
+function getMonthOptions(): { value: string; label: string }[] {
+  const now = new Date();
+  return Array.from({ length: 3 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    const label = d.toLocaleString("en-US", { month: "long", year: "numeric" });
+    return { value, label };
+  });
 }
 
 const TIPS = [
@@ -92,6 +111,23 @@ export default function TutorDashboard() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg]       = useState("");
   const [profileEdit, setProfileEdit]     = useState(false);
+
+  // Availability (legacy weekly — still used for availForm state internally)
+  const [availForm, setAvailForm]         = useState<Record<string, string[]>>({});
+  const [availSaving, setAvailSaving]     = useState(false);
+  const [availMsg, setAvailMsg]           = useState("");
+  const [availDay, setAvailDay]           = useState<string>("Mon");
+
+  // Monthly availability
+  const [monthlyAvail, setMonthlyAvail]   = useState<Array<{id:string;monthYear:string;slots:string;isLocked:boolean}>>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+  });
+  const [monthAvailForm, setMonthAvailForm] = useState<Record<string, string[]>>({});
+  const [monthAvailDay, setMonthAvailDay]   = useState<string>("Mon");
+  const [monthAvailSaving, setMonthAvailSaving] = useState(false);
+  const [monthAvailMsg, setMonthAvailMsg]   = useState<{type:"ok"|"err";text:string}|null>(null);
 
   // Notes
   const [noteOpen, setNoteOpen]   = useState<string | null>(null);
@@ -129,14 +165,19 @@ export default function TutorDashboard() {
       fetch("/api/tutor/sessions").then(r => r.json()),
       fetch("/api/tutor/materials").then(r => r.json()),
       fetch("/api/recordings").then(r => r.json()),
-    ]).then(([profileData, sessData, matData, recData]) => {
-      if (profileData.user) {
-        setUser(profileData.user);
-        setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "", subjects: profileData.user.subjects ?? [] });
-      }
-      if (sessData.sessions)    setSessions(sessData.sessions);
-      if (matData.materials)    setMaterials(matData.materials);
-      if (recData.recordings)   setRecordings(recData.recordings);
+      fetch("/api/tutor/availability").then(r => r.json()),
+    ]).then(([profileData, sessData, matData, recData, availData]) => {
+      if (!profileData.user) { router.push("/auth/login"); return; }
+      // Role guard — redirect non-tutors to their correct dashboard
+      if (profileData.user.role === "ADMIN")  { router.push("/dashboard/admin");  return; }
+      if (profileData.user.role === "PARENT") { router.push("/dashboard/parent"); return; }
+      setUser(profileData.user);
+      setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "", subjects: profileData.user.subjects ?? [] });
+      setAvailForm(profileData.user.availability ?? {});
+      if (sessData.sessions)          setSessions(sessData.sessions);
+      if (matData.materials)          setMaterials(matData.materials);
+      if (recData.recordings)         setRecordings(recData.recordings);
+      if (availData.availabilities)   setMonthlyAvail(availData.availabilities);
     }).catch(() => router.push("/auth/login"))
       .finally(() => setLoading(false));
   }, [router]);
@@ -199,7 +240,7 @@ export default function TutorDashboard() {
       const matchesTab =
         sessionTab === "requests"  ? s.status === "PENDING" :
         sessionTab === "upcoming"  ? s.status === "CONFIRMED" :
-        sessionTab === "cancelled" ? s.status === "CANCELLED" || s.status === "REJECTED" : true;
+        sessionTab === "cancelled" ? s.status === "CANCELLED" : true;
       const q = sessionSearch.toLowerCase();
       const matchesSearch = !q || s.childName.toLowerCase().includes(q) || s.subject.toLowerCase().includes(q) || s.parentName.toLowerCase().includes(q);
       return matchesTab && matchesSearch;
@@ -221,6 +262,71 @@ export default function TutorDashboard() {
     setProfileSaving(false);
   };
 
+  const handleAvailSave = async () => {
+    setAvailSaving(true); setAvailMsg("");
+    const res = await fetch("/api/auth/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ availability: availForm }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setUser(u => u ? { ...u, availability: availForm } : u);
+      setAvailMsg("Availability saved!");
+      setTimeout(() => setAvailMsg(""), 3000);
+    } else {
+      setAvailMsg(data.error ?? "Failed to save.");
+    }
+    setAvailSaving(false);
+  };
+
+  const toggleSlot = (day: string, slot: string) => {
+    setAvailForm(prev => {
+      const daySlots = prev[day] ?? [];
+      const has = daySlots.includes(slot);
+      return { ...prev, [day]: has ? daySlots.filter(s => s !== slot) : [...daySlots, slot] };
+    });
+  };
+
+  const toggleMonthSlot = (day: string, slot: string) => {
+    setMonthAvailForm(prev => {
+      const daySlots = prev[day] ?? [];
+      const has = daySlots.includes(slot);
+      return { ...prev, [day]: has ? daySlots.filter(s => s !== slot) : [...daySlots, slot] };
+    });
+  };
+
+  const handleMonthAvailSubmit = async () => {
+    const totalSlots = Object.values(monthAvailForm).reduce((a, v) => a + (v?.length ?? 0), 0);
+    if (totalSlots === 0) {
+      setMonthAvailMsg({ type:"err", text:"Please select at least one time slot." });
+      return;
+    }
+    setMonthAvailSaving(true);
+    setMonthAvailMsg(null);
+    const res = await fetch("/api/tutor/availability", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ monthYear: selectedMonth, slots: monthAvailForm }),
+    });
+    const data = await res.json();
+    if (res.ok && data.availability) {
+      setMonthlyAvail(prev => {
+        const exists = prev.findIndex(a => a.monthYear === selectedMonth);
+        if (exists >= 0) {
+          const next = [...prev];
+          next[exists] = data.availability;
+          return next;
+        }
+        return [data.availability, ...prev];
+      });
+      setMonthAvailMsg({ type:"ok", text:"Availability submitted and locked for " + formatMonthYear(selectedMonth) + "." });
+    } else {
+      setMonthAvailMsg({ type:"err", text: data.error ?? "Failed to save." });
+    }
+    setMonthAvailSaving(false);
+  };
+
   // Accept or reject a demo request
   const handleSessionAction = async (bookingId: string, action: "accept" | "reject") => {
     setActioning(p => ({ ...p, [bookingId]: true }));
@@ -232,10 +338,15 @@ export default function TutorDashboard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
-      // Update in place
-      setSessions(prev => prev.map(s => s.id === bookingId ? { ...s, ...data.session } : s));
-      // Switch to upcoming tab after accepting
-      if (action === "accept") setSessionTab("upcoming");
+      if (action === "reject") {
+        // Booking was reassigned to another tutor (or escalated to admin)
+        // — remove it from this tutor's local list entirely
+        setSessions(prev => prev.filter(s => s.id !== bookingId));
+      } else {
+        // Update in place (accept)
+        setSessions(prev => prev.map(s => s.id === bookingId ? { ...s, ...data.session } : s));
+        if (action === "accept") setSessionTab("upcoming");
+      }
     } catch {
       // silently ignore, let the UI stay as-is
     } finally {
@@ -382,8 +493,9 @@ export default function TutorDashboard() {
     { id: "sessions",  icon: Calendar,        label: "My Sessions"  },
     { id: "students",  icon: Users,           label: "Students"     },
     { id: "earnings",  icon: IndianRupee,     label: "Earnings"     },
-    { id: "materials", icon: FolderOpen,      label: "Materials"    },
-    { id: "profile",   icon: User,            label: "My Profile"   },
+    { id: "materials",    icon: FolderOpen,    label: "Materials"      },
+    { id: "availability", icon: CalendarDays, label: "Availability"   },
+    { id: "profile",      icon: User,         label: "My Profile"     },
   ];
 
   /* ── Sidebar ── */
@@ -696,7 +808,7 @@ export default function TutorDashboard() {
                   { id: "requests",  label: "Requests",  count: sessions.filter(s => s.status === "PENDING").length },
                   { id: "upcoming",  label: "Upcoming",  count: sessions.filter(s => s.status === "CONFIRMED").length },
                   { id: "all",       label: "All",       count: sessions.length },
-                  { id: "cancelled", label: "Cancelled", count: sessions.filter(s => s.status === "CANCELLED" || s.status === "REJECTED").length },
+                  { id: "cancelled", label: "Cancelled", count: sessions.filter(s => s.status === "CANCELLED").length },
                 ] as const).map(tab => (
                   <button key={tab.id} onClick={() => setSessionTab(tab.id)}
                     className={`relative px-4 py-2 rounded-full text-xs font-bold transition-all ${
@@ -728,7 +840,7 @@ export default function TutorDashboard() {
               <div className="space-y-3">
                 {filteredSessions.map(s => (
                   <div key={s.id} className={`bg-surface-container-lowest rounded-2xl border shadow-card p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${
-                    s.status === "CANCELLED" || s.status === "REJECTED" ? "border-red-200 opacity-70" :
+                    s.status === "CANCELLED" ? "border-red-200 opacity-70" :
                     s.status === "PENDING" ? "border-amber-300 bg-amber-50/30" :
                     "border-outline-variant"
                   }`}>
@@ -747,7 +859,6 @@ export default function TutorDashboard() {
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                           s.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
                           s.status === "PENDING"   ? "bg-amber-100 text-amber-700" :
-                          s.status === "REJECTED"  ? "bg-red-100 text-red-600" :
                           "bg-red-100 text-red-600"
                         }`}>
                           {s.status === "PENDING" ? "⏳ Awaiting Your Response" : s.status}
@@ -1519,6 +1630,207 @@ export default function TutorDashboard() {
         {/* ══════════════════════════════════════════
             SECTION: PROFILE
         ══════════════════════════════════════════ */}
+        {/* ══════════════════════════════════════════
+            SECTION: AVAILABILITY
+        ══════════════════════════════════════════ */}
+        {section === "availability" && (
+          <div className="space-y-6 max-w-2xl">
+            <div>
+              <h2 className="font-display text-2xl font-extrabold text-on-surface">Monthly Availability</h2>
+              <p className="text-sm text-on-surface-variant mt-1">
+                Set your available time slots for a specific month. Once submitted, your availability is locked.
+                Only the admin can make changes.
+              </p>
+            </div>
+
+            {/* Month selector */}
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
+              <label className="block text-sm font-semibold text-on-surface mb-2">Select Month</label>
+              <select
+                value={selectedMonth}
+                onChange={e => {
+                  setSelectedMonth(e.target.value);
+                  setMonthAvailMsg(null);
+                  // Pre-fill form from existing if available
+                  const existing = monthlyAvail.find(a => a.monthYear === e.target.value);
+                  if (existing) {
+                    setMonthAvailForm(JSON.parse(existing.slots) as Record<string, string[]>);
+                  } else {
+                    setMonthAvailForm({});
+                  }
+                }}
+                className="input-field w-full sm:w-64"
+              >
+                {getMonthOptions().map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Locked view */}
+            {monthlyAvail.find(a => a.monthYear === selectedMonth && a.isLocked) ? (() => {
+              const record = monthlyAvail.find(a => a.monthYear === selectedMonth)!;
+              const slots = JSON.parse(record.slots) as Record<string, string[]>;
+              return (
+                <>
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4 flex items-start gap-3">
+                    <Lock size={16} className="text-blue-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-blue-800">Availability Locked</p>
+                      <p className="text-sm text-blue-700 mt-0.5">
+                        Your availability for <strong>{formatMonthYear(selectedMonth)}</strong> is locked.
+                        Only the admin can make changes.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+                    <p className="text-sm font-semibold text-on-surface mb-4">
+                      Your schedule for {formatMonthYear(selectedMonth)}
+                    </p>
+                    <div className="space-y-3">
+                      {ALL_DAYS.filter(d => (slots[d] ?? []).length > 0).map(day => (
+                        <div key={day} className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-on-surface-variant w-8">{day}</span>
+                          <div className="flex flex-wrap gap-2">
+                            {(slots[day] ?? []).map(slot => (
+                              <span key={slot} className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                                <CheckCircle size={11} /> {slot}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {ALL_DAYS.every(d => (slots[d] ?? []).length === 0) && (
+                        <p className="text-sm text-on-surface-variant">No slots set.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface">Need to change your availability?</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">Contact admin to request an availability change for this month.</p>
+                    </div>
+                    <a
+                      href="https://wa.me/919311483555"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-primary shrink-0 text-sm"
+                    >
+                      Contact Admin
+                    </a>
+                  </div>
+                </>
+              );
+            })() : (
+              /* New / unlocked form */
+              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+                <p className="text-sm font-semibold text-on-surface mb-1">
+                  Set availability for {formatMonthYear(selectedMonth)}
+                </p>
+                <p className="text-xs text-on-surface-variant mb-5">
+                  Select at least one time slot. After submitting, your availability will be locked.
+                </p>
+
+                {/* Day tabs */}
+                <div className="flex gap-2 flex-wrap mb-5">
+                  {ALL_DAYS.map(day => {
+                    const count = (monthAvailForm[day] ?? []).length;
+                    return (
+                      <button key={day} onClick={() => setMonthAvailDay(day)}
+                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all relative ${
+                          monthAvailDay === day
+                            ? "bg-primary text-on-primary shadow-sm"
+                            : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                        }`}>
+                        {day}
+                        {count > 0 && (
+                          <span className="ml-1.5 bg-green-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">{count}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Time slot grid */}
+                <div className="mb-6">
+                  <p className="text-sm font-semibold text-on-surface mb-1">
+                    {monthAvailDay} — select available time slots
+                  </p>
+                  <p className="text-xs text-on-surface-variant mb-4">Click to toggle. Green = available for bookings.</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {ALL_AVAIL_SLOTS.map(slot => {
+                      const on = (monthAvailForm[monthAvailDay] ?? []).includes(slot);
+                      return (
+                        <button key={slot} onClick={() => toggleMonthSlot(monthAvailDay, slot)}
+                          className={`p-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 border-2 ${
+                            on
+                              ? "bg-green-50 border-green-400 text-green-700"
+                              : "bg-surface-container border-outline-variant text-on-surface-variant hover:border-primary/40 hover:bg-primary/5"
+                          }`}>
+                          <Clock size={13} />
+                          {slot}
+                          {on && <CheckCircle size={13} className="text-green-500 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Weekly summary */}
+                <div className="bg-surface-container rounded-xl p-4 mb-5">
+                  <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-3">Summary</p>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {ALL_DAYS.map(day => {
+                      const count = (monthAvailForm[day] ?? []).length;
+                      return (
+                        <div key={day} className="text-center">
+                          <p className="text-[10px] font-bold text-on-surface-variant mb-1">{day}</p>
+                          <div className={`h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${
+                            count > 0 ? "bg-green-100 text-green-700" : "bg-surface-container-high text-on-surface-variant/40"
+                          }`}>
+                            {count > 0 ? count : "—"}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-on-surface-variant mt-2">
+                    Total: <span className="font-bold text-on-surface">{Object.values(monthAvailForm).reduce((a, v) => a + (v?.length ?? 0), 0)}</span> slots selected
+                  </p>
+                </div>
+
+                {monthAvailMsg && (
+                  <p className={`text-sm font-semibold flex items-center gap-2 mb-4 ${monthAvailMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
+                    {monthAvailMsg.type === "ok" ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+                    {monthAvailMsg.text}
+                  </p>
+                )}
+
+                <button onClick={handleMonthAvailSubmit} disabled={monthAvailSaving}
+                  className="btn-primary w-full sm:w-auto disabled:opacity-60">
+                  {monthAvailSaving
+                    ? "Submitting…"
+                    : <><Save size={15} /> Submit Availability for {formatMonthYear(selectedMonth)}</>
+                  }
+                </button>
+              </div>
+            )}
+
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+              <CalendarDays size={18} className="text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800">How it works</p>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  Once you submit availability for a month, it is locked. If parents have confirmed sessions
+                  with you, any admin change requires parent approval before it can be applied.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {section === "profile" && (
           <div className="space-y-6 max-w-2xl">
             <div>

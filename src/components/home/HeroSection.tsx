@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CheckCircle, Zap } from "lucide-react";
+import { ArrowRight, CheckCircle, Zap, Video } from "lucide-react";
 import DemoCTA from "@/components/DemoCTA";
 
 const featureCards = [
@@ -76,23 +76,53 @@ export default function HeroSection() {
 
             {/* Main image card */}
             <div className="relative z-10 w-[88%] rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
-              <div className="aspect-[4/3] relative" style={{ background: "linear-gradient(135deg, #1a3fa8 0%, #2d5be3 50%, #6c4ec4 100%)" }}>
+              <div className="aspect-[4/3] relative">
 
-                {/* Subtle gradient fade at bottom */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent z-10" />
+                {/* Hero student photo — fills the entire card */}
+                <Image
+                  src="/hero-student.jpg"
+                  alt="Student learning online at Zippy Minds Academy"
+                  fill
+                  className="object-cover object-top"
+                  priority
+                  sizes="(max-width: 1280px) 50vw, 640px"
+                />
+
+                {/* Subtle gradient at bottom for card readability */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent z-10" />
+
+                {/* Floating stats — top-left */}
+                <div className="absolute top-4 left-4 z-20">
+                  <div className="bg-white/90 backdrop-blur-sm rounded-2xl px-3.5 py-2.5 shadow-lg border border-white/60 flex items-center gap-2">
+                    <span className="text-lg">🎓</span>
+                    <div>
+                      <p className="text-[11px] font-bold text-on-surface leading-none">5,000+ Kids</p>
+                      <p className="text-[10px] text-on-surface-variant mt-0.5">Learning Worldwide</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Floating rating — top-right */}
+                <div className="absolute top-4 right-4 z-20">
+                  <div className="bg-white/90 backdrop-blur-sm rounded-2xl px-3.5 py-2.5 shadow-lg border border-white/60 flex items-center gap-1.5">
+                    <span className="text-yellow-400 text-base">⭐</span>
+                    <div>
+                      <p className="text-[11px] font-bold text-on-surface leading-none">4.9 / 5</p>
+                      <p className="text-[10px] text-on-surface-variant mt-0.5">Parent Rating</p>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Live Session floating card — bottom */}
                 <div className="absolute bottom-5 left-5 right-5 z-20">
-                  <div className="bg-white/85 backdrop-blur-md rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-xl border border-white/60">
+                  <div className="bg-white/90 backdrop-blur-md rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-xl border border-white/60">
                     <div className="flex items-center gap-3">
                       <div className="w-11 h-11 bg-[#2d8cff] rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-                          <path d="M15 10l4.553-2.277A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14v-4zM3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
-                        </svg>
+                        <Video size={20} color="white" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-on-surface leading-none">Live Session</p>
-                        <p className="text-xs text-on-surface-variant mt-0.5">Active Now</p>
+                        <p className="text-sm font-bold text-on-surface leading-none">Live 1-on-1 Session</p>
+                        <p className="text-xs text-on-surface-variant mt-0.5">Expert tutor · Active Now</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

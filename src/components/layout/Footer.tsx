@@ -14,9 +14,8 @@ const footerLinks = {
     { label: "FAQ",           href: "/faq"        },
   ],
   Account: [
-    { label: "Login",         href: "/auth/login"  },
-    { label: "Sign Up",       href: "/auth/signup" },
-    { label: "Parent Dashboard", href: "/dashboard/parent" },
+    { label: "Login",  href: "/auth/login"  },
+    { label: "Sign Up",href: "/auth/signup" },
   ],
   Legal: [
     { label: "Privacy Policy",    href: "/privacy" },
@@ -26,11 +25,11 @@ const footerLinks = {
 };
 
 const socials = [
-  { icon: Facebook,  href: "#", label: "Facebook",  color: "hover:bg-[#1877F2]" },
-  { icon: Twitter,   href: "#", label: "Twitter",   color: "hover:bg-[#1DA1F2]" },
-  { icon: Instagram, href: "#", label: "Instagram", color: "hover:bg-[#E1306C]" },
-  { icon: Linkedin,  href: "#", label: "LinkedIn",  color: "hover:bg-[#0A66C2]" },
-  { icon: Youtube,   href: "#", label: "YouTube",   color: "hover:bg-[#FF0000]"  },
+  { icon: Facebook,  href: "https://www.facebook.com/share/1WWDWsddNg/",                                                                                        label: "Facebook",  color: "hover:bg-[#1877F2]" },
+  { icon: Twitter,   href: "#",                                                                                                                                    label: "Twitter",   color: "hover:bg-[#1DA1F2]" },
+  { icon: Instagram, href: "https://www.instagram.com/zippymindsacademy?igsh=cmNjbmpkMTNydWRx",                                                                   label: "Instagram", color: "hover:bg-[#E1306C]" },
+  { icon: Linkedin,  href: "https://www.linkedin.com/in/zippy-minds-academy-22884540b?utm_source=share_via&utm_content=profile&utm_medium=member_ios",             label: "LinkedIn",  color: "hover:bg-[#0A66C2]" },
+  { icon: Youtube,   href: "https://youtube.com/@zippymindsacademy?si=aX10Dm_5gRM1ssHB",                                                                        label: "YouTube",   color: "hover:bg-[#FF0000]"  },
 ];
 
 export default function Footer() {
@@ -102,6 +101,8 @@ export default function Footer() {
             <div className="flex items-center gap-2.5 mt-7">
               {socials.map(({ icon: Icon, href, label, color }) => (
                 <a key={label} href={href} aria-label={label}
+                  target={href !== "#" ? "_blank" : undefined}
+                  rel={href !== "#" ? "noopener noreferrer" : undefined}
                   className={`w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all duration-200 ${color}`}>
                   <Icon size={16} />
                 </a>

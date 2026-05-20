@@ -10,14 +10,14 @@ import {
   AlertTriangle, Settings, MessageSquare, Calendar, Bell,
   Trash2, TrendingUp, Send, ToggleLeft, ToggleRight, Plus, Edit2, Zap,
   MapPin, RefreshCw, Save, PlayCircle, FileText, Download,
-  Play, Upload, Link as LinkIcon, User,
+  Play, Upload, Link as LinkIcon, User, CalendarDays, Lock,
 } from "lucide-react";
 
-type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content";
+type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content"|"availability";
 
 // ── Types ────────────────────────────────────────────────────────────────────
-interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; createdAt:string; }
-interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; createdAt:string; }
+interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
+interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; needsAdmin?:boolean; declinedTutors?:string; createdAt:string; }
 interface DBCourse  { id:string; name:string; description:string; price:number; status:string; }
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
@@ -25,6 +25,8 @@ interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEn
 interface DBResource  { id:string; title:string; type:string; subject:string; size:string; icon:string; url:string; status:string; }
 interface DBVideo    { id:string; title:string; subject:string; duration:string; thumbnail:string; videoUrl:string; views:number; status:string; }
 interface DBRecording { id:string; title:string; description:string; subject:string; studentName:string; tutorName:string; videoUrl:string; duration:string; fileSize:string; uploadedBy:string; uploadedByRole:string; visibility:string; createdAt:string; }
+interface AvailabilityRecord { id:string; tutorId:string; tutorName:string; monthYear:string; slots:string; timezone:string; isLocked:boolean; createdAt:string; }
+interface ChangeRequest { id:string; tutorId:string; tutorName:string; monthYear:string; currentSlots:string; proposedSlots:string; reason:string; status:string; parentApprovals:string; adminName:string; createdAt:string; expiresAt:string; }
 
 
 export default function AdminDashboard() {
@@ -50,6 +52,8 @@ export default function AdminDashboard() {
   const [userRole,       setUserRole]       = useState("All");
   const [sessionSearch,  setSessionSearch]  = useState("");
   const [sessionFilter,  setSessionFilter]  = useState("All");
+  const [reassignId,     setReassignId]     = useState<string|null>(null);
+  const [reassignTutor,  setReassignTutor]  = useState("");
   const [payFilter,      setPayFilter]      = useState("All");
   const [supportFilter,  setSupportFilter]  = useState("All");
   const [replyOpen,      setReplyOpen]      = useState<string|null>(null);
@@ -72,6 +76,27 @@ export default function AdminDashboard() {
   const [editCourse,    setEditCourse]    = useState<DBCourse|null>(null);
   const [editResource,  setEditResource]  = useState<DBResource|null>(null);
   const [editVideo,     setEditVideo]     = useState<DBVideo|null>(null);
+
+  const [viewUser, setViewUser] = useState<DBUser|null>(null);
+
+  // Availability
+  const [availabilities,  setAvailabilities]  = useState<AvailabilityRecord[]>([]);
+  const [changeRequests,  setChangeRequests]  = useState<ChangeRequest[]>([]);
+  const [availTab,        setAvailTab]        = useState<"overview"|"requests">("overview");
+  const [editAvail,       setEditAvail]       = useState<AvailabilityRecord|null>(null);
+  const [editAvailSlots,  setEditAvailSlots]  = useState<Record<string,string[]>>({});
+  const [editAvailDay,    setEditAvailDay]    = useState("Mon");
+  const [editAvailReason, setEditAvailReason] = useState("");
+  const [editAvailSending,setEditAvailSending]= useState(false);
+  const [editAvailMsg,    setEditAvailMsg]    = useState<{type:"ok"|"err";text:string}|null>(null);
+  const [applyingReq,     setApplyingReq]     = useState<string|null>(null);
+
+  // Tutor add / edit
+  const TUTOR_SUBJECTS = ["Phonics","English Grammar","Mathematics","Public Speaking","Writing & Communication","Coding","Science","Life Skills","Hindi","General Knowledge","Creative Arts","Social Studies"];
+  const [addTutorOpen, setAddTutorOpen] = useState(false);
+  const [addTutorForm, setAddTutorForm] = useState({ name:"", email:"", phone:"", password:"", subjects:[] as string[], approvalStatus:"APPROVED" });
+  const [editTutor,    setEditTutor]    = useState<DBUser|null>(null);
+  const [editTutorForm,setEditTutorForm]= useState({ name:"", phone:"", subjects:[] as string[], approvalStatus:"APPROVED" });
 
   const setLoad = (key: string, v: boolean) => setLoading(p=>({...p,[key]:v}));
 
@@ -114,7 +139,24 @@ export default function AdminDashboard() {
     setLoad("init", false);
   }, []);
 
+  // Role guard — redirect non-admins away from admin panel
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.ok ? r.json() : { user: null }).then(d => {
+      if (!d.user) { router.push("/auth/admin-login"); return; }
+      if (d.user.role !== "ADMIN") {
+        router.push(d.user.role === "TUTOR" ? "/dashboard/tutor" : "/dashboard/parent");
+      }
+    }).catch(() => router.push("/auth/admin-login"));
+  }, [router]);
+
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (section === "availability") {
+      fetch("/api/admin/availability").then(r=>r.json()).then(d => { if(d.availabilities) setAvailabilities(d.availabilities); });
+      fetch("/api/admin/availability/change-request").then(r=>r.json()).then(d => { if(d.requests) setChangeRequests(d.requests); });
+    }
+  }, [section]);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method:"POST" });
@@ -123,14 +165,93 @@ export default function AdminDashboard() {
 
   // ── Tutor approve/reject ──────────────────────────────────────────────────
   const handleTutorAction = async (tutorId: string, approvalStatus: "APPROVED"|"REJECTED") => {
-    await fetch("/api/admin/tutors", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ tutorId, approvalStatus }) });
-    setTutors(t => t.map(u => u.id===tutorId ? {...u,approvalStatus} : u));
+    const res = await fetch("/api/admin/tutors", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ tutorId, approvalStatus }) });
+    const data = await res.json();
+    if (data.tutor) setTutors(t => t.map(u => u.id===tutorId ? { ...u, ...data.tutor } : u));
+    else setTutors(t => t.map(u => u.id===tutorId ? {...u,approvalStatus} : u));
+  };
+
+  // ── Tutor add ─────────────────────────────────────────────────────────────
+  const handleAddTutor = async () => {
+    if (!addTutorForm.name.trim() || !addTutorForm.email.trim() || !addTutorForm.password.trim()) return;
+    setLoad("addTutor", true);
+    const res = await fetch("/api/admin/tutors", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(addTutorForm) });
+    const data = await res.json();
+    if (data.tutor) {
+      setTutors(t => [data.tutor, ...t]);
+      setAddTutorForm({ name:"", email:"", phone:"", password:"", subjects:[], approvalStatus:"APPROVED" });
+      setAddTutorOpen(false);
+    } else {
+      alert(data.error ?? "Failed to create tutor");
+    }
+    setLoad("addTutor", false);
+  };
+
+  // ── Tutor edit ────────────────────────────────────────────────────────────
+  const handleEditTutor = async () => {
+    if (!editTutor) return;
+    setLoad("editTutor", true);
+    const res = await fetch("/api/admin/tutors", { method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ tutorId:editTutor.id, name:editTutorForm.name, phone:editTutorForm.phone, subjects:editTutorForm.subjects, approvalStatus:editTutorForm.approvalStatus }) });
+    const data = await res.json();
+    if (data.tutor) {
+      setTutors(t => t.map(u => u.id===editTutor.id ? { ...u, ...data.tutor } : u));
+      setEditTutor(null);
+    } else {
+      alert(data.error ?? "Failed to update tutor");
+    }
+    setLoad("editTutor", false);
   };
 
   // ── Session confirm/cancel ────────────────────────────────────────────────
   const handleSessionStatus = async (bookingId: string, status: string) => {
-    await fetch("/api/admin/sessions", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ bookingId, status }) });
-    setSessions(s => s.map(b => b.id===bookingId ? {...b,status} : b));
+    setLoad(bookingId, true);
+    try {
+      const res = await fetch("/api/admin/sessions", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ bookingId, status }) });
+      const data = await res.json();
+      if (res.ok && data.booking) {
+        // Replace entire booking so zoom link and all fields are fresh
+        setSessions(s => s.map(b => b.id===bookingId ? { ...b, ...data.booking } : b));
+      } else {
+        setSessions(s => s.map(b => b.id===bookingId ? {...b,status} : b));
+      }
+    } finally {
+      setLoad(bookingId, false);
+    }
+  };
+
+  // ── User delete / view ────────────────────────────────────────────────────
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Delete user "${userName}"? This cannot be undone.`)) return;
+    // Optimistic: remove immediately so UI feels instant
+    const snapshot = users.find(x => x.id === userId);
+    setUsers(u => u.filter(x => x.id !== userId));
+    setLoad(`del_${userId}`, true);
+    try {
+      const res = await fetch("/api/admin/users", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId }) });
+      if (!res.ok) {
+        // Restore on failure
+        if (snapshot) setUsers(u => [snapshot, ...u]);
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? "Failed to delete user. Please try again.");
+      }
+    } catch {
+      if (snapshot) setUsers(u => [snapshot, ...u]);
+      alert("Network error — user was not deleted.");
+    } finally {
+      setLoad(`del_${userId}`, false);
+    }
+  };
+
+  // ── Admin reassign: manually assign a tutor to a needsAdmin booking ───────
+  const handleReassign = async (bookingId: string, tutorName: string) => {
+    if (!tutorName) return;
+    const initials = tutorName.split(" ").filter(Boolean).map((p:string)=>p[0]).join("").toUpperCase().slice(0,2);
+    await fetch("/api/admin/sessions", { method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ bookingId, tutorName, tutorInitials: initials }) });
+    setSessions(s => s.map(b => b.id===bookingId ? {...b, tutorName, tutorInitials: initials, needsAdmin: false, status:"PENDING"} : b));
+    setReassignId(null);
+    setReassignTutor("");
   };
 
   // ── Course toggle ─────────────────────────────────────────────────────────
@@ -253,10 +374,54 @@ export default function AdminDashboard() {
     setLoad("settings", false);
   };
 
+  // ── Availability handlers ─────────────────────────────────────────────────
+  const handleSendChangeRequest = async () => {
+    if (!editAvail) return;
+    const totalSlots = Object.values(editAvailSlots).reduce((a,v)=>a+(v?.length??0),0);
+    if (totalSlots === 0) { setEditAvailMsg({type:"err",text:"Proposed schedule must have at least one slot."}); return; }
+    setEditAvailSending(true); setEditAvailMsg(null);
+    const res = await fetch("/api/admin/availability/change-request", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ tutorId:editAvail.tutorId, tutorName:editAvail.tutorName, monthYear:editAvail.monthYear, proposedSlots:editAvailSlots, reason:editAvailReason }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setChangeRequests(prev => [data.request, ...prev]);
+      setEditAvailMsg({type:"ok",text:"Change request sent to parents for approval."});
+      setTimeout(()=>{ setEditAvail(null); setEditAvailMsg(null); }, 2000);
+    } else {
+      setEditAvailMsg({type:"err",text:data.error??"Failed to send request."});
+    }
+    setEditAvailSending(false);
+  };
+
+  const handleApplyChange = async (requestId: string) => {
+    setApplyingReq(requestId);
+    const res = await fetch("/api/admin/availability/change-request", {
+      method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ requestId }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setChangeRequests(prev => prev.map(r => r.id===requestId ? data.request : r));
+      fetch("/api/admin/availability").then(r=>r.json()).then(d => { if(d.availabilities) setAvailabilities(d.availabilities); });
+    } else {
+      alert(data.error ?? "Failed to apply change.");
+    }
+    setApplyingReq(null);
+  };
+
   // ── Derived ───────────────────────────────────────────────────────────────
   const pendingTutors   = tutors.filter(t => t.approvalStatus==="PENDING");
   const filteredUsers   = users.filter(u => (userRole==="All"||u.role===userRole) && (u.name.toLowerCase().includes(userSearch.toLowerCase())||u.email.toLowerCase().includes(userSearch.toLowerCase())));
-  const filteredSessions= sessions.filter(b => (sessionFilter==="All"||b.status===sessionFilter) && (b.subject.toLowerCase().includes(sessionSearch.toLowerCase())||b.childName.toLowerCase().includes(sessionSearch.toLowerCase())||b.tutorName.toLowerCase().includes(sessionSearch.toLowerCase())));
+  const needsAdminCount = sessions.filter(b => b.needsAdmin).length;
+  const filteredSessions= sessions.filter(b => {
+    const matchFilter = sessionFilter==="All" ? true
+      : sessionFilter==="NEEDS_ADMIN" ? !!b.needsAdmin
+      : b.status===sessionFilter;
+    const q = sessionSearch.toLowerCase();
+    const matchSearch = !q || b.subject.toLowerCase().includes(q) || b.childName.toLowerCase().includes(q) || b.tutorName.toLowerCase().includes(q);
+    return matchFilter && matchSearch;
+  });
   const filteredPayments= payments.filter(p => payFilter==="All"||p.status===payFilter);
   const filteredTickets = tickets.filter(t => supportFilter==="All"||t.status===supportFilter);
   const totalRevenue    = payments.filter(p=>p.status==="success").reduce((a,b)=>a+b.amount,0);
@@ -273,14 +438,15 @@ export default function AdminDashboard() {
     { id:"payments",  icon:CreditCard,      label:"Payments"                          },
     { id:"analytics", icon:BarChart3,       label:"Analytics"                         },
     { id:"support",   icon:MessageSquare,   label:"Support", badge:openTickets||undefined },
-    { id:"settings",  icon:Settings,        label:"Settings"                          },
+    { id:"settings",      icon:Settings,     label:"Settings"                          },
+    { id:"availability",  icon:CalendarDays, label:"Availability"                      },
   ];
 
   const sectionTitle: Record<Section,string> = {
     overview:"Platform Overview", users:"User Management", tutors:"Tutor Approvals",
     courses:"Course Management", content:"Content Library", sessions:"Session Management",
     payments:"Payment Transactions", analytics:"Analytics & Insights",
-    support:"Support Tickets", settings:"Platform Settings",
+    support:"Support Tickets", settings:"Platform Settings", availability:"Tutor Availability",
   };
 
   const isLoading = loading["init"];
@@ -320,6 +486,42 @@ export default function AdminDashboard() {
       </aside>
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={()=>setSidebarOpen(false)}/>}
 
+      {/* ── View User Modal ── */}
+      {viewUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={()=>setViewUser(null)}/>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 z-10">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-gray-900 text-lg">User Details</h3>
+              <button onClick={()=>setViewUser(null)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+            </div>
+            <div className="flex items-center gap-4 mb-5 p-4 bg-gray-50 rounded-xl">
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0 ${viewUser.role==="ADMIN"?"bg-red-500":viewUser.role==="TUTOR"?"bg-purple-500":"bg-blue-500"}`}>
+                {viewUser.name[0]?.toUpperCase()}
+              </div>
+              <div>
+                <p className="font-bold text-gray-900 text-base">{viewUser.name}</p>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${viewUser.role==="ADMIN"?"bg-red-100 text-red-600":viewUser.role==="TUTOR"?"bg-purple-100 text-purple-600":"bg-blue-100 text-blue-600"}`}>{viewUser.role}</span>
+              </div>
+            </div>
+            <div className="space-y-3 text-sm">
+              {[
+                { label: "Email",   value: viewUser.email           },
+                { label: "Phone",   value: viewUser.phone ?? "—"     },
+                { label: "Status",  value: viewUser.approvalStatus ?? "APPROVED" },
+                { label: "Joined",  value: new Date(viewUser.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"}) },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex justify-between py-2 border-b border-gray-100 last:border-0">
+                  <span className="text-gray-500">{label}</span>
+                  <span className="font-semibold text-gray-800">{value}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={()=>setViewUser(null)} className="mt-5 w-full py-2.5 rounded-xl bg-gray-100 text-gray-700 font-semibold text-sm hover:bg-gray-200 transition-colors">Close</button>
+          </div>
+        </div>
+      )}
+
       {/* ── Edit Course Modal ── */}
       {editCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -351,6 +553,62 @@ export default function AdminDashboard() {
               <button onClick={handleSaveCourse} disabled={loading["editCourse"]}
                 className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2">
                 {loading["editCourse"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Changes</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Tutor Modal ── */}
+      {editTutor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={()=>setEditTutor(null)}/>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 z-10 overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2"><GraduationCap size={18} className="text-purple-600"/> Edit Tutor</h3>
+              <button onClick={()=>setEditTutor(null)} className="text-gray-400 hover:text-gray-700"><X size={20}/></button>
+            </div>
+            <div className="mb-3 p-3 bg-gray-50 rounded-xl text-sm text-gray-500">
+              <span className="font-semibold text-gray-700">Email:</span> {editTutor.email}
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+                <input value={editTutorForm.name} onChange={e=>setEditTutorForm(p=>({...p,name:e.target.value}))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+                <input type="tel" value={editTutorForm.phone} onChange={e=>setEditTutorForm(p=>({...p,phone:e.target.value}))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Subjects</label>
+                <div className="flex flex-wrap gap-2">
+                  {TUTOR_SUBJECTS.map(s=>(
+                    <button key={s} type="button"
+                      onClick={()=>setEditTutorForm(p=>({...p,subjects:p.subjects.includes(s)?p.subjects.filter(x=>x!==s):[...p.subjects,s]}))}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${editTutorForm.subjects.includes(s)?"bg-purple-600 text-white border-purple-600":"bg-white text-gray-600 border-gray-200 hover:border-purple-400"}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Approval Status</label>
+                <select value={editTutorForm.approvalStatus} onChange={e=>setEditTutorForm(p=>({...p,approvalStatus:e.target.value}))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30">
+                  <option value="APPROVED">Approved</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={()=>setEditTutor(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={handleEditTutor} disabled={loading["editTutor"]||!editTutorForm.name.trim()}
+                className="flex-1 bg-purple-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                {loading["editTutor"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Changes</>}
               </button>
             </div>
           </div>
@@ -517,6 +775,25 @@ export default function AdminDashboard() {
                 ))}
               </div>
 
+              {/* ⚠️ Needs Attention Banner */}
+              {needsAdminCount > 0 && (
+                <div className="bg-orange-50 border border-orange-200 rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-xl shrink-0">⚠️</div>
+                    <div>
+                      <p className="font-bold text-orange-800">
+                        {needsAdminCount} booking{needsAdminCount > 1 ? "s" : ""} need{needsAdminCount === 1 ? "s" : ""} tutor assignment
+                      </p>
+                      <p className="text-xs text-orange-600 mt-0.5">All available tutors declined — please assign a tutor manually.</p>
+                    </div>
+                  </div>
+                  <button onClick={()=>{setSection("sessions");setSessionFilter("NEEDS_ADMIN");}}
+                    className="shrink-0 px-4 py-2 bg-orange-500 text-white text-sm font-semibold rounded-xl hover:bg-orange-600 transition-colors">
+                    Review Now →
+                  </button>
+                </div>
+              )}
+
               {/* Recent sessions */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -595,8 +872,12 @@ export default function AdminDashboard() {
                           <td className="px-5 py-3.5 text-gray-500 text-xs">{new Date(u.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-1.5">
-                              <button className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Eye size={14}/></button>
-                              <button className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors"><Trash2 size={14}/></button>
+                              <button onClick={()=>setViewUser(u)} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="View"><Eye size={14}/></button>
+                              {u.role !== "ADMIN" && (
+                                <button onClick={()=>handleDeleteUser(u.id, u.name)} disabled={!!loading[`del_${u.id}`]} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors disabled:opacity-40" title="Delete">
+                                  {loading[`del_${u.id}`] ? <div className="w-3.5 h-3.5 border-2 border-red-300 border-t-red-500 rounded-full animate-spin"/> : <Trash2 size={14}/>}
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -624,10 +905,69 @@ export default function AdminDashboard() {
                 ))}
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                   <h2 className="font-bold text-gray-900">All Tutor Accounts ({tutors.length})</h2>
+                  <button onClick={()=>setAddTutorOpen(a=>!a)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                    <Plus size={15}/> Add Tutor
+                  </button>
                 </div>
-                {tutors.length===0 ? <Empty label="No tutor accounts yet"/> : <TutorTable tutors={tutors} onAction={handleTutorAction}/>}
+
+                {/* ── Add Tutor inline form ── */}
+                {addTutorOpen && (
+                  <div className="px-6 py-5 border-b border-gray-100 bg-blue-50/40">
+                    <p className="text-sm font-semibold text-gray-800 mb-4">New Tutor Account</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Full Name *</label>
+                        <input value={addTutorForm.name} onChange={e=>setAddTutorForm(p=>({...p,name:e.target.value}))} placeholder="e.g. Priya Sharma" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Email *</label>
+                        <input type="email" value={addTutorForm.email} onChange={e=>setAddTutorForm(p=>({...p,email:e.target.value}))} placeholder="tutor@email.com" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Phone</label>
+                        <input type="tel" value={addTutorForm.phone} onChange={e=>setAddTutorForm(p=>({...p,phone:e.target.value}))} placeholder="+91 98765 43210" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Password * (min 8 chars)</label>
+                        <input type="password" value={addTutorForm.password} onChange={e=>setAddTutorForm(p=>({...p,password:e.target.value}))} placeholder="••••••••" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                    </div>
+                    <div className="mb-3">
+                      <label className="text-xs font-medium text-gray-600 mb-2 block">Subjects</label>
+                      <div className="flex flex-wrap gap-2">
+                        {TUTOR_SUBJECTS.map(s=>(
+                          <button key={s} type="button"
+                            onClick={()=>setAddTutorForm(p=>({...p,subjects:p.subjects.includes(s)?p.subjects.filter(x=>x!==s):[...p.subjects,s]}))}
+                            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${addTutorForm.subjects.includes(s)?"bg-blue-600 text-white border-blue-600":"bg-white text-gray-600 border-gray-200 hover:border-blue-400"}`}>
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mb-4">
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Approval Status</label>
+                      <select value={addTutorForm.approvalStatus} onChange={e=>setAddTutorForm(p=>({...p,approvalStatus:e.target.value}))}
+                        className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                        <option value="APPROVED">Approved</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="REJECTED">Rejected</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button onClick={handleAddTutor} disabled={loading["addTutor"]||!addTutorForm.name||!addTutorForm.email||!addTutorForm.password}
+                        className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors">
+                        {loading["addTutor"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Create Tutor</>}
+                      </button>
+                      <button onClick={()=>setAddTutorOpen(false)} className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {tutors.length===0 ? <Empty label="No tutor accounts yet"/> : (
+                  <TutorTable tutors={tutors} onAction={handleTutorAction} onEdit={t=>{ setEditTutor(t); setEditTutorForm({ name:t.name, phone:t.phone??'', subjects:t.subjects??[], approvalStatus:t.approvalStatus??"PENDING" }); }}/>
+                )}
               </div>
             </div>
           )}
@@ -716,6 +1056,9 @@ export default function AdminDashboard() {
                   {["All","CONFIRMED","PENDING","CANCELLED"].map(s=>(
                     <button key={s} onClick={()=>setSessionFilter(s)} className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all ${sessionFilter===s?"bg-blue-600 text-white":"bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{s}</button>
                   ))}
+                  <button onClick={()=>setSessionFilter("NEEDS_ADMIN")} className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-1 ${sessionFilter==="NEEDS_ADMIN"?"bg-orange-500 text-white":"bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100"}`}>
+                    ⚠️ Needs Attention {needsAdminCount>0 && <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${sessionFilter==="NEEDS_ADMIN"?"bg-white/30 text-white":"bg-orange-500 text-white"}`}>{needsAdminCount}</span>}
+                  </button>
                 </div>
               </div>
               {filteredSessions.length===0 ? <Empty label="No sessions found"/> : (
@@ -724,19 +1067,50 @@ export default function AdminDashboard() {
                     <thead><tr className="bg-gray-50">{["Student","Subject","Tutor","Date","Time","Status","Actions"].map(h=><th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
                     <tbody className="divide-y divide-gray-50">
                       {filteredSessions.map(b=>(
-                        <tr key={b.id} className="hover:bg-gray-50 transition-colors">
+                        <tr key={b.id} className={`hover:bg-gray-50 transition-colors ${b.needsAdmin?"bg-orange-50/40":""}`}>
                           <td className="px-5 py-3.5 font-medium text-gray-900">{b.childName}</td>
                           <td className="px-5 py-3.5 text-gray-600">{b.subject}</td>
-                          <td className="px-5 py-3.5 text-gray-600">{b.tutorName}</td>
+                          <td className="px-5 py-3.5 text-gray-600">
+                            {b.needsAdmin
+                              ? <span className="text-orange-600 font-semibold text-xs">⚠️ Unassigned</span>
+                              : b.tutorName || <span className="text-gray-400 text-xs italic">—</span>}
+                          </td>
                           <td className="px-5 py-3.5 text-gray-500 text-xs">{b.date}</td>
                           <td className="px-5 py-3.5 text-gray-500 text-xs">{b.timeSlot}</td>
-                          <td className="px-5 py-3.5"><StatusBadge status={b.status}/></td>
                           <td className="px-5 py-3.5">
-                            <div className="flex items-center gap-1.5">
-                              {b.status!=="CONFIRMED"  && <button onClick={()=>handleSessionStatus(b.id,"CONFIRMED")}  className="p-1.5 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition-colors" title="Confirm"><CheckCircle size={14}/></button>}
-                              {b.status!=="CANCELLED"  && <button onClick={()=>handleSessionStatus(b.id,"CANCELLED")}  className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors" title="Cancel"><XCircle size={14}/></button>}
-                              {b.zoomLink && <a href={b.zoomLink} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg border border-blue-200 text-blue-500 hover:bg-blue-50 transition-colors" title="Zoom"><Eye size={14}/></a>}
-                            </div>
+                            {b.needsAdmin
+                              ? <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">⚠️ Needs Reassignment</span>
+                              : <StatusBadge status={b.status}/>}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            {b.needsAdmin ? (
+                              reassignId===b.id ? (
+                                <div className="flex items-center gap-1.5">
+                                  <select value={reassignTutor} onChange={e=>setReassignTutor(e.target.value)}
+                                    className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/30 max-w-[140px]">
+                                    <option value="">Select tutor…</option>
+                                    {tutors.filter(t=>t.approvalStatus==="APPROVED").map(t=>(
+                                      <option key={t.id} value={t.name}>{t.name}</option>
+                                    ))}
+                                  </select>
+                                  <button onClick={()=>handleReassign(b.id,reassignTutor)} disabled={!reassignTutor}
+                                    className="px-2.5 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">Assign</button>
+                                  <button onClick={()=>{setReassignId(null);setReassignTutor("");}}
+                                    className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-100 transition-colors"><XCircle size={13}/></button>
+                                </div>
+                              ) : (
+                                <button onClick={()=>{setReassignId(b.id);setReassignTutor("");}}
+                                  className="px-3 py-1.5 text-xs font-semibold bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors">
+                                  Assign Tutor
+                                </button>
+                              )
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                {b.status!=="CONFIRMED"  && <button onClick={()=>handleSessionStatus(b.id,"CONFIRMED")}  className="p-1.5 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition-colors" title="Confirm"><CheckCircle size={14}/></button>}
+                                {b.status!=="CANCELLED"  && <button onClick={()=>handleSessionStatus(b.id,"CANCELLED")}  className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors" title="Cancel"><XCircle size={14}/></button>}
+                                {b.zoomLink && <a href={b.zoomLink} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg border border-blue-200 text-blue-500 hover:bg-blue-50 transition-colors" title="Zoom"><Eye size={14}/></a>}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1370,6 +1744,241 @@ export default function AdminDashboard() {
               </button>
             </div>
           )}
+
+          {/* ══ AVAILABILITY ══ */}
+          {section==="availability" && (
+            <div className="space-y-5">
+              {/* Tabs */}
+              <div className="flex gap-2">
+                {(["overview","requests"] as const).map(tab => (
+                  <button key={tab} onClick={()=>setAvailTab(tab)}
+                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${availTab===tab?"bg-blue-600 text-white shadow-sm":"bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                    {tab === "overview" ? "All Availabilities" : "Change Requests"}
+                  </button>
+                ))}
+              </div>
+
+              {availTab === "overview" && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100">
+                    <p className="font-semibold text-gray-900 text-sm">Tutor Monthly Availabilities</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{availabilities.length} record(s) total</p>
+                  </div>
+                  {availabilities.length === 0 ? (
+                    <div className="py-14 text-center">
+                      <CalendarDays size={28} className="text-gray-300 mx-auto mb-3"/>
+                      <p className="text-gray-400 text-sm">No availability records yet. Tutors must submit from their dashboard.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50">
+                            {["Tutor","Month","Slots","Timezone","Status","Actions"].map(h=>(
+                              <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {availabilities.map(av => {
+                            const slots = JSON.parse(av.slots) as Record<string,string[]>;
+                            const totalSlots = Object.values(slots).reduce((a,v)=>a+(v?.length??0),0);
+                            return (
+                              <tr key={av.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-3 font-semibold text-gray-900">{av.tutorName}</td>
+                                <td className="px-4 py-3 text-gray-600">{fmtMonthYear(av.monthYear)}</td>
+                                <td className="px-4 py-3 text-gray-600">{totalSlots} slot(s)</td>
+                                <td className="px-4 py-3 text-gray-500 text-xs">{av.timezone}</td>
+                                <td className="px-4 py-3">
+                                  {av.isLocked
+                                    ? <span className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full w-fit"><Lock size={10}/> Locked</span>
+                                    : <span className="text-xs font-bold text-green-700 bg-green-100 px-2.5 py-1 rounded-full">Open</span>
+                                  }
+                                </td>
+                                <td className="px-4 py-3">
+                                  <button
+                                    onClick={()=>{
+                                      setEditAvail(av);
+                                      setEditAvailSlots(JSON.parse(av.slots) as Record<string,string[]>);
+                                      setEditAvailDay("Mon");
+                                      setEditAvailReason("");
+                                      setEditAvailMsg(null);
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
+                                    <Edit2 size={12}/> Edit
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {availTab === "requests" && (
+                <div className="space-y-4">
+                  {changeRequests.length === 0 ? (
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-14 text-center">
+                      <CalendarDays size={28} className="text-gray-300 mx-auto mb-3"/>
+                      <p className="text-gray-400 text-sm">No change requests yet.</p>
+                    </div>
+                  ) : changeRequests.map(req => {
+                    const approvals = JSON.parse(req.parentApprovals) as Record<string,{name:string;token:string;status:string}>;
+                    const parentList = Object.entries(approvals);
+                    const approvedCount = parentList.filter(([,v])=>v.status==="approved").length;
+                    const rejectedCount = parentList.filter(([,v])=>v.status==="rejected").length;
+                    const pendingCount  = parentList.filter(([,v])=>v.status==="pending").length;
+                    const proposed = JSON.parse(req.proposedSlots) as Record<string,string[]>;
+                    const totalProposed = Object.values(proposed).reduce((a,v)=>a+(v?.length??0),0);
+
+                    return (
+                      <div key={req.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                        <div className="flex items-start justify-between gap-4 mb-4">
+                          <div>
+                            <p className="font-semibold text-gray-900">{req.tutorName} — {fmtMonthYear(req.monthYear)}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Requested by {req.adminName} · {new Date(req.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</p>
+                            {req.reason && <p className="text-xs text-gray-600 mt-1 italic">&ldquo;{req.reason}&rdquo;</p>}
+                          </div>
+                          <div className="shrink-0">
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                              req.status==="ALL_APPROVED" ? "bg-green-100 text-green-700" :
+                              req.status==="ANY_REJECTED" ? "bg-red-100 text-red-700" :
+                              req.status==="APPLIED"      ? "bg-blue-100 text-blue-700" :
+                              req.status==="CANCELLED"    ? "bg-gray-100 text-gray-600" :
+                              "bg-amber-100 text-amber-700"
+                            }`}>
+                              {req.status.replace(/_/g," ")}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3 mb-4">
+                          <div className="bg-gray-50 rounded-xl p-3 text-center">
+                            <p className="text-lg font-extrabold text-green-700">{approvedCount}</p>
+                            <p className="text-[10px] text-gray-500 font-semibold uppercase">Approved</p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3 text-center">
+                            <p className="text-lg font-extrabold text-amber-700">{pendingCount}</p>
+                            <p className="text-[10px] text-gray-500 font-semibold uppercase">Pending</p>
+                          </div>
+                          <div className="bg-gray-50 rounded-xl p-3 text-center">
+                            <p className="text-lg font-extrabold text-red-700">{rejectedCount}</p>
+                            <p className="text-[10px] text-gray-500 font-semibold uppercase">Rejected</p>
+                          </div>
+                        </div>
+
+                        {parentList.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Parent Responses</p>
+                            <div className="space-y-1.5">
+                              {parentList.map(([email, info]) => (
+                                <div key={email} className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-700">{info.name} <span className="text-gray-400 text-xs">&lt;{email}&gt;</span></span>
+                                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                    info.status==="approved" ? "bg-green-100 text-green-700" :
+                                    info.status==="rejected" ? "bg-red-100 text-red-700" :
+                                    "bg-amber-100 text-amber-700"
+                                  }`}>{info.status}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {parentList.length === 0 && (
+                          <p className="text-xs text-gray-400 mb-4">No confirmed parents — can be applied immediately.</p>
+                        )}
+
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-400">{totalProposed} proposed slot(s)</p>
+                          <button
+                            onClick={()=>handleApplyChange(req.id)}
+                            disabled={req.status !== "ALL_APPROVED" || applyingReq === req.id}
+                            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                            {applyingReq===req.id
+                              ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"/> Applying…</>
+                              : <><CheckCircle size={12}/> Apply Change</>
+                            }
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Edit Availability Modal */}
+          {editAvail && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/50" onClick={()=>{setEditAvail(null);setEditAvailMsg(null);}}/>
+              <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 z-10 overflow-y-auto max-h-[90vh]">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2"><CalendarDays size={18} className="text-blue-600"/> Edit Availability</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{editAvail.tutorName} — {fmtMonthYear(editAvail.monthYear)}</p>
+                  </div>
+                  <button onClick={()=>{setEditAvail(null);setEditAvailMsg(null);}} className="text-gray-400 hover:text-gray-700"><X size={20}/></button>
+                </div>
+
+                {/* Day tabs */}
+                <div className="flex gap-2 flex-wrap mb-4">
+                  {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(day => {
+                    const count = (editAvailSlots[day]??[]).length;
+                    return (
+                      <button key={day} onClick={()=>setEditAvailDay(day)}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${editAvailDay===day?"bg-blue-600 text-white shadow-sm":"bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                        {day}{count>0&&<span className="ml-1 bg-green-500 text-white text-[9px] rounded-full px-1">{count}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Slot grid */}
+                <div className="grid grid-cols-3 gap-2 mb-5">
+                  {["9:00 AM","10:00 AM","11:00 AM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM","7:00 PM"].map(slot => {
+                    const on = (editAvailSlots[editAvailDay]??[]).includes(slot);
+                    return (
+                      <button key={slot}
+                        onClick={()=>setEditAvailSlots(prev=>{
+                          const curr = prev[editAvailDay]??[];
+                          return {...prev,[editAvailDay]:on?curr.filter(s=>s!==slot):[...curr,slot]};
+                        })}
+                        className={`p-2.5 rounded-xl text-xs font-semibold border-2 flex items-center justify-center gap-1 transition-all ${on?"bg-green-50 border-green-400 text-green-700":"bg-gray-50 border-gray-200 text-gray-500 hover:border-blue-300"}`}>
+                        <Clock size={11}/>{slot}{on&&<CheckCircle size={11} className="text-green-500"/>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Reason */}
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Reason for change</label>
+                  <textarea value={editAvailReason} onChange={e=>setEditAvailReason(e.target.value)} rows={2} placeholder="e.g. Schedule conflict in July..."
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"/>
+                </div>
+
+                {editAvailMsg && (
+                  <div className={`flex items-center gap-2 text-sm font-semibold mb-4 ${editAvailMsg.type==="ok"?"text-green-600":"text-red-600"}`}>
+                    {editAvailMsg.type==="ok"?<CheckCircle size={14}/>:<AlertTriangle size={14}/>} {editAvailMsg.text}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button onClick={()=>{setEditAvail(null);setEditAvailMsg(null);}}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                  <button onClick={handleSendChangeRequest} disabled={editAvailSending}
+                    className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                    {editAvailSending?<><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>Sending…</>:<><Send size={13}/> Send for Parent Approval</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
@@ -1377,6 +1986,11 @@ export default function AdminDashboard() {
 }
 
 /* ── Sub-components ──────────────────────────────────────────────────────── */
+
+function fmtMonthYear(my: string): string {
+  const [y, m] = my.split("-");
+  return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+}
 
 function StatusBadge({ status }: { status: string }) {
   return (
@@ -1386,41 +2000,56 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function TutorTable({ tutors, onAction, preview }: { tutors: DBUser[]; onAction: (id:string,a:"APPROVED"|"REJECTED")=>void; preview?: boolean }) {
+function TutorTable({ tutors, onAction, onEdit, preview }: { tutors: DBUser[]; onAction: (id:string,a:"APPROVED"|"REJECTED")=>void; onEdit?: (t:DBUser)=>void; preview?: boolean }) {
   const list = preview ? tutors.slice(0,3) : tutors;
   if (list.length === 0) return <Empty label="No tutor accounts found"/>;
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead><tr className="bg-gray-50">{["Tutor","Email","Phone","Approval","Joined","Actions"].map(h=><th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+        <thead><tr className="bg-gray-50">{["Tutor","Email","Phone","Subjects","Approval","Joined","Actions"].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
         <tbody className="divide-y divide-gray-50">
           {list.map(t=>(
             <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-5 py-4">
+              <td className="px-4 py-4">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shrink-0">{t.name[0]}</div>
                   <span className="font-semibold text-gray-900">{t.name}</span>
                 </div>
               </td>
-              <td className="px-5 py-4 text-gray-600">{t.email}</td>
-              <td className="px-5 py-4 text-gray-500 flex items-center gap-1"><MapPin size={11}/>{t.phone ?? "—"}</td>
-              <td className="px-5 py-4">
+              <td className="px-4 py-4 text-gray-600 text-xs">{t.email}</td>
+              <td className="px-4 py-4 text-gray-500 text-xs">{t.phone ?? "—"}</td>
+              <td className="px-4 py-4 max-w-[160px]">
+                {t.subjects && t.subjects.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {t.subjects.slice(0,2).map(s=>(
+                      <span key={s} className="text-[10px] font-semibold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full border border-purple-100">{s}</span>
+                    ))}
+                    {t.subjects.length > 2 && <span className="text-[10px] text-gray-400">+{t.subjects.length-2}</span>}
+                  </div>
+                ) : <span className="text-xs text-gray-400 italic">—</span>}
+              </td>
+              <td className="px-4 py-4">
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${t.approvalStatus==="APPROVED"?"bg-green-100 text-green-700":t.approvalStatus==="REJECTED"?"bg-red-100 text-red-600":"bg-yellow-100 text-yellow-700"}`}>
                   {t.approvalStatus ?? "APPROVED"}
                 </span>
               </td>
-              <td className="px-5 py-4 text-gray-500 text-xs">{new Date(t.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</td>
-              <td className="px-5 py-4">
-                {(t.approvalStatus==="PENDING" || !t.approvalStatus) ? (
-                  <div className="flex items-center gap-2">
-                    <button onClick={()=>onAction(t.id,"APPROVED")} className="flex items-center gap-1 px-3 py-1.5 bg-green-50 border border-green-200 text-green-600 rounded-lg text-xs font-semibold hover:bg-green-100 transition-colors"><CheckCircle size={12}/> Approve</button>
-                    <button onClick={()=>onAction(t.id,"REJECTED")} className="flex items-center gap-1 px-3 py-1.5 bg-red-50 border border-red-200 text-red-500 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors"><XCircle size={12}/> Reject</button>
-                  </div>
-                ) : t.approvalStatus==="APPROVED" ? (
-                  <button onClick={()=>onAction(t.id,"REJECTED")} className="px-3 py-1.5 bg-red-50 border border-red-200 text-red-500 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors">Revoke</button>
-                ) : (
-                  <button onClick={()=>onAction(t.id,"APPROVED")} className="px-3 py-1.5 bg-green-50 border border-green-200 text-green-600 rounded-lg text-xs font-semibold hover:bg-green-100 transition-colors">Re-approve</button>
-                )}
+              <td className="px-4 py-4 text-gray-500 text-xs">{new Date(t.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</td>
+              <td className="px-4 py-4">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {onEdit && (
+                    <button onClick={()=>onEdit(t)} className="p-1.5 rounded-lg border border-purple-200 text-purple-500 hover:bg-purple-50 transition-colors" title="Edit"><Edit2 size={13}/></button>
+                  )}
+                  {(t.approvalStatus==="PENDING" || !t.approvalStatus) ? (
+                    <>
+                      <button onClick={()=>onAction(t.id,"APPROVED")} className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 border border-green-200 text-green-600 rounded-lg text-xs font-semibold hover:bg-green-100 transition-colors"><CheckCircle size={12}/> Approve</button>
+                      <button onClick={()=>onAction(t.id,"REJECTED")} className="flex items-center gap-1 px-2.5 py-1.5 bg-red-50 border border-red-200 text-red-500 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors"><XCircle size={12}/> Reject</button>
+                    </>
+                  ) : t.approvalStatus==="APPROVED" ? (
+                    <button onClick={()=>onAction(t.id,"REJECTED")} className="px-2.5 py-1.5 bg-red-50 border border-red-200 text-red-500 rounded-lg text-xs font-semibold hover:bg-red-100 transition-colors">Revoke</button>
+                  ) : (
+                    <button onClick={()=>onAction(t.id,"APPROVED")} className="px-2.5 py-1.5 bg-green-50 border border-green-200 text-green-600 rounded-lg text-xs font-semibold hover:bg-green-100 transition-colors">Re-approve</button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}

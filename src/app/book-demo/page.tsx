@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle, ChevronRight, User, BookOpen, Calendar,
-  Clock, Globe, ArrowRight, Star, Sparkles, Zap, Video,
+  Clock, Globe, ArrowRight, Sparkles, Zap, Video, Mail, LogIn,
 } from "lucide-react";
 import { SUBJECTS, GRADES, TIMEZONES } from "@/lib/utils";
 
@@ -13,9 +13,9 @@ type Step = 1 | 2 | 3 | 4;
 
 const steps = [
   { id: 1, label: "Student Details" },
-  { id: 2, label: "Select Subject" },
-  { id: 3, label: "Pick Time Slot" },
-  { id: 4, label: "Confirm" },
+  { id: 2, label: "Choose Subject"  },
+  { id: 3, label: "Pick Time Slot"  },
+  { id: 4, label: "Confirm"         },
 ];
 
 // Fallback pool — used when no approved DB tutor exists for a subject
@@ -54,7 +54,7 @@ interface DisplayTutor {
   experience: string;
 }
 
-interface DbTutor { id: string; name: string; initials: string; }
+interface DbTutor { id: string; name: string; initials: string; availability?: Record<string, string[]>; }
 
 const DEFAULT_TUTOR: DisplayTutor = {
   name: "Available Tutor", initials: "AT",
@@ -62,32 +62,48 @@ const DEFAULT_TUTOR: DisplayTutor = {
   rating: 4.8, experience: "5+ years",
 };
 
-const timeSlots = [
-  { id: 1, time: "9:00 AM",  available: true  },
-  { id: 2, time: "10:00 AM", available: true  },
-  { id: 3, time: "11:00 AM", available: false },
-  { id: 4, time: "2:00 PM",  available: true  },
-  { id: 5, time: "3:00 PM",  available: true  },
-  { id: 6, time: "4:00 PM",  available: false },
-  { id: 7, time: "5:00 PM",  available: true  },
-  { id: 8, time: "6:00 PM",  available: true  },
-  { id: 9, time: "7:00 PM",  available: true  },
+// All possible time slots — availability will be derived from the tutor's declared schedule
+const ALL_TIME_SLOTS = [
+  { id: 1, time: "9:00 AM"  },
+  { id: 2, time: "10:00 AM" },
+  { id: 3, time: "11:00 AM" },
+  { id: 4, time: "2:00 PM"  },
+  { id: 5, time: "3:00 PM"  },
+  { id: 6, time: "4:00 PM"  },
+  { id: 7, time: "5:00 PM"  },
+  { id: 8, time: "6:00 PM"  },
+  { id: 9, time: "7:00 PM"  },
 ];
 
-const DAY_NAMES   = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTH_FULL  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
+// Parse "9:00 AM" / "2:00 PM" → total minutes since midnight
+function parseSlotMinutes(time: string): number {
+  const [timePart, period] = time.split(" ");
+  const [hStr, mStr] = timePart.split(":");
+  let hour = parseInt(hStr, 10);
+  const min  = parseInt(mStr || "0", 10);
+  if (period === "PM" && hour !== 12) hour += 12;
+  if (period === "AM" && hour === 12) hour = 0;
+  return hour * 60 + min;
+}
+
 function buildCalendarDates() {
   const today = new Date();
-  return Array.from({ length: 7 }, (_, i) => {
+  // Show today + next 20 days (21 total) so parents can book well ahead
+  return Array.from({ length: 21 }, (_, i) => {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     return {
-      dayShort:  DAY_NAMES[d.getDay()],
-      dateNum:   d.getDate(),
+      dayShort:   DAY_SHORT[d.getDay()],
+      dateNum:    d.getDate(),
       monthShort: MONTH_SHORT[d.getMonth()],
-      fullDate:  `${MONTH_FULL[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`,
+      monthYear:  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      fullDate:   `${MONTH_FULL[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`,
+      isToday:    i === 0,
     };
   });
 }
@@ -107,6 +123,10 @@ function BookDemoInner() {
   const [otpPhase, setOtpPhase]       = useState<"idle" | "sent" | "verifying">("idle");
   const [otp, setOtp]                 = useState("");
   const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
+
+  // Auth state — check if user is logged in
+  const [authUser, setAuthUser]       = useState<{ id: string; email: string; name: string; role: string } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   // Live DB tutors: subject → first approved tutor
   const [dbTutorBySubject, setDbTutorBySubject] = useState<Record<string, DbTutor>>({});
@@ -130,7 +150,26 @@ function BookDemoInner() {
     notes: "",
   });
 
-  // Fetch approved tutors from DB on mount
+  // Check auth + auto-fill email/name for logged-in users
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.ok ? r.json() : { user: null })
+      .then(d => {
+        const u = d.user ?? null;
+        setAuthUser(u);
+        if (u) {
+          setForm(f => ({
+            ...f,
+            parentEmail: u.email ?? f.parentEmail,
+            parentName:  u.name  ?? f.parentName,
+          }));
+        }
+      })
+      .catch(() => setAuthUser(null))
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  // Fetch approved tutors from DB on mount (includes availability per subject)
   useEffect(() => {
     fetch("/api/tutors")
       .then((r) => r.ok ? r.json() : null)
@@ -159,29 +198,24 @@ function BookDemoInner() {
     if (detected) setForm((f) => ({ ...f, timezone: detected }));
   }, []);
 
-  // When subject is pre-filled from URL, skip Step 2 (go 1 → 3 → 4)
-  const nextStep = () => {
-    setStep((s) => {
-      const next = s + 1;
-      // Skip step 2 if subject already pre-selected from URL
-      if (next === 2 && preSubject) return 3;
-      return Math.min(4, next) as Step;
-    });
-  };
-  const prevStep = () => {
-    setStep((s) => {
-      const prev = s - 1;
-      // Skip step 2 going back if subject was pre-selected
-      if (prev === 2 && preSubject) return 1;
-      return Math.max(1, prev) as Step;
-    });
+  const nextStep = () => setStep((s) => Math.min(4, s + 1) as Step);
+  const prevStep = () => setStep((s) => Math.max(1, s - 1) as Step);
+
+  // "Back" handler — if on Step 2 with OTP already sent, go back within Step 2 first
+  const handleBack = () => {
+    setBookingError("");
+    if (step === 2 && otpPhase !== "idle") {
+      setOtpPhase("idle");
+      setOtp("");
+    } else {
+      prevStep();
+    }
   };
 
   // Resolve display tutor: DB first → fallback pool → DEFAULT
   function getDisplayTutor(subject: string): DisplayTutor {
     const db = dbTutorBySubject[subject];
     if (db) {
-      // Assign a stable color based on name char sum
       const colorIdx = db.name.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % DB_TUTOR_COLORS.length;
       return {
         name:       db.name,
@@ -197,12 +231,40 @@ function BookDemoInner() {
   const selectedDateEntry   = calendarDates[form.selectedDateIdx];
   const selectedDateLabel   = selectedDateEntry?.fullDate ?? "";
   const assignedTutor       = getDisplayTutor(form.subject);
-  const selectedSlotLabel   = timeSlots.find((s) => s.id === form.selectedSlot)?.time ?? "Not selected";
+  const selectedSlotLabel   = ALL_TIME_SLOTS.find((s) => s.id === form.selectedSlot)?.time ?? "Not selected";
+
+  // Compute available time slots for the selected date based on tutor's availability
+  const timeSlots = useMemo(() => {
+    const dateEntry = calendarDates[form.selectedDateIdx];
+    const dayName   = dateEntry?.dayShort ?? "";
+
+    const dbTutor   = dbTutorBySubject[form.subject];
+    const tutorAvail: Record<string, string[]> = dbTutor?.availability ?? {};
+    const hasAnyAvail = Object.values(tutorAvail).some(v => Array.isArray(v) && v.length > 0);
+
+    // Slots the tutor is available for this day-of-week
+    const daySlots: string[] = hasAnyAvail ? (tutorAvail[dayName] ?? []) : ALL_TIME_SLOTS.map(s => s.time);
+
+    // For today — filter out slots that have already passed (+ 1 hr buffer)
+    const nowMinutes = dateEntry?.isToday
+      ? (() => {
+          const n = new Date();
+          return n.getHours() * 60 + n.getMinutes() + 60; // 1-hour booking buffer
+        })()
+      : -1; // -1 means no filtering needed
+
+    return ALL_TIME_SLOTS.map(s => {
+      const tutorHasSlot = daySlots.includes(s.time);
+      const isPast       = nowMinutes >= 0 && parseSlotMinutes(s.time) <= nowMinutes;
+      return { ...s, available: tutorHasSlot && !isPast, isPast };
+    });
+  }, [form.subject, form.selectedDateIdx, dbTutorBySubject, calendarDates]);
   const tzLabel             = TIMEZONES.find((t) => t.value === form.timezone)?.label ?? form.timezone;
 
-  // Step 4 phase 1: check duplicate → send OTP
+  // Step 2: check duplicate → send OTP
   const handleSendOtp = async () => {
     if (!form.parentEmail) { setBookingError("Please enter your email address."); return; }
+    if (!form.subject)     { setBookingError("Please select a subject first."); return; }
     setConfirming(true);
     setBookingError("");
     try {
@@ -236,11 +298,16 @@ function BookDemoInner() {
     }
   };
 
-  // Step 4 phase 2: verify OTP + create booking
+  // Step 2 "Verify & Continue": OTP is stored in state; actual verification happens on final submit
+  const handleVerifyAndContinue = () => {
+    if (otp.length < 6) { setBookingError("Please enter the 6-digit code sent to your email."); return; }
+    setBookingError("");
+    nextStep(); // advance to Step 3
+  };
+
+  // Step 4: create booking (OTP verified server-side here)
   const handleConfirm = async () => {
-    if (!otp || otp.length < 6) { setBookingError("Enter the 6-digit code sent to your email."); return; }
     setConfirming(true);
-    setOtpPhase("verifying");
     setBookingError("");
     try {
       const res = await fetch("/api/bookings", {
@@ -264,7 +331,6 @@ function BookDemoInner() {
       });
       setConfirmed(true);
     } catch (e: unknown) {
-      setOtpPhase("sent");
       setBookingError(e instanceof Error ? e.message : "Booking failed. Please try again.");
     } finally {
       setConfirming(false);
@@ -343,6 +409,66 @@ function BookDemoInner() {
     );
   }
 
+  /* ── Auth loading ── */
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  /* ── Login gate (not signed in) ── */
+  if (!authUser) {
+    const bookDemoUrl = preSubject ? `/book-demo?subject=${encodeURIComponent(preSubject)}` : "/book-demo";
+    const signupUrl   = `/auth/signup?redirect=${encodeURIComponent(bookDemoUrl)}`;
+    const loginUrl    = `/auth/login?redirect=${encodeURIComponent(bookDemoUrl)}`;
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center px-4 pt-24 pb-12">
+        <div className="max-w-md w-full text-center">
+          {/* Decorative */}
+          <div className="text-6xl mb-6 animate-bounce">🎓</div>
+          <h1 className="font-display text-3xl font-extrabold text-on-surface mb-2">
+            Book a Free Demo Session
+          </h1>
+          <p className="text-on-surface-variant mb-8 text-base leading-relaxed">
+            Create a free account or sign in to book your child&apos;s{" "}
+            <span className="font-semibold text-primary">free 30-minute demo session</span> with an expert tutor.
+          </p>
+
+          <div className="bg-surface-container-lowest rounded-3xl shadow-card border border-outline-variant p-8 space-y-4">
+            {/* Benefits strip */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {[
+                { icon: "🆓", label: "Completely Free"    },
+                { icon: "👩‍🏫", label: "Expert Tutor"       },
+                { icon: "📅", label: "Pick Your Time"     },
+                { icon: "🌍", label: "Any Timezone"       },
+              ].map(({ icon, label }) => (
+                <div key={label} className="flex items-center gap-2 bg-surface-container rounded-xl px-3 py-2.5 text-sm font-medium text-on-surface">
+                  <span className="text-base">{icon}</span> {label}
+                </div>
+              ))}
+            </div>
+
+            <a href={signupUrl}
+              className="flex items-center justify-center gap-2 w-full py-4 px-6 bg-primary text-on-primary rounded-2xl font-bold text-base shadow-sm hover:opacity-90 active:scale-95 transition-all">
+              <User size={18} /> Create Free Account
+            </a>
+            <a href={loginUrl}
+              className="flex items-center justify-center gap-2 w-full py-4 px-6 bg-surface-container border border-outline-variant text-on-surface rounded-2xl font-bold text-base hover:bg-surface-container-high active:scale-95 transition-all">
+              <LogIn size={18} /> Log In to My Account
+            </a>
+
+            <p className="text-xs text-on-surface-variant pt-2">
+              No credit card required · Takes under 1 minute to sign up
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /* ── Main form ── */
   return (
     <div className="min-h-screen bg-surface pt-24 pb-12 px-4">
@@ -370,11 +496,11 @@ function BookDemoInner() {
           {steps.map((s, i) => (
             <div key={s.id} className="flex items-center gap-2 flex-1">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 transition-all ${
-                (step > s.id || (s.id === 2 && preSubject)) ? "bg-green-500 text-white" :
+                step > s.id ? "bg-green-500 text-white" :
                 step === s.id ? "bg-primary text-on-primary" :
-                                "bg-surface-container text-on-surface-variant"
+                               "bg-surface-container text-on-surface-variant"
               }`}>
-                {(step > s.id || (s.id === 2 && preSubject)) ? <CheckCircle size={16} /> : s.id}
+                {step > s.id ? <CheckCircle size={16} /> : s.id}
               </div>
               <span className={`text-xs font-medium hidden sm:block ${step >= s.id ? "text-on-surface" : "text-on-surface-variant"}`}>
                 {s.label}
@@ -387,24 +513,17 @@ function BookDemoInner() {
         {/* Card */}
         <div className="bg-surface-container-lowest rounded-3xl shadow-card border border-outline-variant p-8">
 
-          {/* Step 1 — Student Details */}
+          {/* ── Step 1 — Student Details (no email) ── */}
           {step === 1 && (
             <div>
               <h2 className="font-display text-xl font-bold text-on-surface mb-6 flex items-center gap-2">
                 <User size={22} className="text-primary" /> Tell us about your child
               </h2>
               <div className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-on-surface mb-1.5">Your Name (Parent)</label>
-                    <input type="text" placeholder="e.g. John Smith" value={form.parentName}
-                      onChange={(e) => setForm({ ...form, parentName: e.target.value })} className="input-field" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-on-surface mb-1.5">Your Email</label>
-                    <input type="email" placeholder="you@example.com" value={form.parentEmail}
-                      onChange={(e) => setForm({ ...form, parentEmail: e.target.value })} className="input-field" required />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-on-surface mb-1.5">Your Name (Parent)</label>
+                  <input type="text" placeholder="e.g. John Smith" value={form.parentName}
+                    onChange={(e) => setForm({ ...form, parentName: e.target.value })} className="input-field" required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-on-surface mb-1.5">Child&apos;s Full Name</label>
@@ -437,34 +556,64 @@ function BookDemoInner() {
             </div>
           )}
 
-          {/* Step 2 — Subject */}
+          {/* ── Step 2 — Subject (logged-in: no OTP needed) ── */}
           {step === 2 && (
             <div>
               <h2 className="font-display text-xl font-bold text-on-surface mb-2 flex items-center gap-2">
-                <BookOpen size={22} className="text-primary" /> What subject does your child need?
+                <BookOpen size={22} className="text-primary" /> Choose a Subject
               </h2>
               <p className="text-sm text-on-surface-variant mb-6">
-                We&apos;ll automatically assign the best available tutor for the subject you choose.
+                We&apos;ll automatically match your child with the best available tutor.
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {SUBJECTS.map((s) => {
-                  const hasTutor = !!(dbTutorBySubject[s] || tutorPool[s]);
-                  return (
-                    <button key={s} onClick={() => setForm({ ...form, subject: s })}
-                      className={`p-4 rounded-2xl border-2 text-sm font-medium transition-all text-left ${
-                        form.subject === s
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-outline-variant text-on-surface-variant hover:border-primary/50 hover:bg-surface-container"
-                      }`}>
-                      <p className="font-semibold">{s}</p>
-                      {hasTutor && <p className="text-xs text-on-surface-variant mt-1 font-normal">Free demo available</p>}
-                    </button>
-                  );
-                })}
+
+              {/* Logged-in indicator */}
+              <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 mb-5">
+                <CheckCircle size={16} className="text-green-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-green-700">Booking as <span className="font-bold">{authUser.name}</span></p>
+                  <p className="text-xs text-green-600">{authUser.email} · Already verified</p>
+                </div>
               </div>
 
+              {/* ── Subject section ── */}
+              {preSubject ? (
+                <div className="mb-5 p-4 bg-green-50 border border-green-200 rounded-2xl flex items-center gap-3">
+                  <CheckCircle size={20} className="text-green-500 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-700">Subject pre-selected</p>
+                    <p className="text-base font-bold text-on-surface">{preSubject}</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h3 className="font-display text-base font-bold text-on-surface mb-2 flex items-center gap-2">
+                    <BookOpen size={18} className="text-primary" /> What subject does your child need?
+                  </h3>
+                  <p className="text-xs text-on-surface-variant mb-4">
+                    Select the subject and we&apos;ll assign the best available tutor automatically.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+                    {SUBJECTS.map((s) => {
+                      const hasTutor = !!(dbTutorBySubject[s] || tutorPool[s]);
+                      return (
+                        <button key={s} onClick={() => setForm({ ...form, subject: s })}
+                          className={`p-4 rounded-2xl border-2 text-sm font-medium transition-all text-left ${
+                            form.subject === s
+                              ? "border-primary bg-primary/5 text-primary"
+                              : "border-outline-variant text-on-surface-variant hover:border-primary/50 hover:bg-surface-container"
+                          }`}>
+                          <p className="font-semibold">{s}</p>
+                          {hasTutor && <p className="text-xs text-on-surface-variant mt-1 font-normal">Free demo available</p>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Tutor assignment notice */}
               {form.subject && (
-                <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-4">
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/40 to-primary flex items-center justify-center text-white shrink-0">
                     <Sparkles size={22} />
                   </div>
@@ -474,7 +623,7 @@ function BookDemoInner() {
                       <span className="text-xs font-semibold text-primary uppercase tracking-wide">Tutor for {form.subject}</span>
                     </div>
                     <p className="font-bold text-on-surface">Best-matched tutor will be assigned</p>
-                    <p className="text-xs text-on-surface-variant mt-0.5">You'll see your tutor's details after the session is confirmed</p>
+                    <p className="text-xs text-on-surface-variant mt-0.5">You&apos;ll see your tutor&apos;s details once the session is confirmed</p>
                   </div>
                   <CheckCircle size={20} className="text-primary shrink-0" />
                 </div>
@@ -482,7 +631,7 @@ function BookDemoInner() {
             </div>
           )}
 
-          {/* Step 3 — Time Slot */}
+          {/* ── Step 3 — Time Slot ── */}
           {step === 3 && (
             <div>
               <h2 className="font-display text-xl font-bold text-on-surface mb-1 flex items-center gap-2">
@@ -493,7 +642,7 @@ function BookDemoInner() {
                 {" · "}Slots shown for your assigned tutor&apos;s availability
               </p>
 
-              {/* Date picker — dynamic, shows day + date + month */}
+              {/* Date picker */}
               <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                 {calendarDates.map((d, i) => (
                   <button key={d.fullDate} onClick={() => setForm({ ...form, selectedDateIdx: i, selectedSlot: null })}
@@ -509,33 +658,60 @@ function BookDemoInner() {
                 ))}
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                {timeSlots.map((slot) => (
-                  <button key={slot.id} disabled={!slot.available} onClick={() => setForm({ ...form, selectedSlot: slot.id })}
-                    className={`p-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
-                      !slot.available
-                        ? "bg-surface-container text-on-surface-variant/40 cursor-not-allowed line-through"
-                        : form.selectedSlot === slot.id
-                        ? "bg-primary text-on-primary shadow-sm"
-                        : "bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary border border-outline-variant"
-                    }`}>
-                    <Clock size={13} />{slot.time}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-on-surface-variant/60 mt-4 text-center">
-                Strikethrough slots are already booked · Times shown in your local timezone
-              </p>
+              {timeSlots.every(s => !s.available) ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <span className="text-4xl mb-3">📅</span>
+                  <p className="font-semibold text-on-surface">
+                    {timeSlots.some(s => s.isPast && !s.available)
+                      ? "All slots for today have passed"
+                      : `No slots available on ${selectedDateEntry?.dayShort}s`}
+                  </p>
+                  <p className="text-sm text-on-surface-variant mt-1">
+                    {timeSlots.some(s => s.isPast)
+                      ? "Please select a future date to book your demo."
+                      : "Your assigned tutor is not available on this day. Please select a different date."}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-3">
+                    {timeSlots.map((slot) => {
+                      const isSelected = form.selectedSlot === slot.id;
+                      return (
+                        <button key={slot.id}
+                          disabled={!slot.available}
+                          onClick={() => setForm({ ...form, selectedSlot: slot.id })}
+                          title={slot.isPast ? "This slot has already passed" : !slot.available ? "Tutor unavailable at this time" : ""}
+                          className={`p-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
+                            !slot.available
+                              ? "bg-surface-container text-on-surface-variant/30 cursor-not-allowed opacity-50"
+                              : isSelected
+                              ? "bg-primary text-on-primary shadow-sm ring-2 ring-primary/30"
+                              : "bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary border border-outline-variant"
+                          }`}>
+                          <Clock size={13} />
+                          <span>{slot.time}</span>
+                          {isSelected && <CheckCircle size={13} className="shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-on-surface-variant/60 mt-4 text-center">
+                    Dimmed slots are unavailable · Times shown in your local timezone
+                  </p>
+                </>
+              )}
             </div>
           )}
 
-          {/* Step 4 — Confirm */}
+          {/* ── Step 4 — Review & Confirm (no OTP needed — already verified) ── */}
           {step === 4 && (
             <div>
               <h2 className="font-display text-xl font-bold text-on-surface mb-6 flex items-center gap-2">
                 <CheckCircle size={22} className="text-primary" /> Review &amp; Confirm
               </h2>
 
+              {/* Tutor assignment notice */}
               <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-5 flex items-center gap-4">
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/30 to-primary/70 flex items-center justify-center text-white shrink-0">
                   <Zap size={24} />
@@ -551,8 +727,11 @@ function BookDemoInner() {
                 <Clock size={18} className="text-on-surface-variant shrink-0" />
               </div>
 
+              {/* Booking summary */}
               <div className="bg-surface-container rounded-2xl p-5 space-y-3 mb-5 text-sm">
                 {[
+                  { label: "Parent",       value: form.parentName || "Not provided" },
+                  { label: "Email",        value: form.parentEmail },
                   { label: "Student",      value: form.childName || "Not provided" },
                   { label: "Grade",        value: form.grade || "Not selected" },
                   { label: "Subject",      value: form.subject || "Not selected" },
@@ -568,6 +747,15 @@ function BookDemoInner() {
                 ))}
               </div>
 
+              {/* Email verified indicator */}
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-3 flex items-center gap-2 mb-4">
+                <CheckCircle size={16} className="text-green-500 shrink-0" />
+                <p className="text-sm text-green-700">
+                  Booking as <span className="font-semibold">{authUser.name}</span> · <span className="font-semibold">{authUser.email}</span>
+                </p>
+              </div>
+
+              {/* Notes */}
               <div className="mb-5">
                 <label className="block text-sm font-medium text-on-surface mb-1.5">
                   Additional notes <span className="text-on-surface-variant font-normal">(optional)</span>
@@ -587,47 +775,48 @@ function BookDemoInner() {
             </div>
           )}
 
+          {/* Error message */}
           {bookingError && (
             <div className="mt-4 bg-error-container text-error rounded-xl px-4 py-2.5 text-sm font-medium">
               {bookingError}
             </div>
           )}
 
-          {/* OTP verification inline (step 4 only) */}
-          {step === 4 && otpPhase === "sent" && (
-            <div className="mt-5 bg-primary/5 border border-primary/20 rounded-2xl p-5">
-              <p className="text-sm font-semibold text-on-surface mb-1 flex items-center gap-2">
-                <CheckCircle size={16} className="text-primary" /> Code sent to {form.parentEmail}
-              </p>
-              <p className="text-xs text-on-surface-variant mb-3">Enter the 6-digit code to confirm your booking</p>
-              <input
-                type="text" inputMode="numeric" maxLength={6} placeholder="123456"
-                value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                className="input-field text-center text-xl font-bold tracking-[0.4em] py-3 mb-2"
-              />
-              <button onClick={() => { setOtpPhase("idle"); setOtp(""); }}
-                className="text-xs text-on-surface-variant hover:text-primary">
-                ✉ Resend code
-              </button>
-            </div>
-          )}
-
+          {/* ── Navigation buttons ── */}
           <div className="flex items-center justify-between mt-8 pt-6 border-t border-outline-variant/30">
-            <button onClick={prevStep} disabled={step === 1 || otpPhase !== "idle"} className="btn-ghost disabled:opacity-40 disabled:cursor-not-allowed">
+            <button
+              onClick={handleBack}
+              disabled={step === 1}
+              className="btn-ghost disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               ← Back
             </button>
-            {step < 4 ? (
+
+            {/* Step 1, 3 → simple Continue */}
+            {(step === 1 || step === 3) && (
               <button onClick={nextStep} className="btn-primary">
                 Continue <ChevronRight size={18} />
               </button>
-            ) : otpPhase === "idle" ? (
-              <button onClick={handleSendOtp} disabled={confirming} className="btn-primary px-8 disabled:opacity-60">
-                {confirming
-                  ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  : <><span>Send Verification Code</span><ChevronRight size={18} /></>}
+            )}
+
+            {/* Step 2 → logged-in: just need a subject picked */}
+            {step === 2 && (
+              <button
+                onClick={nextStep}
+                disabled={!form.subject}
+                className="btn-primary px-8 disabled:opacity-60"
+              >
+                Continue <ChevronRight size={18} />
               </button>
-            ) : (
-              <button onClick={handleConfirm} disabled={confirming || otp.length < 6} className="btn-primary px-8 disabled:opacity-60">
+            )}
+
+            {/* Step 4 → direct confirm (OTP already in state) */}
+            {step === 4 && (
+              <button
+                onClick={handleConfirm}
+                disabled={confirming}
+                className="btn-primary px-8 disabled:opacity-60"
+              >
                 {confirming
                   ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   : <><span>Confirm Booking</span><CheckCircle size={18} /></>}

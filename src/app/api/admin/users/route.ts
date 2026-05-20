@@ -28,9 +28,15 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { userId } = await req.json();
+    if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+
+    // Detach bookings before deleting (userId is optional in schema — set to null)
+    await prisma.booking.updateMany({ where: { userId }, data: { userId: null } });
+
     await prisma.user.delete({ where: { id: userId } });
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error("Delete user error:", err);
     return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
   }
 }

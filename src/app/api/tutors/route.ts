@@ -10,9 +10,30 @@ export async function GET() {
     // Fetch all approved tutors (include their declared subjects)
     const tutors = await prisma.user.findMany({
       where: { role: "TUTOR", approvalStatus: "APPROVED" },
-      select: { id: true, name: true, email: true, subjects: true },
+      select: { id: true, name: true, email: true, subjects: true, availability: true },
       orderBy: { createdAt: "asc" },
     });
+
+    // Fetch TutorMonthlyAvailability for this month + next two months
+    const now = new Date();
+    const relevantMonths = [0, 1, 2].map(offset => {
+      const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    });
+    const monthlyRecords = await prisma.tutorMonthlyAvailability.findMany({
+      where: { monthYear: { in: relevantMonths } },
+      orderBy: { monthYear: "asc" }, // earlier month first → prefer current month
+    });
+    // Build map: tutorId → slots (first/earliest month wins for current period)
+    const monthlySlotsByTutorId: Record<string, Record<string, string[]>> = {};
+    for (const rec of monthlyRecords) {
+      if (!monthlySlotsByTutorId[rec.tutorId]) {
+        try {
+          const parsed = JSON.parse(rec.slots) as Record<string, string[]>;
+          if (parsed && typeof parsed === "object") monthlySlotsByTutorId[rec.tutorId] = parsed;
+        } catch { /* skip */ }
+      }
+    }
 
     // Parse each tutor's declared subjects
     const declaredByTutor: Record<string, Set<string>> = {};
@@ -41,16 +62,32 @@ export async function GET() {
       subjectsByTutor[t.name] = declaredByTutor[t.name] ?? historyByTutor[t.name] ?? new Set();
     }
 
+    // Build availability per tutor: monthly record takes priority over User.availability
+    const availabilityByTutor: Record<string, Record<string, string[]>> = {};
+    for (const t of tutors) {
+      if (monthlySlotsByTutorId[t.id]) {
+        // Use the monthly availability (set via tutor dashboard monthly system)
+        availabilityByTutor[t.name] = monthlySlotsByTutorId[t.id];
+      } else {
+        // Fall back to the legacy User.availability weekly schedule
+        try {
+          const av = JSON.parse(t.availability ?? "{}");
+          availabilityByTutor[t.name] = (av && typeof av === "object") ? av : {};
+        } catch { availabilityByTutor[t.name] = {}; }
+      }
+    }
+
     // Build a map: subject → first available tutor (for book-demo auto-assignment)
-    const tutorBySubject: Record<string, { id: string; name: string; initials: string }> = {};
+    const tutorBySubject: Record<string, { id: string; name: string; initials: string; availability: Record<string, string[]> }> = {};
     for (const tutor of tutors) {
       const subjects = subjectsByTutor[tutor.name];
       for (const subject of subjects) {
         if (!tutorBySubject[subject]) {
           tutorBySubject[subject] = {
-            id:       tutor.id,
-            name:     tutor.name,
-            initials: tutor.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
+            id:           tutor.id,
+            name:         tutor.name,
+            initials:     tutor.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
+            availability: availabilityByTutor[tutor.name] ?? {},
           };
         }
       }
@@ -58,11 +95,12 @@ export async function GET() {
 
     // Full list (with subjects array) for admin/tutor use
     const tutorList = tutors.map(t => ({
-      id:       t.id,
-      name:     t.name,
-      email:    t.email,
-      initials: t.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
-      subjects: [...(subjectsByTutor[t.name] ?? [])],
+      id:           t.id,
+      name:         t.name,
+      email:        t.email,
+      initials:     t.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
+      subjects:     [...(subjectsByTutor[t.name] ?? [])],
+      availability: availabilityByTutor[t.name] ?? {},
     }));
 
     return NextResponse.json({ tutors: tutorList, tutorBySubject });

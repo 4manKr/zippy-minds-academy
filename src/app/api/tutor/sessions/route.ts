@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { createZoomMeeting } from "@/lib/zoom";
+import { sendSessionConfirmedEmail } from "@/lib/emails";
 
 async function requireTutor() {
   const session = await getSession();
@@ -28,7 +29,7 @@ export async function GET() {
 
 // PATCH — tutor actions on their own sessions:
 //   action "accept"  → create Zoom meeting + set CONFIRMED
-//   action "reject"  → set REJECTED
+//   action "reject"  → cascade to next available tutor; escalate to admin if none
 //   (no action)      → update notes
 export async function PATCH(req: NextRequest) {
   try {
@@ -68,16 +69,76 @@ export async function PATCH(req: NextRequest) {
           zoomMeetingId: zoom?.meetingId ?? null,
         },
       });
+
+      // Notify parent immediately
+      sendSessionConfirmedEmail({
+        parentName:  updated.parentName,
+        parentEmail: updated.parentEmail,
+        childName:   updated.childName,
+        subject:     updated.subject,
+        grade:       updated.grade      || "",
+        date:        updated.date,
+        timeSlot:    updated.timeSlot,
+        timezone:    updated.timezone,
+        tutorName:   updated.tutorName,
+        zoomLink:    updated.zoomLink,
+      });
+
       return NextResponse.json({ session: updated, zoomReady: !!zoom });
     }
 
-    // ── Reject ────────────────────────────────────────────────────────────
+    // ── Reject: cascade to next available tutor ───────────────────────────
     if (action === "reject") {
+      // Build the declined list, add the current tutor
+      const declinedList: string[] = (() => {
+        try { return JSON.parse(booking.declinedTutors || "[]") as string[]; } catch { return []; }
+      })();
+      if (!declinedList.includes(session.name!)) declinedList.push(session.name!);
+
+      // Find next approved tutor for this subject, not already declined
+      const allTutors = await prisma.user.findMany({
+        where: { role: "TUTOR", approvalStatus: "APPROVED" },
+        select: { id: true, name: true, subjects: true },
+      });
+
+      const nextTutor = allTutors.find((t) => {
+        if (declinedList.includes(t.name)) return false;
+        try {
+          const subjectList: string[] = JSON.parse(t.subjects || "[]");
+          return subjectList.includes(booking.subject);
+        } catch { return false; }
+      }) ?? null;
+
+      if (nextTutor) {
+        // Reassign to next tutor — parent still sees "Pending"
+        const initials = nextTutor.name
+          .split(" ").filter(Boolean).map((p) => p[0]).join("").toUpperCase().slice(0, 2);
+
+        const updated = await prisma.booking.update({
+          where: { id: bookingId },
+          data: {
+            tutorName:      nextTutor.name,
+            tutorInitials:  initials,
+            declinedTutors: JSON.stringify(declinedList),
+            status:         "PENDING",
+            needsAdmin:     false,
+          },
+        });
+        return NextResponse.json({ session: updated, reassigned: true });
+      }
+
+      // No tutor available — escalate to admin, parent still sees "Pending"
       const updated = await prisma.booking.update({
         where: { id: bookingId },
-        data: { status: "REJECTED" },
+        data: {
+          declinedTutors: JSON.stringify(declinedList),
+          needsAdmin:     true,
+          tutorName:      "",   // unassigned until admin acts
+          tutorInitials:  "",
+          status:         "PENDING",
+        },
       });
-      return NextResponse.json({ session: updated });
+      return NextResponse.json({ session: updated, needsAdmin: true });
     }
 
     // ── Notes update (default) ────────────────────────────────────────────

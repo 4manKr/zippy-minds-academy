@@ -1,27 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Shield, Mail, Users, Globe, Sparkles } from "lucide-react";
 
 type Role = "parent" | "tutor";
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [role, setRole]         = useState<Role>("parent");
-  const [email, setEmail]       = useState("");
-  const [code, setCode]         = useState("");
-  const [codeSent, setCodeSent] = useState(false);
-  const [loading, setLoading]   = useState(false);
+function LoginForm() {
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo   = searchParams.get("redirect") ?? null;
+
+  const [role, setRole]           = useState<Role>("parent");
+  const [email, setEmail]         = useState("");
+  const [code, setCode]           = useState("");
+  const [codeSent, setCodeSent]   = useState(false);
+  const [loading, setLoading]     = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError]       = useState("");
+  const [error, setError]         = useState("");
 
   const handleGetCode = async () => {
     if (!email) return;
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const res = await fetch("/api/auth/send-code", {
         method: "POST",
@@ -41,17 +43,17 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code) return;
-    setSubmitting(true);
-    setError("");
+    setSubmitting(true); setError("");
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email, code, role }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      router.push(data.redirect ?? "/dashboard/parent");
+      // Client-side redirect takes priority (e.g. ?redirect=/book-demo)
+      router.push(redirectTo ?? data.redirect ?? "/dashboard/parent");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Login failed");
     } finally {
@@ -60,11 +62,13 @@ export default function LoginPage() {
   };
 
   const footerTrust = [
-    { icon: Shield,   label: "Safe & Secure" },
-    { icon: Users,    label: "Expert Tutors" },
-    { icon: Globe,    label: "Global Community" },
-    { icon: Sparkles, label: "Fun Learning" },
+    { icon: Shield,   label: "Safe & Secure"    },
+    { icon: Users,    label: "Expert Tutors"     },
+    { icon: Globe,    label: "Global Community"  },
+    { icon: Sparkles, label: "Fun Learning"      },
   ];
+
+  const signupHref = redirectTo ? `/auth/signup?redirect=${encodeURIComponent(redirectTo)}` : "/auth/signup";
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
@@ -80,7 +84,9 @@ export default function LoginPage() {
           <h1 className="font-display text-2xl md:text-3xl font-extrabold text-primary leading-tight">
             Welcome back!
           </h1>
-          <p className="text-on-surface-variant text-sm mt-1">Log in to continue your learning journey.</p>
+          <p className="text-on-surface-variant text-sm mt-1">
+            {redirectTo ? "Sign in to continue booking your demo." : "Log in to continue your learning journey."}
+          </p>
         </div>
 
         <div className="w-full max-w-md bg-surface-container-lowest rounded-3xl shadow-card-hover border border-outline-variant/40 p-8">
@@ -122,15 +128,13 @@ export default function LoginPage() {
               </div>
               {codeSent && (
                 <p className="text-xs text-primary mt-1.5 font-medium">
-                  ✅ Code sent! Check your email. (Dev: check terminal console)
+                  ✅ Code sent! Check your email inbox.
                 </p>
               )}
             </div>
 
             {error && (
-              <div className="bg-error-container text-error rounded-xl px-4 py-2.5 text-sm font-medium">
-                {error}
-              </div>
+              <div className="bg-error-container text-error rounded-xl px-4 py-2.5 text-sm font-medium">{error}</div>
             )}
 
             <button type="submit" disabled={submitting || !code}
@@ -149,12 +153,14 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-3">
-            <Link href="/auth/signup" className="btn-secondary w-full justify-center py-3 text-sm rounded-xl">
+            <Link href={signupHref} className="btn-secondary w-full justify-center py-3 text-sm rounded-xl">
               Create Account
             </Link>
-            <Link href="/book-demo" className="btn-yellow w-full justify-center py-3 text-sm rounded-xl">
-              Book a Free Demo
-            </Link>
+            {!redirectTo && (
+              <Link href="/book-demo" className="btn-yellow w-full justify-center py-3 text-sm rounded-xl">
+                Book a Free Demo
+              </Link>
+            )}
           </div>
 
           <p className="text-center text-xs text-on-surface-variant mt-5">
@@ -174,5 +180,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -3,23 +3,41 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, EyeOff, Mail, Lock, ArrowRight, GraduationCap } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, Mail, Lock, ArrowRight, GraduationCap, AlertCircle } from "lucide-react";
 
 export default function TutorLoginPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => setLoading(false), 1500);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/password-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, role: "TUTOR" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      router.push(data.redirect ?? "/dashboard/tutor");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Login failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-tertiary-fixed/30 to-primary-fixed/20 flex items-center justify-center p-4 pt-24">
       <div className="w-full max-w-md">
         <div className="bg-surface-container-lowest rounded-3xl shadow-card-hover p-8 md:p-10 border border-outline-variant/20">
+
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
             <div className="relative w-16 h-16 mb-3">
@@ -37,9 +55,9 @@ export default function TutorLoginPage() {
             <Link href="/auth/login" className="flex-1 py-2.5 text-sm font-medium text-center text-on-surface-variant hover:bg-surface-container transition-colors">
               Parent
             </Link>
-            <Link href="/auth/tutor-login" className="flex-1 py-2.5 text-sm font-semibold text-center bg-tertiary text-on-tertiary">
+            <span className="flex-1 py-2.5 text-sm font-semibold text-center bg-tertiary text-on-tertiary">
               Tutor
-            </Link>
+            </span>
             <Link href="/auth/admin-login" className="flex-1 py-2.5 text-sm font-medium text-center text-on-surface-variant hover:bg-surface-container transition-colors">
               Admin
             </Link>
@@ -50,10 +68,15 @@ export default function TutorLoginPage() {
             <GraduationCap size={18} className="text-tertiary mt-0.5 shrink-0" />
             <p className="text-sm text-tertiary">
               This portal is exclusively for approved Zippy Minds tutors.
-              Want to become a tutor?{" "}
-              <Link href="/auth/tutor-signup" className="font-semibold underline">Apply here</Link>
             </p>
           </div>
+
+          {error && (
+            <div className="flex items-start gap-2 bg-error-container text-error rounded-xl px-4 py-3 text-sm font-medium mb-4">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -93,30 +116,23 @@ export default function TutorLoginPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end">
-              <Link href="/auth/forgot-password" className="text-sm text-tertiary hover:underline">
-                Forgot password?
-              </Link>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-tertiary to-primary text-white font-semibold py-3.5 rounded-xl hover:opacity-90 transition-all"
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-tertiary to-primary text-white font-semibold py-3.5 rounded-xl hover:opacity-90 transition-all disabled:opacity-60"
             >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>Access Dashboard <ArrowRight size={18} /></>
-              )}
+              {loading
+                ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                : <><span>Access Dashboard</span><ArrowRight size={18} /></>
+              }
             </button>
           </form>
 
           <p className="text-center text-sm text-on-surface-variant mt-6">
-            Not a tutor yet?{" "}
-            <Link href="/auth/tutor-signup" className="font-semibold text-tertiary hover:underline">
-              Apply to teach
-            </Link>
+            Need access?{" "}
+            <a href="mailto:zippymindsacademy@gmail.com" className="font-semibold text-tertiary hover:underline">
+              Contact admin
+            </a>
           </p>
         </div>
       </div>

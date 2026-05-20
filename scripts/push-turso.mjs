@@ -205,6 +205,43 @@ const statements = [
 
   ["TutorMaterial.visibility column (ALTER)", `ALTER TABLE "TutorMaterial" ADD COLUMN "visibility" TEXT NOT NULL DEFAULT 'individual'`],
 
+  // ── Tutor availability column ─────────────────────────────────────────────
+  ["User.availability column (ALTER)", `ALTER TABLE "User" ADD COLUMN "availability" TEXT NOT NULL DEFAULT '{}'`],
+
+  // ── Booking cascade-reject columns ───────────────────────────────────────
+  ["Booking.declinedTutors column (ALTER)", `ALTER TABLE "Booking" ADD COLUMN "declinedTutors" TEXT NOT NULL DEFAULT '[]'`],
+  ["Booking.needsAdmin column (ALTER)",     `ALTER TABLE "Booking" ADD COLUMN "needsAdmin" INTEGER NOT NULL DEFAULT 0`],
+
+  // ── TutorMonthlyAvailability table ────────────────────────────────────────
+  ["TutorMonthlyAvailability table", `CREATE TABLE IF NOT EXISTS "TutorMonthlyAvailability" (
+    "id"        TEXT NOT NULL PRIMARY KEY,
+    "tutorId"   TEXT NOT NULL,
+    "tutorName" TEXT NOT NULL,
+    "monthYear" TEXT NOT NULL,
+    "slots"     TEXT NOT NULL,
+    "timezone"  TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+    "isLocked"  INTEGER NOT NULL DEFAULT 1,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`],
+
+  // ── AvailabilityChangeRequest table ──────────────────────────────────────
+  ["AvailabilityChangeRequest table", `CREATE TABLE IF NOT EXISTS "AvailabilityChangeRequest" (
+    "id"              TEXT NOT NULL PRIMARY KEY,
+    "tutorId"         TEXT NOT NULL,
+    "tutorName"       TEXT NOT NULL,
+    "monthYear"       TEXT NOT NULL,
+    "currentSlots"    TEXT NOT NULL,
+    "proposedSlots"   TEXT NOT NULL,
+    "reason"          TEXT NOT NULL DEFAULT '',
+    "status"          TEXT NOT NULL DEFAULT 'PENDING_PARENT',
+    "parentApprovals" TEXT NOT NULL DEFAULT '{}',
+    "adminId"         TEXT NOT NULL DEFAULT '',
+    "adminName"       TEXT NOT NULL DEFAULT '',
+    "createdAt"       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt"       DATETIME NOT NULL
+  )`],
+
   // ── Seed video lessons ────────────────────────────────────────────────────
   ["Seed videos", `INSERT OR IGNORE INTO "VideoLesson" ("id","title","subject","duration","thumbnail","videoUrl","views","status") VALUES
     ('v1','Introduction to Letter Sounds','Phonics','12:30','🔤','',2100,'active'),

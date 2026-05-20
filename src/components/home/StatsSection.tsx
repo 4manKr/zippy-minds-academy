@@ -1,17 +1,40 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Users, BookOpen, Globe, Star, Clock, Award } from "lucide-react";
 
-const stats = [
-  { icon: Users,    value: "10,000+", label: "Happy Students" },
-  { icon: BookOpen, value: "500+",    label: "Expert Tutors" },
-  { icon: Globe,    value: "50+",     label: "Countries Served" },
-  { icon: Star,     value: "4.9/5",   label: "Average Rating" },
-  { icon: Clock,    value: "1M+",     label: "Sessions Completed" },
-  { icon: Award,    value: "98%",     label: "Satisfaction Rate" },
-];
+interface LiveStats {
+  parents:  number;
+  tutors:   number;
+  sessions: number;
+  courses:  number;
+}
+
+function formatCount(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K+`;
+  if (n > 0)     return `${n}+`;
+  return "—";
+}
 
 export default function StatsSection() {
+  const [live, setLive] = useState<LiveStats | null>(null);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setLive(d); })
+      .catch(() => {});
+  }, []);
+
+  const stats = [
+    { icon: Users,    value: live ? formatCount(live.parents)  : "10,000+", label: "Happy Students" },
+    { icon: BookOpen, value: live ? formatCount(live.tutors)   : "500+",    label: "Expert Tutors" },
+    { icon: Globe,    value: "50+",                                           label: "Countries Served" },
+    { icon: Star,     value: "4.9/5",                                         label: "Average Rating" },
+    { icon: Clock,    value: live ? formatCount(live.sessions) : "1M+",     label: "Sessions Completed" },
+    { icon: Award,    value: "98%",                                           label: "Satisfaction Rate" },
+  ];
+
   return (
     <section className="py-24 relative overflow-hidden">
       <div className="absolute inset-0 gradient-bg opacity-95" />

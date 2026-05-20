@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { sendDemoBookedEmail, sendAdminNewBookingAlert } from "@/lib/emails";
 
 // POST — create a new demo booking + auto-generate Zoom meeting
 export async function POST(req: NextRequest) {
@@ -67,6 +68,31 @@ export async function POST(req: NextRequest) {
         monthlyPrice:  monthlyPrice  || 0,
         status:        "PENDING",
       },
+    });
+
+    // Fire-and-forget: email parent + admin immediately
+    sendDemoBookedEmail({
+      parentName:  resolvedParentName,
+      parentEmail: resolvedParentEmail,
+      childName,
+      subject,
+      grade:       grade    || "",
+      date,
+      timeSlot,
+      timezone:    resolvedTimezone,
+      tutorName:   tutorName || "Being assigned…",
+    });
+    sendAdminNewBookingAlert({
+      id:          booking.id,
+      parentName:  resolvedParentName,
+      parentEmail: resolvedParentEmail,
+      childName,
+      subject,
+      grade:       grade    || "",
+      date,
+      timeSlot,
+      timezone:    resolvedTimezone,
+      tutorName:   tutorName || "TBD",
     });
 
     return NextResponse.json({

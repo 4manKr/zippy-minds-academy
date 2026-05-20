@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, CheckCircle, ShieldCheck } from "lucide-react";
 
 const benefits = [
@@ -13,8 +13,11 @@ const benefits = [
   "No commitment required",
 ];
 
-export default function SignupPage() {
-  const router = useRouter();
+function SignupForm() {
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo   = searchParams.get("redirect") ?? null;
+
   const [step, setStep]               = useState<"form" | "verify">("form");
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm]               = useState({ name: "", email: "", phone: "", password: "" });
@@ -26,8 +29,7 @@ export default function SignupPage() {
   // Step 1 — validate form + send OTP
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const res = await fetch("/api/auth/send-code", {
         method: "POST",
@@ -47,8 +49,7 @@ export default function SignupPage() {
   // Step 2 — verify OTP + create account
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
@@ -57,7 +58,8 @@ export default function SignupPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      router.push("/dashboard/parent");
+      // Redirect to book-demo (or wherever) after signup
+      router.push(redirectTo ?? "/dashboard/parent");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Signup failed");
     } finally {
@@ -66,8 +68,7 @@ export default function SignupPage() {
   };
 
   const handleResend = async () => {
-    setResending(true);
-    setError("");
+    setResending(true); setError("");
     try {
       await fetch("/api/auth/send-code", {
         method: "POST",
@@ -78,6 +79,8 @@ export default function SignupPage() {
       setResending(false);
     }
   };
+
+  const loginHref = redirectTo ? `/auth/login?redirect=${encodeURIComponent(redirectTo)}` : "/auth/login";
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-4 pt-24 pb-12">
@@ -114,7 +117,9 @@ export default function SignupPage() {
             <>
               <div className="flex flex-col items-center mb-7 lg:items-start">
                 <h1 className="font-display text-2xl font-bold text-on-surface">Create your account</h1>
-                <p className="text-on-surface-variant text-sm mt-1">Free to join · No credit card required</p>
+                <p className="text-on-surface-variant text-sm mt-1">
+                  {redirectTo ? "Sign up to book your free demo session." : "Free to join · No credit card required"}
+                </p>
               </div>
 
               {error && (
@@ -134,7 +139,7 @@ export default function SignupPage() {
                 <div>
                   <label className="block text-sm font-medium text-on-surface mb-1.5">Email Address</label>
                   <div className="relative">
-                    <Mail size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <Mail size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-on-primary-container" />
                     <input type="email" placeholder="you@example.com" value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                       className="input-field pl-11" required />
@@ -179,12 +184,11 @@ export default function SignupPage() {
 
               <p className="text-center text-sm text-on-surface-variant mt-5">
                 Already have an account?{" "}
-                <Link href="/auth/login" className="font-semibold text-primary hover:underline">Sign in</Link>
+                <Link href={loginHref} className="font-semibold text-primary hover:underline">Sign in</Link>
               </p>
             </>
           ) : (
             <>
-              {/* OTP verification step */}
               <div className="text-center mb-8">
                 <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <ShieldCheck size={30} className="text-primary" />
@@ -204,14 +208,9 @@ export default function SignupPage() {
                 <div>
                   <label className="block text-sm font-medium text-on-surface mb-1.5 text-center">Enter 6-digit code</label>
                   <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                    className="input-field text-center text-2xl font-bold tracking-[0.5em] py-4"
-                    required
+                    type="text" inputMode="numeric" maxLength={6} placeholder="123456"
+                    value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    className="input-field text-center text-2xl font-bold tracking-[0.5em] py-4" required
                   />
                 </div>
 
@@ -239,5 +238,17 @@ export default function SignupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    }>
+      <SignupForm />
+    </Suspense>
   );
 }

@@ -1,29 +1,14 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle, ArrowRight, Phone, MessageSquare, IndianRupee, Sparkles, BookOpen } from "lucide-react";
+import {
+  CheckCircle, Phone, MessageSquare, IndianRupee,
+  Sparkles, BookOpen, ArrowRight, Star, CreditCard,
+} from "lucide-react";
 
-// Subject → monthly price (must stay in sync with courses data)
-const SUBJECT_PRICES: Record<string, number> = {
-  "Phonics":                 199,
-  "English Grammar":         219,
-  "Mathematics":             229,
-  "Public Speaking":         219,
-  "Writing & Communication": 199,
-  "Coding":                  249,
-  "Science":                 229,
-  "Life Skills":             199,
-  "Hindi":                   199,
-  "General Knowledge":       199,
-  "Creative Arts":           199,
-  "Social Studies":          199,
-};
-
-const DEFAULT_PRICE = 199;
-
-const WHATSAPP_NUMBER = "919311483555"; // +91 93114 83555
+const WHATSAPP_NUMBER = "919311483555";
 const SUPPORT_EMAIL   = "zippymindsacademy@gmail.com";
 
 const INCLUDES = [
@@ -35,94 +20,192 @@ const INCLUDES = [
   "Free rescheduling with 24 h notice",
 ];
 
+const SUBJECT_ICONS: Record<string, string> = {
+  "Phonics":                 "🔤",
+  "English Grammar":         "📝",
+  "Mathematics":             "🔢",
+  "Public Speaking":         "🎤",
+  "Writing & Communication": "✍️",
+  "Coding":                  "💻",
+  "Science":                 "🔬",
+  "Life Skills":             "🌱",
+  "Hindi":                   "🇮🇳",
+  "General Knowledge":       "🌍",
+  "Creative Arts":           "🎨",
+  "Social Studies":          "📚",
+};
+
+const SUBJECT_COLORS: Record<string, string> = {
+  "Phonics":                 "from-pink-400 to-rose-500",
+  "English Grammar":         "from-blue-400 to-blue-600",
+  "Mathematics":             "from-purple-400 to-purple-600",
+  "Public Speaking":         "from-orange-400 to-yellow-500",
+  "Writing & Communication": "from-teal-400 to-cyan-500",
+  "Coding":                  "from-indigo-400 to-blue-600",
+  "Science":                 "from-green-400 to-emerald-500",
+  "Life Skills":             "from-yellow-400 to-orange-400",
+  "Hindi":                   "from-red-400 to-orange-500",
+  "General Knowledge":       "from-cyan-400 to-teal-500",
+  "Creative Arts":           "from-fuchsia-400 to-pink-500",
+  "Social Studies":          "from-amber-400 to-orange-400",
+};
+
+interface Course {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  status: string;
+}
+
 function EnrollInner() {
   const searchParams = useSearchParams();
-  const subject  = searchParams.get("subject") ?? "";
-  const price    = SUBJECT_PRICES[subject] ?? DEFAULT_PRICE;
-  const hasSubject = !!subject;
+  const preSubject   = searchParams.get("subject") ?? "";
 
-  const waMsg  = encodeURIComponent(
-    `Hi! I'd like to enroll${hasSubject ? ` in ${subject}` : ""} at Zippy Minds Academy. Please share payment details.`
-  );
-  const waLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${waMsg}`;
+  const [courses, setCourses]   = useState<Course[]>([]);
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => {
+    fetch("/api/courses")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.courses) setCourses(d.courses); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Feature the pre-selected subject first, then the rest alphabetically
+  const sorted = preSubject
+    ? [
+        ...courses.filter(c => c.name === preSubject),
+        ...courses.filter(c => c.name !== preSubject),
+      ]
+    : courses;
+
+  const waMsg = (courseName: string) =>
+    encodeURIComponent(`Hi! I'd like to enroll in ${courseName} at Zippy Minds Academy. Please share payment details.`);
 
   return (
     <div className="min-h-screen bg-surface pt-24 pb-16 px-4">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-5xl mx-auto">
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 bg-green-100 border border-green-200 rounded-full px-4 py-2 text-sm font-semibold text-green-700 mb-4">
-            <CheckCircle size={15} /> Free demo completed — time to enroll!
-          </div>
-          <h1 className="font-display text-3xl font-bold text-on-surface">
-            {hasSubject ? `Enroll in ${subject}` : "Enroll in a Course"}
+          {preSubject ? (
+            <div className="inline-flex items-center gap-2 bg-green-100 border border-green-200 rounded-full px-4 py-2 text-sm font-semibold text-green-700 mb-4">
+              <CheckCircle size={15} /> Free demo completed — time to enroll!
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-2 text-sm font-semibold text-primary mb-4">
+              <Sparkles size={15} /> Choose your learning plan
+            </div>
+          )}
+          <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-on-surface">
+            {preSubject ? `Enroll in ${preSubject}` : "All Courses & Plans"}
           </h1>
-          <p className="text-on-surface-variant mt-2">
-            Your free demo is done. Subscribe to start regular sessions with your tutor.
+          <p className="text-on-surface-variant mt-2 max-w-xl mx-auto">
+            {preSubject
+              ? "Your free demo is done. Subscribe to start regular sessions with your tutor — or explore all available subjects below."
+              : "Choose any subject and enroll today. All sessions are live 1-on-1 with an expert tutor."}
           </p>
         </div>
 
-        {/* Price card */}
-        <div className="bg-surface-container-lowest rounded-3xl border border-outline-variant shadow-card p-8 mb-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <p className="text-sm text-on-surface-variant mb-1">Monthly Subscription</p>
-              <div className="flex items-end gap-1">
-                <IndianRupee size={26} className="text-primary mb-1" />
-                <span className="font-display text-5xl font-extrabold text-primary">{price}</span>
-                <span className="text-on-surface-variant text-lg mb-1">/month</span>
-              </div>
-              {hasSubject && (
-                <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold bg-primary/10 text-primary px-3 py-1 rounded-full">
-                  <BookOpen size={12} /> {subject}
-                </span>
-              )}
+        {/* ── What's Included strip ── */}
+        <div className="bg-primary/5 border border-primary/15 rounded-2xl px-6 py-4 mb-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {INCLUDES.map(item => (
+            <div key={item} className="flex items-start gap-2 text-sm text-on-surface">
+              <CheckCircle size={15} className="text-green-500 mt-0.5 shrink-0" />
+              <span>{item}</span>
             </div>
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">
-              📚
-            </div>
-          </div>
+          ))}
+        </div>
 
-          {/* What's included */}
-          <div className="space-y-2.5 mb-8">
-            {INCLUDES.map(item => (
-              <div key={item} className="flex items-start gap-2.5 text-sm text-on-surface">
-                <CheckCircle size={16} className="text-green-500 mt-0.5 shrink-0" />
-                <span>{item}</span>
-              </div>
+        {/* ── Courses grid ── */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-surface-container-lowest rounded-3xl border border-outline-variant h-64 animate-pulse" />
             ))}
           </div>
+        ) : sorted.length === 0 ? (
+          <div className="text-center py-16 text-on-surface-variant">
+            <p className="text-4xl mb-3">📚</p>
+            <p className="font-semibold">No courses available right now.</p>
+            <Link href="/courses" className="text-primary text-sm hover:underline mt-2 inline-block">Browse courses page</Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {sorted.map(course => {
+              const isFeatured  = course.name === preSubject;
+              const icon        = SUBJECT_ICONS[course.name]  ?? "📚";
+              const gradient    = SUBJECT_COLORS[course.name] ?? "from-blue-400 to-indigo-600";
+              const waLink      = `https://wa.me/${WHATSAPP_NUMBER}?text=${waMsg(course.name)}`;
 
-          {/* Primary CTA — WhatsApp */}
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-bold text-white text-base transition-all hover:opacity-90 active:scale-95 mb-3"
-            style={{ backgroundColor: "#25D366" }}
-          >
-            <MessageSquare size={20} />
-            Pay & Enroll via WhatsApp
-          </a>
+              return (
+                <div key={course.id}
+                  className={`relative bg-surface-container-lowest rounded-3xl border-2 shadow-card flex flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-card-hover ${
+                    isFeatured ? "border-primary ring-2 ring-primary/20" : "border-outline-variant"
+                  }`}
+                >
+                  {/* Featured badge */}
+                  {isFeatured && (
+                    <div className="absolute top-3 right-3 z-10">
+                      <span className="flex items-center gap-1 bg-primary text-on-primary text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wide">
+                        <Star size={9} fill="currentColor" /> Your Demo
+                      </span>
+                    </div>
+                  )}
 
-          <p className="text-center text-xs text-on-surface-variant">
-            Our team will share the payment link on WhatsApp within a few minutes
-          </p>
-        </div>
+                  {/* Coloured header */}
+                  <div className={`bg-gradient-to-br ${gradient} px-6 pt-6 pb-4`}>
+                    <span className="text-4xl block mb-2">{icon}</span>
+                    <h3 className="font-display font-extrabold text-white text-xl leading-tight">{course.name}</h3>
+                    {course.description && (
+                      <p className="text-white/80 text-xs mt-1 leading-relaxed line-clamp-2">{course.description}</p>
+                    )}
+                  </div>
 
-        {/* Other options */}
-        <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-6 mb-6">
+                  {/* Price + CTA */}
+                  <div className="p-5 flex flex-col flex-1">
+                    <div className="flex items-end gap-1 mb-1">
+                      <IndianRupee size={20} className="text-primary mb-0.5" />
+                      <span className="font-display text-3xl font-extrabold text-primary">{course.price}</span>
+                      <span className="text-on-surface-variant text-sm mb-0.5">/month</span>
+                    </div>
+                    <p className="text-xs text-on-surface-variant mb-4 flex items-center gap-1">
+                      <BookOpen size={11} /> 4 sessions/month · 45 min each
+                    </p>
+
+                    <div className="mt-auto space-y-2">
+                      <Link href={`/payment?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}`}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-white text-sm transition-all hover:opacity-90 active:scale-95 bg-primary">
+                        <CreditCard size={16} />
+                        Pay & Subscribe
+                      </Link>
+                      <a href={waLink} target="_blank" rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl font-semibold text-sm transition-all hover:opacity-90 border border-outline-variant text-on-surface-variant hover:text-on-surface">
+                        <MessageSquare size={15} />
+                        Enroll via WhatsApp
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Other contact options ── */}
+        <div className="mt-10 bg-surface-container-lowest rounded-2xl border border-outline-variant p-6">
           <p className="text-sm font-semibold text-on-surface mb-4 flex items-center gap-2">
             <Sparkles size={16} className="text-primary" /> Other ways to enroll
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <a href={`tel:+919311483555`}
+            <a href="tel:+919311483555"
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-outline-variant hover:bg-surface-container transition-all text-sm font-medium text-on-surface">
               <Phone size={16} className="text-primary shrink-0" />
               Call +91 93114 83555
             </a>
-            <a href={`mailto:${SUPPORT_EMAIL}?subject=Enrollment${hasSubject ? ` — ${subject}` : ""}`}
+            <a href={`mailto:${SUPPORT_EMAIL}?subject=Enrollment${preSubject ? ` — ${preSubject}` : ""}`}
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-outline-variant hover:bg-surface-container transition-all text-sm font-medium text-on-surface">
               <MessageSquare size={16} className="text-primary shrink-0" />
               Email us
@@ -130,19 +213,15 @@ function EnrollInner() {
           </div>
         </div>
 
-        {/* Browse other courses */}
-        <div className="text-center space-y-3">
-          <p className="text-sm text-on-surface-variant">Want to enroll in a different subject?</p>
-          <Link href="/courses" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
-            Browse all courses <ArrowRight size={14} />
-          </Link>
-        </div>
-
-        {/* Dashboard link */}
-        <div className="mt-8 text-center">
+        {/* ── Back to dashboard ── */}
+        <div className="mt-8 flex items-center justify-center gap-6 text-sm">
           <Link href="/dashboard/parent"
-            className="text-xs text-on-surface-variant hover:text-primary transition-colors">
-            ← Back to my dashboard
+            className="flex items-center gap-1.5 text-on-surface-variant hover:text-primary transition-colors">
+            ← Back to Dashboard
+          </Link>
+          <Link href="/courses"
+            className="flex items-center gap-1.5 text-primary hover:underline font-semibold">
+            Browse Courses <ArrowRight size={14} />
           </Link>
         </div>
 

@@ -1,21 +1,51 @@
 import Link from "next/link";
 import { Target, Heart, Globe, Shield, ArrowRight } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 
 const team = [
-  { name: "Arpit Sharma", role: "Co-Founder & CEO", initials: "AS", gradient: "from-primary to-primary-container" },
-  { name: "Priya Menon", role: "Head of Education", initials: "PM", gradient: "from-tertiary to-tertiary-container" },
-  { name: "Rohan Joshi", role: "CTO", initials: "RJ", gradient: "from-secondary to-secondary-fixed-dim" },
-  { name: "Kavya Nair", role: "Head of Tutor Success", initials: "KN", gradient: "from-green-500 to-emerald-600" },
+  { name: "Arpit Sharma", role: "Co-Founder & CEO",        initials: "AS", gradient: "from-primary to-primary-container" },
+  { name: "Priya Menon",  role: "Head of Education",       initials: "PM", gradient: "from-tertiary to-tertiary-container" },
+  { name: "Rohan Joshi",  role: "CTO",                     initials: "RJ", gradient: "from-secondary to-secondary-fixed-dim" },
+  { name: "Kavya Nair",   role: "Head of Tutor Success",   initials: "KN", gradient: "from-green-500 to-emerald-600" },
 ];
 
 const values = [
-  { icon: Target, title: "Mission-Driven", description: "Every decision we make is focused on improving learning outcomes for students worldwide.", bg: "bg-primary/5", icon_color: "text-primary" },
-  { icon: Heart, title: "Student-First", description: "We put the student at the centre of everything. Their growth is our success.", bg: "bg-tertiary/5", icon_color: "text-tertiary" },
-  { icon: Globe, title: "Globally Accessible", description: "World-class Indian education, available to families in any country, in any timezone.", bg: "bg-primary/5", icon_color: "text-primary" },
-  { icon: Shield, title: "Safe & Trusted", description: "Rigorous tutor verification, safe video sessions, and complete transparency.", bg: "bg-secondary-container/20", icon_color: "text-secondary" },
+  { icon: Target, title: "Mission-Driven",      description: "Every decision we make is focused on improving learning outcomes for students worldwide.", bg: "bg-primary/5",              icon_color: "text-primary" },
+  { icon: Heart,  title: "Student-First",        description: "We put the student at the centre of everything. Their growth is our success.",            bg: "bg-tertiary/5",             icon_color: "text-tertiary" },
+  { icon: Globe,  title: "Globally Accessible",  description: "World-class Indian education, available to families in any country, in any timezone.",   bg: "bg-primary/5",              icon_color: "text-primary" },
+  { icon: Shield, title: "Safe & Trusted",       description: "Rigorous tutor verification, safe video sessions, and complete transparency.",            bg: "bg-secondary-container/20", icon_color: "text-secondary" },
 ];
 
-export default function AboutPage() {
+async function getStats() {
+  try {
+    const [parents, tutors, courses] = await Promise.all([
+      prisma.user.count({ where: { role: "PARENT" } }),
+      prisma.user.count({ where: { role: "TUTOR", approvalStatus: "APPROVED" } }),
+      prisma.course.count({ where: { status: "active" } }),
+    ]);
+    return { parents, tutors, courses };
+  } catch {
+    return { parents: 0, tutors: 0, courses: 0 };
+  }
+}
+
+function fmt(n: number, fallback: string): string {
+  if (n <= 0) return fallback;
+  if (n >= 10000) return `${Math.floor(n / 1000)}K+`;
+  if (n >= 1000)  return `${(n / 1000).toFixed(1)}K+`;
+  return `${n}+`;
+}
+
+export default async function AboutPage() {
+  const { parents, tutors } = await getStats();
+
+  const storyStats = [
+    { value: "2022",                           label: "Founded" },
+    { value: "50+",                            label: "Countries" },
+    { value: fmt(parents, "10K+"),             label: "Students" },
+    { value: fmt(tutors,  "500+"),             label: "Tutors" },
+  ];
+
   return (
     <div className="min-h-screen bg-surface">
       {/* Hero */}
@@ -56,12 +86,7 @@ export default function AboutPage() {
             </Link>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            {[
-              { value: "2022", label: "Founded" },
-              { value: "50+", label: "Countries" },
-              { value: "10K+", label: "Students" },
-              { value: "500+", label: "Tutors" },
-            ].map((stat) => (
+            {storyStats.map((stat) => (
               <div key={stat.label} className="bg-surface-container rounded-2xl p-6 text-center border border-outline-variant/30">
                 <p className="text-4xl font-bold gradient-text font-display">{stat.value}</p>
                 <p className="text-on-surface-variant text-sm mt-1">{stat.label}</p>

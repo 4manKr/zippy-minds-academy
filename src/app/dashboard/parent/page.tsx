@@ -132,6 +132,9 @@ export default function ParentDashboard() {
   // Cancel booking
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
+  // Real-time refresh toast
+  const [liveToast, setLiveToast] = useState<{ subject: string; tutorName: string } | null>(null);
+
   // Support form
   const [ticketForm, setTicketForm]     = useState({ subject: "", message: "", priority: "medium" });
   const [ticketSending, setTicketSending] = useState(false);
@@ -157,10 +160,12 @@ export default function ParentDashboard() {
       fetch("/api/parent/materials").then(r => r.json()),
       fetch("/api/recordings").then(r => r.json()),
     ]).then(([profileData, bookingData, ticketData, resourceData, videoData, matData, recData]) => {
-      if (profileData.user) {
-        setUser(profileData.user);
-        setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
-      }
+      if (!profileData.user) { router.push("/auth/login"); return; }
+      // Role guard — redirect tutors/admins to their correct dashboard
+      if (profileData.user.role === "TUTOR") { router.push("/dashboard/tutor"); return; }
+      if (profileData.user.role === "ADMIN") { router.push("/dashboard/admin"); return; }
+      setUser(profileData.user);
+      setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
       if (bookingData.bookings)    setBookings(bookingData.bookings);
       if (ticketData.tickets)      setTickets(ticketData.tickets);
       if (resourceData.resources)  setResources(resourceData.resources);
@@ -171,6 +176,33 @@ export default function ParentDashboard() {
       router.push("/auth/login");
     }).finally(() => setLoading(false));
   }, [router]);
+
+  /* ── Real-time polling: re-fetch bookings every 15 s ── */
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/bookings");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.bookings) return;
+        const fresh: Booking[] = data.bookings;
+        setBookings(prev => {
+          // Detect any booking that just moved to CONFIRMED
+          const newlyConfirmed = fresh.filter(fb =>
+            fb.status === "CONFIRMED" &&
+            prev.find(pb => pb.id === fb.id && pb.status !== "CONFIRMED")
+          );
+          if (newlyConfirmed.length > 0) {
+            const b = newlyConfirmed[0];
+            setLiveToast({ subject: b.subject, tutorName: b.tutorName });
+            setTimeout(() => setLiveToast(null), 7000);
+          }
+          return fresh;
+        });
+      } catch {/* silent */}
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   /* ── Derived data ── */
   const totalSessions     = bookings.length;
@@ -361,6 +393,26 @@ export default function ParentDashboard() {
   return (
     <div className="min-h-screen bg-surface flex">
 
+      {/* ── Live confirmation toast ── */}
+      {liveToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-3 bg-green-600 text-white px-5 py-3.5 rounded-2xl shadow-2xl max-w-sm">
+            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+              <CheckCircle size={18} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm">Session Confirmed! 🎉</p>
+              <p className="text-xs text-green-100 truncate">
+                {liveToast.subject} with {liveToast.tutorName}
+              </p>
+            </div>
+            <button onClick={() => setLiveToast(null)} className="text-white/70 hover:text-white shrink-0 ml-1">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Desktop Sidebar ── */}
       <aside className="h-screen w-64 fixed left-0 top-0 hidden lg:flex flex-col bg-surface-container-low border-r border-outline-variant py-6 gap-1 z-30">
         <SidebarContent />
@@ -439,6 +491,10 @@ export default function ParentDashboard() {
               <div className="lg:col-span-2 bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
                 <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
                   <Calendar size={18} className="text-primary" /> Next Session
+                  <span className="ml-auto inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    Live
+                  </span>
                 </h3>
                 {nextSession ? (
                   <div className="flex flex-col sm:flex-row gap-5">
@@ -564,7 +620,13 @@ export default function ParentDashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h2 className="font-display text-2xl font-extrabold text-on-surface">My Schedule</h2>
-                <p className="text-sm text-on-surface-variant mt-1">{bookings.length} total bookings</p>
+                <p className="text-sm text-on-surface-variant mt-1 flex items-center gap-2">
+                  {bookings.length} total bookings
+                  <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    Live
+                  </span>
+                </p>
               </div>
               <Link href="/book-demo" className="btn-primary self-start sm:self-auto whitespace-nowrap">
                 <Plus size={16} /> Book New Session
@@ -636,10 +698,10 @@ export default function ParentDashboard() {
                             <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
                               b.status === "CONFIRMED"  ? "bg-green-100 text-green-700"   :
                               b.status === "PENDING"    ? "bg-amber-100 text-amber-700"   :
-                              b.status === "CANCELLED" || b.status === "REJECTED"  ? "bg-red-100 text-red-600" :
+                              b.status === "CANCELLED"  ? "bg-red-100 text-red-600" :
                               "bg-surface-container text-on-surface-variant"
                             }`}>
-                              {b.status === "PENDING" ? "⏳ Awaiting Tutor" : b.status === "REJECTED" ? "Declined — contact support" : b.status}
+                              {b.status === "PENDING" ? "⏳ Awaiting Tutor" : b.status}
                             </span>
                           </td>
                           <td className="px-4 py-3">
@@ -1084,7 +1146,7 @@ export default function ParentDashboard() {
                         b.status === "PENDING"    ? "bg-yellow-100 text-yellow-700" :
                         b.status === "CANCELLED"  ? "bg-red-100 text-red-600"       :
                         "bg-surface-container text-on-surface-variant"
-                      }`}>{b.status}</span>
+                      }`}>{b.status === "PENDING" ? "⏳ Awaiting Tutor" : b.status}</span>
                       <div>
                         {b.zoomLink && b.status === "CONFIRMED" ? (
                           <a href={b.zoomLink} target="_blank" rel="noopener noreferrer"
@@ -1401,7 +1463,7 @@ function BookingCard({ booking: b, onCancel, cancelling }: {
       <div className="space-y-1.5 text-xs text-on-surface-variant mb-4">
         <div className="flex items-center gap-2"><Calendar size={12} className="text-primary" />{b.date}</div>
         <div className="flex items-center gap-2"><Clock size={12} className="text-primary" />{b.timeSlot}</div>
-        <div className="flex items-center gap-2"><User size={12} className="text-primary" />{b.tutorName}</div>
+        <div className="flex items-center gap-2"><User size={12} className="text-primary" />{b.tutorName || <span className="italic text-on-surface-variant/50">Pending assignment</span>}</div>
       </div>
       {b.status === "CANCELLED" ? (
         <div className="flex items-center justify-center gap-2 w-full bg-red-50 text-red-500 text-xs py-2.5 rounded-xl border border-red-200">
@@ -1459,9 +1521,9 @@ function ScheduleRow({ booking: b, onCancel, cancelling }: {
             b.status === "PENDING"   ? "bg-yellow-100 text-yellow-700":
             b.status === "CANCELLED" ? "bg-red-100 text-red-600"      :
             "bg-surface-container text-on-surface-variant"
-          }`}>{b.status}</span>
+          }`}>{b.status === "PENDING" ? "⏳ Awaiting Tutor" : b.status}</span>
         </div>
-        <p className="text-sm text-on-surface-variant">👤 {b.tutorName} &nbsp;·&nbsp; 👦 {b.childName}</p>
+        <p className="text-sm text-on-surface-variant">👤 {b.tutorName || "Pending assignment"} &nbsp;·&nbsp; 👦 {b.childName}</p>
         <p className="text-xs text-on-surface-variant mt-1 flex items-center gap-1">
           <Clock size={11} className="text-primary" /> {b.timeSlot}
           {b.monthlyPrice > 0 ? ` · ₹${b.monthlyPrice}/mo` : " · Free Demo"}

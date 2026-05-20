@@ -16,6 +16,7 @@ model User {
   password       String
   approvalStatus String   @default("APPROVED") // PENDING | APPROVED | REJECTED (for TUTOR role)
   subjects       String   @default("[]")       // JSON array of subject strings, e.g. '["Mathematics","Science"]'
+  availability   String   @default("{}")       // JSON: { "Mon": ["9:00 AM", "10:00 AM"], ... }
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -36,13 +37,15 @@ model Booking {
   tutorInitials String
   date          String
   timeSlot      String
-  notes         String   @default("")
-  monthlyPrice  Int
-  status        String   @default("PENDING")
-  zoomLink      String?
-  zoomStartUrl  String?
-  zoomMeetingId String?
-  createdAt     DateTime @default(now())
+  notes          String   @default("")
+  monthlyPrice   Int
+  status         String   @default("PENDING")
+  zoomLink       String?
+  zoomStartUrl   String?
+  zoomMeetingId  String?
+  declinedTutors String   @default("[]")   // JSON array of tutor names who already declined
+  needsAdmin     Boolean  @default(false)  // true when all available tutors declined
+  createdAt      DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id])
 }
@@ -149,4 +152,34 @@ model TutorMaterial {
   notes       String   @default("")
   visibility  String   @default("individual") // "individual" | "all"
   createdAt   DateTime @default(now())
+}
+
+model TutorMonthlyAvailability {
+  id        String   @id @default(cuid())
+  tutorId   String
+  tutorName String
+  monthYear String   // e.g. "2025-07"
+  slots     String   // JSON: {"Mon":["2:00 PM","3:00 PM"],"Tue":["2:00 PM"],…}
+  timezone  String   @default("Asia/Kolkata")
+  isLocked  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AvailabilityChangeRequest {
+  id              String   @id @default(cuid())
+  tutorId         String
+  tutorName       String
+  monthYear       String
+  currentSlots    String   // JSON snapshot of slots before change
+  proposedSlots   String   // JSON of proposed new slots
+  reason          String   @default("")
+  status          String   @default("PENDING_PARENT")
+  // PENDING_PARENT | ALL_APPROVED | ANY_REJECTED | APPLIED | CANCELLED
+  parentApprovals String   @default("{}")
+  // JSON: {"email@a.com":{"name":"Sarah","token":"abc123","status":"pending"}}
+  adminId         String   @default("")
+  adminName       String   @default("")
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime
 }
