@@ -725,16 +725,19 @@ function fmtDate(dateStr: string) {
 }
 
 export async function sendSubscriptionConfirmedEmail(data: {
-  parentName:  string;
-  parentEmail: string;
-  childName:   string;
-  courseName:  string;
-  dayOfWeek:   string;
-  timeSlot:    string;
-  timezone:    string;
-  sessions:    Array<{ date: string; zoomLink: string }>;
+  parentName:    string;
+  parentEmail:   string;
+  childName:     string;
+  courseName:    string;
+  dayOfWeek:     string;
+  timeSlot:      string;
+  timezone:      string;
+  durationValue?: number;
+  durationUnit?:  string;
+  sessions:      Array<{ date: string; zoomLink: string }>;
 }) {
-  const { parentName, parentEmail, childName, courseName, dayOfWeek, timeSlot, timezone, sessions } = data;
+  const { parentName, parentEmail, childName, courseName, dayOfWeek, timeSlot, timezone, durationValue, durationUnit, sessions } = data;
+  const durationStr = durationValue ? `${durationValue} ${durationUnit ?? "months"}` : "1 month";
 
   const sessionRows = sessions.map((s,i) => `
     <tr>
@@ -747,14 +750,14 @@ export async function sendSubscriptionConfirmedEmail(data: {
 
   const html = wrapper(`
     <h2 style="font-family:sans-serif;font-size:22px;font-weight:800;color:#1a1a2e;margin:8px 0 4px;">🎉 Sessions Booked!</h2>
-    <p style="font-size:14px;color:#555;margin:0 0 20px;">Hi ${parentName}! Your monthly <strong>${courseName}</strong> sessions for <strong>${childName}</strong> are confirmed.</p>
+    <p style="font-size:14px;color:#555;margin:0 0 20px;">Hi ${parentName}! Your <strong>${durationStr} ${courseName}</strong> course for <strong>${childName}</strong> is confirmed — <strong>${sessions.length} sessions</strong> scheduled.</p>
     <div style="background:#f0f7ff;border:1px solid #cce0ff;border-radius:12px;padding:16px;margin-bottom:20px;">
       <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#005da8;">📅 Your Weekly Slot</p>
       <p style="margin:0;font-size:18px;font-weight:800;color:#1a1a2e;">${dayOfWeek}s at ${timeSlot}</p>
-      <p style="margin:4px 0 0;font-size:12px;color:#666;">${timezone} · Repeats every week</p>
+      <p style="margin:4px 0 0;font-size:12px;color:#666;">${timezone} · ${durationStr} course · ${sessions.length} total sessions</p>
     </div>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:20px;">
-      <tr><td colspan="2" style="padding:8px 12px;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;background:#f0f4ff;border:1px solid #e8edf5;letter-spacing:0.5px;">Your 4 Sessions</td></tr>
+      <tr><td colspan="2" style="padding:8px 12px;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;background:#f0f4ff;border:1px solid #e8edf5;letter-spacing:0.5px;">Your ${sessions.length} Sessions</td></tr>
       ${sessionRows}
     </table>
     <p style="font-size:12px;color:#888;margin:0;">✅ Save the Zoom links above &nbsp;·&nbsp; ⏰ You'll get a reminder 30 min before each session</p>

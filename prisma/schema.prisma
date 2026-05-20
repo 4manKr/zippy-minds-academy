@@ -83,13 +83,16 @@ model SupportTicket {
 }
 
 model Course {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String   @default("")
-  price       Int      @default(199)
-  status      String   @default("active")  // active | inactive
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  name            String   @unique
+  description     String   @default("")
+  price           Int      @default(199)
+  durationValue   Int      @default(1)        // e.g. 3
+  durationUnit    String   @default("months") // "days" | "weeks" | "months"
+  sessionsPerWeek Int      @default(1)
+  status          String   @default("active") // active | inactive
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model PlatformSetting {
@@ -202,9 +205,31 @@ model Payment {
   sessions    MonthlySession[]
 }
 
+model Enrollment {
+  id            String   @id @default(cuid())
+  paymentId     String?
+  userId        String?
+  parentEmail   String
+  parentName    String
+  childName     String
+  subject       String
+  courseId      String?
+  courseName    String
+  dayOfWeek     String
+  timeSlot      String
+  timezone      String   @default("Asia/Kolkata")
+  startDate     String   // first session YYYY-MM-DD
+  endDate       String   // last session YYYY-MM-DD
+  totalSessions Int      @default(0)
+  status        String   @default("ACTIVE") // ACTIVE | COMPLETED | CANCELLED
+  createdAt     DateTime @default(now())
+  sessions      MonthlySession[]
+}
+
 model MonthlySession {
   id                String   @id @default(cuid())
   paymentId         String?
+  enrollmentId      String?
   parentEmail       String
   parentName        String
   childName         String
@@ -224,5 +249,6 @@ model MonthlySession {
   dailyReminderSent Boolean  @default(false)
   sessionNumber     Int      @default(1)
   createdAt         DateTime @default(now())
-  payment           Payment? @relation(fields: [paymentId], references: [id])
+  payment           Payment?    @relation(fields: [paymentId],    references: [id])
+  enrollment        Enrollment? @relation(fields: [enrollmentId], references: [id])
 }

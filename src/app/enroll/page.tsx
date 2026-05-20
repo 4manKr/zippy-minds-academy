@@ -56,6 +56,8 @@ interface Course {
   description: string;
   price: number;
   status: string;
+  durationValue?: number;
+  durationUnit?: string;
 }
 
 function EnrollInner() {
@@ -172,11 +174,11 @@ function EnrollInner() {
                       <span className="text-on-surface-variant text-sm mb-0.5">/month</span>
                     </div>
                     <p className="text-xs text-on-surface-variant mb-4 flex items-center gap-1">
-                      <BookOpen size={11} /> 4 sessions/month · 45 min each
+                      <BookOpen size={11} /> {course.durationValue ?? 1} {course.durationUnit ?? "months"} · 1 session/week · 45 min each
                     </p>
 
                     <div className="mt-auto space-y-2">
-                      <Link href={`/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}`}
+                      <Link href={`/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&dv=${course.durationValue??1}&du=${course.durationUnit??"months"}`}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-white text-sm transition-all hover:opacity-90 active:scale-95 bg-primary">
                         <CreditCard size={16} />
                         Pick Slot &amp; Subscribe

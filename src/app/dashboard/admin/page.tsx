@@ -18,7 +18,7 @@ type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"anal
 // ── Types ────────────────────────────────────────────────────────────────────
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
 interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; needsAdmin?:boolean; declinedTutors?:string; createdAt:string; }
-interface DBCourse  { id:string; name:string; description:string; price:number; status:string; }
+interface DBCourse  { id:string; name:string; description:string; price:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; }
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
 interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; }
@@ -59,7 +59,7 @@ export default function AdminDashboard() {
   const [replyOpen,      setReplyOpen]      = useState<string|null>(null);
   const [replyText,      setReplyText]      = useState("");
   const [settingsSaved,  setSettingsSaved]  = useState(false);
-  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", price:"199" });
+  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", price:"199", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" });
   const [addingCourse,   setAddingCourse]   = useState(false);
   // Content management
   const [contentTab,     setContentTab]     = useState<"resources"|"videos"|"recordings">("resources");
@@ -287,9 +287,9 @@ export default function AdminDashboard() {
   const handleAddCourse = async () => {
     if (!newCourse.name.trim()) return;
     setLoad("addCourse", true);
-    const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:newCourse.name, description:newCourse.description, price:parseInt(newCourse.price)||199 }) });
+    const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:newCourse.name, description:newCourse.description, price:parseInt(newCourse.price)||199, durationValue:parseInt(newCourse.durationValue)||1, durationUnit:newCourse.durationUnit||"months", sessionsPerWeek:parseInt(newCourse.sessionsPerWeek)||1 }) });
     const data = await res.json();
-    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", price:"199" }); setAddingCourse(false); }
+    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", price:"199", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" }); setAddingCourse(false); }
     setLoad("addCourse", false);
   };
 
@@ -310,7 +310,7 @@ export default function AdminDashboard() {
     if (!editCourse) return;
     setLoad("editCourse", true);
     const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description, price:editCourse.price }) });
+      body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description, price:editCourse.price, durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit, sessionsPerWeek:editCourse.sessionsPerWeek }) });
     const data = await res.json();
     if (data.course) { setCourses(c=>c.map(x=>x.id===editCourse.id?data.course:x)); setEditCourse(null); }
     setLoad("editCourse", false);
@@ -569,6 +569,19 @@ export default function AdminDashboard() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Price (₹/month)</label>
                 <input type="number" value={editCourse.price} onChange={e=>setEditCourse(p=>p?{...p,price:parseInt(e.target.value)||0}:null)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Course Duration</label>
+                <div className="flex gap-2">
+                  <input type="number" min="1" value={editCourse.durationValue??1} onChange={e=>setEditCourse(p=>p?{...p,durationValue:parseInt(e.target.value)||1}:null)}
+                    className="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                  <select value={editCourse.durationUnit??"months"} onChange={e=>setEditCourse(p=>p?{...p,durationUnit:e.target.value}:null)}
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                    <option value="days">Days</option>
+                    <option value="weeks">Weeks</option>
+                    <option value="months">Months</option>
+                  </select>
+                </div>
               </div>
             </div>
             <div className="flex gap-3 mt-5">
@@ -1034,6 +1047,17 @@ export default function AdminDashboard() {
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Price (₹/mo)</label>
                         <input type="number" value={newCourse.price} onChange={e=>setNewCourse(p=>({...p,price:e.target.value}))} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-24"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Duration</label>
+                        <div className="flex gap-1.5">
+                          <input type="number" min="1" value={newCourse.durationValue} onChange={e=>setNewCourse(p=>({...p,durationValue:e.target.value}))} className="border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-14"/>
+                          <select value={newCourse.durationUnit} onChange={e=>setNewCourse(p=>({...p,durationUnit:e.target.value}))} className="border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                            <option value="days">Days</option>
+                            <option value="weeks">Weeks</option>
+                            <option value="months">Months</option>
+                          </select>
+                        </div>
                       </div>
                       <button onClick={handleAddCourse} disabled={loading["addCourse"]} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5">
                         {loading["addCourse"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save</>}

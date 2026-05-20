@@ -50,34 +50,134 @@ const TZ_CURRENCY: Record<string, string> = {
 function detectTimezone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return "Asia/Kolkata"; }
 }
-function getNext4Dates(dayOfWeek: string, timezone: string): string[] {
+
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+/** Generate all session dates for the course duration */
+function generateAllSessionDates(
+  dayOfWeek: string,
+  timezone: string,
+  durationValue: number,
+  durationUnit: string, // "days" | "weeks" | "months"
+): string[] {
   const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   const target = days.indexOf(dayOfWeek);
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year:"numeric", month:"2-digit", day:"2-digit" });
   const todayStr = fmt.format(new Date());
   const [y,m,d] = todayStr.split("-").map(Number);
+
+  // Start tomorrow
+  const start = new Date(y, m-1, d+1);
+
+  // End date based on unit
+  let end: Date;
+  if      (durationUnit === "days")   end = new Date(y, m-1, d + durationValue + 1);
+  else if (durationUnit === "weeks")  end = new Date(y, m-1, d + durationValue * 7 + 1);
+  else                                end = new Date(y, m-1 + durationValue, d + 1); // months
+
   const dates: string[] = [];
-  let cur = new Date(y, m-1, d+1);
-  while (dates.length < 4) {
-    if (cur.getDay() === target) {
-      dates.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,"0")}-${String(cur.getDate()).padStart(2,"0")}`);
+  const cur = new Date(start);
+
+  if (durationUnit === "days") {
+    // One session every day
+    while (dates.length < durationValue) {
+      dates.push(toDateStr(cur));
+      cur.setDate(cur.getDate() + 1);
     }
-    cur.setDate(cur.getDate()+1);
+  } else {
+    // One session per week on selected day
+    while (cur < end) {
+      if (cur.getDay() === target) dates.push(toDateStr(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
   }
   return dates;
 }
+
 function formatDate(dateStr: string) {
   const [y,m,d] = dateStr.split("-").map(Number);
+  return new Date(y,m-1,d).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+}
+function formatDateLong(dateStr: string) {
+  const [y,m,d] = dateStr.split("-").map(Number);
   return new Date(y,m-1,d).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+}
+
+// ── Session Preview Component ─────────────────────────────────────────────────
+function SessionPreview({ dates, timeSlot, courseName, compact }: {
+  dates: string[]; timeSlot: string; courseName: string; compact?: boolean;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const PREVIEW = 4;
+  const visible = showAll ? dates : dates.slice(0, PREVIEW);
+  const hasMore = dates.length > PREVIEW;
+
+  if (compact) return (
+    <>
+      <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-3">
+        {dates.length} Sessions Booked
+      </p>
+      <div className="space-y-1">
+        {visible.map((date,i)=>(
+          <div key={date} className="flex items-center gap-2 text-sm">
+            <CheckCircle size={13} className="text-green-500 shrink-0"/>
+            <span className="font-medium text-on-surface text-xs">{formatDate(date)}</span>
+            <span className="text-on-surface-variant ml-auto text-xs">{timeSlot}</span>
+          </div>
+        ))}
+      </div>
+      {hasMore && (
+        <button onClick={()=>setShowAll(p=>!p)} className="text-xs text-primary font-semibold mt-2 hover:underline">
+          {showAll ? "Show less" : `+${dates.length - PREVIEW} more sessions`}
+        </button>
+      )}
+    </>
+  );
+
+  return (
+    <div className="mb-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">
+          All {dates.length} Sessions ({courseName})
+        </p>
+        {hasMore && (
+          <button onClick={()=>setShowAll(p=>!p)} className="text-xs text-primary font-semibold hover:underline">
+            {showAll ? "Show less" : `Show all ${dates.length}`}
+          </button>
+        )}
+      </div>
+      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+        {visible.map((date,i)=>(
+          <div key={date} className="flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-2">
+            <div className="w-6 h-6 rounded-full bg-green-500 text-white text-xs font-bold flex items-center justify-center shrink-0">{i+1}</div>
+            <div>
+              <p className="font-semibold text-green-800 text-sm">{formatDateLong(date)}</p>
+              <p className="text-xs text-green-600">{timeSlot}</p>
+            </div>
+            <CheckCircle size={14} className="ml-auto text-green-500 shrink-0"/>
+          </div>
+        ))}
+      </div>
+      {!showAll && hasMore && (
+        <p className="text-xs text-on-surface-variant text-center mt-2">
+          +{dates.length - PREVIEW} more sessions · <button onClick={()=>setShowAll(true)} className="text-primary font-semibold hover:underline">View all</button>
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 function SubscribeInner() {
   const router      = useRouter();
   const params      = useSearchParams();
-  const courseName  = params.get("course")   ?? "Subscription";
-  const courseId    = params.get("courseId") ?? "";
-  const priceINR    = parseInt(params.get("price") ?? "199", 10) || 199;
+  const courseName    = params.get("course")   ?? "Subscription";
+  const courseId      = params.get("courseId") ?? "";
+  const priceINR      = parseInt(params.get("price") ?? "199", 10) || 199;
+  const durationValue = parseInt(params.get("dv") ?? "1", 10) || 1;
+  const durationUnit  = params.get("du") ?? "months";
 
   type Step = "slot"|"details"|"payment"|"done";
   const [step, setStep] = useState<Step>("slot");
@@ -107,9 +207,9 @@ function SubscribeInner() {
   const [createdSessions, setCreatedSessions] = useState<{date:string;zoomLink?:string|null}[]>([]);
 
   // keep latest values accessible inside Razorpay callback
-  const latestRef = useRef({ selDay, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, sessionDates });
+  const latestRef = useRef({ selDay, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, durationValue, durationUnit, sessionDates });
   useEffect(() => {
-    latestRef.current = { selDay, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, sessionDates };
+    latestRef.current = { selDay, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, durationValue, durationUnit, sessionDates };
   });
 
   useEffect(() => {
@@ -134,8 +234,8 @@ function SubscribeInner() {
   }, []);
 
   useEffect(() => {
-    if (selDay) setSessionDates(getNext4Dates(selDay, timezone));
-  }, [selDay, timezone]);
+    if (selDay) setSessionDates(generateAllSessionDates(selDay, timezone, durationValue, durationUnit));
+  }, [selDay, timezone, durationValue, durationUnit]);
 
   useEffect(() => {
     if (userCurrency === "INR") setGateway("razorpay");
@@ -157,6 +257,7 @@ function SubscribeInner() {
         courseId: v.courseId, courseName: v.courseName,
         dayOfWeek: v.selDay, timeSlot: v.selTime, timezone: v.timezone,
         childName: v.childName, childAge: v.childAge, grade: v.grade,
+        durationValue: v.durationValue, durationUnit: v.durationUnit,
         sessionDates: v.sessionDates,
       }),
     });
@@ -258,8 +359,10 @@ function SubscribeInner() {
             <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-2 text-sm font-semibold text-primary mb-4">
               <Sparkles size={14}/> Enrolling in {courseName}
             </div>
-            <h1 className="font-display text-3xl font-extrabold text-on-surface">Book Your Monthly Sessions</h1>
-            <p className="text-on-surface-variant text-sm mt-1">4 live 1-on-1 sessions per month · 45 min each</p>
+            <h1 className="font-display text-3xl font-extrabold text-on-surface">Book Your Sessions</h1>
+            <p className="text-on-surface-variant text-sm mt-1">
+              {durationValue} {durationUnit} course · 1 session/week · 45 min each
+            </p>
           </div>
 
           {/* Progress */}
@@ -371,23 +474,9 @@ function SubscribeInner() {
                 </div>
               </div>
 
-              {/* 4 session preview */}
-              {sessionDates.length===4 && (
-                <div className="mb-5">
-                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-3">Your First 4 Sessions</p>
-                  <div className="space-y-2">
-                    {sessionDates.map((date,i)=>(
-                      <div key={date} className="flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-2.5">
-                        <div className="w-7 h-7 rounded-full bg-green-500 text-white text-xs font-bold flex items-center justify-center shrink-0">{i+1}</div>
-                        <div>
-                          <p className="font-semibold text-green-800 text-sm">{formatDate(date)}</p>
-                          <p className="text-xs text-green-600">{selTime} · {courseName}</p>
-                        </div>
-                        <CheckCircle size={15} className="ml-auto text-green-500 shrink-0"/>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              {/* Session preview with show-all toggle */}
+              {sessionDates.length > 0 && (
+                <SessionPreview dates={sessionDates} timeSlot={selTime} courseName={courseName} />
               )}
 
               <div className="flex gap-3">
@@ -412,7 +501,7 @@ function SubscribeInner() {
                   <div>
                     <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wide mb-0.5">Subscribing to</p>
                     <p className="font-bold text-on-surface text-lg">{courseName}</p>
-                    <p className="text-xs text-on-surface-variant mt-0.5">{selDay}s at {selTime} · 4 sessions/month</p>
+                    <p className="text-xs text-on-surface-variant mt-0.5">{selDay}s at {selTime} · {sessionDates.length} total sessions · {durationValue} {durationUnit}</p>
                   </div>
                   <div className="text-right shrink-0">
                     {ratesLoading
@@ -449,16 +538,7 @@ function SubscribeInner() {
 
               {/* Sessions list */}
               <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4">
-                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-3">Sessions being booked</p>
-                <div className="space-y-1.5">
-                  {sessionDates.map((date,i)=>(
-                    <div key={date} className="flex items-center gap-2 text-sm">
-                      <CheckCircle size={14} className="text-green-500 shrink-0"/>
-                      <span className="font-medium text-on-surface">{formatDate(date)}</span>
-                      <span className="text-on-surface-variant ml-auto text-xs">{selTime}</span>
-                    </div>
-                  ))}
-                </div>
+                <SessionPreview dates={sessionDates} timeSlot={selTime} courseName={courseName} compact />
               </div>
 
               {/* Gateway */}
@@ -516,14 +596,14 @@ function SubscribeInner() {
               </div>
               <h2 className="font-display text-2xl font-extrabold text-on-surface mb-2">All Booked! 🎉</h2>
               <p className="text-on-surface-variant text-sm mb-6">
-                Your 4 sessions are scheduled. Zoom links have been sent to your email. You&apos;ll get a reminder 30 minutes before each session.
+                {sessionDates.length} sessions scheduled over {durationValue} {durationUnit}. Zoom links sent to your email. You&apos;ll get a daily reminder + 30 min notice before each session.
               </p>
               <div className="space-y-2 mb-6">
-                {(createdSessions.length ? createdSessions : sessionDates.map(d=>({date:d,zoomLink:null}))).map((s,i)=>(
+                {(createdSessions.length ? createdSessions : sessionDates.map(d=>({date:d,zoomLink:null}))).slice(0,8).map((s,i)=>(
                   <div key={s.date} className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl px-4 py-2.5 text-left">
                     <div className="w-6 h-6 rounded-full bg-green-500 text-white text-xs font-bold flex items-center justify-center shrink-0">{i+1}</div>
                     <div className="flex-1">
-                      <p className="font-semibold text-green-800 text-sm">{formatDate(s.date)}</p>
+                      <p className="font-semibold text-green-800 text-sm">{formatDateLong(s.date)}</p>
                       <p className="text-xs text-green-600">{selTime}</p>
                     </div>
                     {s.zoomLink && (

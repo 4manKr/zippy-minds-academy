@@ -21,9 +21,18 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { name, description, price } = await req.json();
+    const { name, description, price, durationValue, durationUnit, sessionsPerWeek } = await req.json();
     if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
-    const course = await prisma.course.create({ data: { name, description: description ?? "", price: price ?? 199 } });
+    const course = await prisma.course.create({
+      data: {
+        name,
+        description:     description     ?? "",
+        price:           price           ?? 199,
+        durationValue:   durationValue   ?? 1,
+        durationUnit:    durationUnit    ?? "months",
+        sessionsPerWeek: sessionsPerWeek ?? 1,
+      },
+    });
     return NextResponse.json({ course });
   } catch {
     return NextResponse.json({ error: "Failed to create course" }, { status: 500 });
@@ -33,10 +42,18 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { courseId, status, name, description, price } = await req.json();
+    const { courseId, status, name, description, price, durationValue, durationUnit, sessionsPerWeek } = await req.json();
     const updated = await prisma.course.update({
       where: { id: courseId },
-      data: { ...(status && { status }), ...(name && { name }), ...(description !== undefined && { description }), ...(price && { price }) },
+      data: {
+        ...(status           !== undefined && { status }),
+        ...(name             !== undefined && name && { name }),
+        ...(description      !== undefined && { description }),
+        ...(price            !== undefined && price && { price }),
+        ...(durationValue    !== undefined && { durationValue }),
+        ...(durationUnit     !== undefined && { durationUnit }),
+        ...(sessionsPerWeek  !== undefined && { sessionsPerWeek }),
+      },
     });
     return NextResponse.json({ course: updated });
   } catch {

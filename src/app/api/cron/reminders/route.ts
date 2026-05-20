@@ -144,12 +144,30 @@ export async function POST(req: NextRequest) {
       sentDaily.push(ms.id);
     }
 
+    // ── D) Mark enrollments as COMPLETED when end date has passed ─────────
+    const nowStr = todayIn("UTC");
+    const activeEnrollments = await prisma.enrollment.findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, endDate: true },
+    });
+    let completed = 0;
+    for (const en of activeEnrollments) {
+      if (en.endDate < nowStr) {
+        await prisma.enrollment.update({ where: { id: en.id }, data: { status: "COMPLETED" } });
+        // Also mark all remaining sessions as COMPLETED
+        await prisma.monthlySession.updateMany({
+          where: { enrollmentId: en.id, status: "SCHEDULED" },
+          data:  { status: "COMPLETED" },
+        });
+        completed++;
+      }
+    }
+
     return NextResponse.json({
       ok: true,
-      reminders30min: sent30.length,
-      remindersDaily: sentDaily.length,
-      ids30: sent30,
-      idsDaily: sentDaily,
+      reminders30min:       sent30.length,
+      remindersDaily:       sentDaily.length,
+      enrollmentsCompleted: completed,
     });
   } catch (err) {
     console.error("[cron/reminders]", err);

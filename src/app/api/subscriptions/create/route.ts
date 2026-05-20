@@ -6,6 +6,46 @@ import { sendSubscriptionConfirmedEmail } from "@/lib/emails";
 
 export const runtime = "nodejs";
 
+// ── Date generation (server-side, same logic as client) ───────────────────────
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function generateAllSessionDates(
+  dayOfWeek: string,
+  timezone: string,
+  durationValue: number,
+  durationUnit: string,
+): string[] {
+  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const target = days.indexOf(dayOfWeek);
+  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year:"numeric", month:"2-digit", day:"2-digit" });
+  const todayStr = fmt.format(new Date());
+  const [y,m,d] = todayStr.split("-").map(Number);
+
+  const start = new Date(y, m-1, d+1);
+  let end: Date;
+  if      (durationUnit === "days")  end = new Date(y, m-1, d + durationValue + 1);
+  else if (durationUnit === "weeks") end = new Date(y, m-1, d + durationValue * 7 + 1);
+  else                               end = new Date(y, m-1 + durationValue, d + 1);
+
+  const dates: string[] = [];
+  const cur = new Date(start);
+
+  if (durationUnit === "days") {
+    while (dates.length < durationValue) {
+      dates.push(toDateStr(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+  } else {
+    while (cur < end) {
+      if (cur.getDay() === target) dates.push(toDateStr(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+  return dates;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
@@ -20,15 +60,25 @@ export async function POST(req: NextRequest) {
       courseId, courseName,
       dayOfWeek, timeSlot, timezone,
       childName, childAge, grade,
-      sessionDates,
+      durationValue, durationUnit,
     } = body;
 
-    if (!dayOfWeek || !timeSlot || !childName || !Array.isArray(sessionDates) || sessionDates.length === 0) {
+    if (!dayOfWeek || !timeSlot || !childName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const parentName  = session.name  ?? "Parent";
     const parentEmail = session.email ?? "";
+
+    // Regenerate dates server-side (don't trust client)
+    const dv  = Number(durationValue) || 1;
+    const du  = durationUnit ?? "months";
+    const tz  = timezone ?? "Asia/Kolkata";
+    const sessionDates = generateAllSessionDates(dayOfWeek, tz, dv, du);
+
+    if (sessionDates.length === 0) {
+      return NextResponse.json({ error: "No valid session dates generated" }, { status: 400 });
+    }
 
     // ── 1. Create Payment record ──────────────────────────────────────────
     const payment = await prisma.payment.create({
@@ -47,25 +97,46 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // ── 2. Create 4 MonthlySession records with Zoom meetings ─────────────
+    // ── 2. Create Enrollment record ───────────────────────────────────────
+    const enrollment = await prisma.enrollment.create({
+      data: {
+        paymentId:     payment.id,
+        userId:        session.userId ?? null,
+        parentEmail,
+        parentName,
+        childName:     childName ?? "",
+        subject:       courseName,
+        courseId:      courseId ?? null,
+        courseName,
+        dayOfWeek,
+        timeSlot,
+        timezone:      tz,
+        startDate:     sessionDates[0],
+        endDate:       sessionDates[sessionDates.length - 1],
+        totalSessions: sessionDates.length,
+        status:        "ACTIVE",
+      },
+    });
+
+    // ── 3. Create all session records with Zoom meetings ──────────────────
     const sessions = [];
 
     for (let i = 0; i < sessionDates.length; i++) {
       const date = sessionDates[i];
 
-      // Create Zoom meeting for this session
       const zoom = await createZoomMeeting({
         topic:    `Zippy Minds — ${courseName} with ${childName}`,
         date,
         timeSlot,
-        timezone: timezone ?? "Asia/Kolkata",
+        timezone: tz,
         duration: 45,
-        agenda:   `Monthly session ${i + 1}/4 for ${childName}${grade ? ` (${grade})` : ""} — ${courseName}`,
+        agenda:   `Session ${i + 1}/${sessionDates.length} for ${childName}${grade ? ` (${grade})` : ""} — ${courseName}`,
       });
 
       const ms = await prisma.monthlySession.create({
         data: {
           paymentId:     payment.id,
+          enrollmentId:  enrollment.id,
           parentEmail,
           parentName,
           childName:     childName ?? "",
@@ -74,7 +145,7 @@ export async function POST(req: NextRequest) {
           dayOfWeek,
           date,
           timeSlot,
-          timezone:      timezone ?? "Asia/Kolkata",
+          timezone:      tz,
           sessionNumber: i + 1,
           zoomLink:      zoom?.joinUrl   ?? null,
           zoomStartUrl:  zoom?.startUrl  ?? null,
@@ -86,19 +157,21 @@ export async function POST(req: NextRequest) {
       sessions.push(ms);
     }
 
-    // ── 3. Send confirmation email ────────────────────────────────────────
+    // ── 4. Send confirmation email ────────────────────────────────────────
     sendSubscriptionConfirmedEmail({
       parentName,
       parentEmail,
-      childName:  childName ?? "",
+      childName:    childName ?? "",
       courseName,
       dayOfWeek,
       timeSlot,
-      timezone:   timezone ?? "Asia/Kolkata",
-      sessions:   sessions.map(s => ({ date: s.date, zoomLink: s.zoomLink ?? "" })),
+      timezone:     tz,
+      durationValue: dv,
+      durationUnit:  du,
+      sessions:     sessions.map(s => ({ date: s.date, zoomLink: s.zoomLink ?? "" })),
     });
 
-    return NextResponse.json({ success: true, payment, sessions });
+    return NextResponse.json({ success: true, payment, enrollment, sessions });
   } catch (err) {
     console.error("[subscriptions/create]", err);
     return NextResponse.json({ error: "Failed to create subscription sessions" }, { status: 500 });
