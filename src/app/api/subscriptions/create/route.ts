@@ -6,26 +6,23 @@ import { sendSubscriptionConfirmedEmail } from "@/lib/emails";
 
 export const runtime = "nodejs";
 
-// ── Date generation (server-side, same logic as client) ───────────────────────
+// ── Date generation (server-side, Mon-Fri daily) ─────────────────────────────
 function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
-function generateAllSessionDates(
-  dayOfWeek: string,
+function generateMFDates(
   timezone: string,
   durationValue: number,
   durationUnit: string,
 ): string[] {
-  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-  const target = days.indexOf(dayOfWeek);
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year:"numeric", month:"2-digit", day:"2-digit" });
   const todayStr = fmt.format(new Date());
   const [y,m,d] = todayStr.split("-").map(Number);
 
   const start = new Date(y, m-1, d+1);
   let end: Date;
-  if      (durationUnit === "days")  end = new Date(y, m-1, d + durationValue + 1);
+  if      (durationUnit === "days")  end = new Date(y, m-1, d + durationValue * 2 + 10); // buffer for weekends
   else if (durationUnit === "weeks") end = new Date(y, m-1, d + durationValue * 7 + 1);
   else                               end = new Date(y, m-1 + durationValue, d + 1);
 
@@ -33,13 +30,17 @@ function generateAllSessionDates(
   const cur = new Date(start);
 
   if (durationUnit === "days") {
+    // Generate exactly durationValue weekdays
     while (dates.length < durationValue) {
-      dates.push(toDateStr(cur));
+      const day = cur.getDay();
+      if (day >= 1 && day <= 5) dates.push(toDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
   } else {
+    // Generate all Mon-Fri within range
     while (cur < end) {
-      if (cur.getDay() === target) dates.push(toDateStr(cur));
+      const day = cur.getDay();
+      if (day >= 1 && day <= 5) dates.push(toDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
   }
@@ -58,23 +59,23 @@ export async function POST(req: NextRequest) {
       gateway, gatewayId,
       amount, currency,
       courseId, courseName,
-      dayOfWeek, timeSlot, timezone,
+      timeSlot, timezone,
       childName, childAge, grade,
       durationValue, durationUnit,
     } = body;
 
-    if (!dayOfWeek || !timeSlot || !childName) {
+    if (!timeSlot || !childName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const parentName  = session.name  ?? "Parent";
     const parentEmail = session.email ?? "";
 
-    // Regenerate dates server-side (don't trust client)
+    // Regenerate dates server-side (don't trust client) — daily Mon-Fri
     const dv  = Number(durationValue) || 1;
     const du  = durationUnit ?? "months";
     const tz  = timezone ?? "Asia/Kolkata";
-    const sessionDates = generateAllSessionDates(dayOfWeek, tz, dv, du);
+    const sessionDates = generateMFDates(tz, dv, du);
 
     if (sessionDates.length === 0) {
       return NextResponse.json({ error: "No valid session dates generated" }, { status: 400 });
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
         subject:       courseName,
         courseId:      courseId ?? null,
         courseName,
-        dayOfWeek,
+        dayOfWeek:     "Mon-Fri",
         timeSlot,
         timezone:      tz,
         startDate:     sessionDates[0],
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
           childName:     childName ?? "",
           subject:       courseName,
           grade:         grade ?? "",
-          dayOfWeek,
+          dayOfWeek:     "Mon-Fri",
           date,
           timeSlot,
           timezone:      tz,
@@ -163,7 +164,7 @@ export async function POST(req: NextRequest) {
       parentEmail,
       childName:    childName ?? "",
       courseName,
-      dayOfWeek,
+      dayOfWeek:    "Mon-Fri",
       timeSlot,
       timezone:     tz,
       durationValue: dv,

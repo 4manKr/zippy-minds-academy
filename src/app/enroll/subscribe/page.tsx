@@ -12,9 +12,6 @@ import Script from "next/script";
 declare global { interface Window { Razorpay: any; } }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const DAYS      = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-const DAY_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-
 const TIME_SLOTS = [
   "8:00 AM","9:00 AM","10:00 AM","11:00 AM","12:00 PM",
   "1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM",
@@ -55,15 +52,12 @@ function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
-/** Generate all session dates for the course duration */
-function generateAllSessionDates(
-  dayOfWeek: string,
+/** Generate daily Mon-Fri session dates for the course duration */
+function generateMFDates(
   timezone: string,
   durationValue: number,
   durationUnit: string, // "days" | "weeks" | "months"
 ): string[] {
-  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-  const target = days.indexOf(dayOfWeek);
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year:"numeric", month:"2-digit", day:"2-digit" });
   const todayStr = fmt.format(new Date());
   const [y,m,d] = todayStr.split("-").map(Number);
@@ -73,7 +67,7 @@ function generateAllSessionDates(
 
   // End date based on unit
   let end: Date;
-  if      (durationUnit === "days")   end = new Date(y, m-1, d + durationValue + 1);
+  if      (durationUnit === "days")   end = new Date(y, m-1, d + durationValue * 2 + 10); // buffer for weekends
   else if (durationUnit === "weeks")  end = new Date(y, m-1, d + durationValue * 7 + 1);
   else                                end = new Date(y, m-1 + durationValue, d + 1); // months
 
@@ -81,15 +75,17 @@ function generateAllSessionDates(
   const cur = new Date(start);
 
   if (durationUnit === "days") {
-    // One session every day
+    // Generate exactly durationValue weekdays
     while (dates.length < durationValue) {
-      dates.push(toDateStr(cur));
+      const day = cur.getDay();
+      if (day >= 1 && day <= 5) dates.push(toDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
   } else {
-    // One session per week on selected day
+    // Generate all Mon-Fri within the range
     while (cur < end) {
-      if (cur.getDay() === target) dates.push(toDateStr(cur));
+      const day = cur.getDay();
+      if (day >= 1 && day <= 5) dates.push(toDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
   }
@@ -183,7 +179,6 @@ function SubscribeInner() {
   const [step, setStep] = useState<Step>("slot");
 
   // Slot
-  const [selDay,  setSelDay]  = useState("");
   const [selTime, setSelTime] = useState("");
   const [popularity, setPopularity] = useState<Record<string,number>>({});
 
@@ -207,9 +202,9 @@ function SubscribeInner() {
   const [createdSessions, setCreatedSessions] = useState<{date:string;zoomLink?:string|null}[]>([]);
 
   // keep latest values accessible inside Razorpay callback
-  const latestRef = useRef({ selDay, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, durationValue, durationUnit, sessionDates });
+  const latestRef = useRef({ selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, durationValue, durationUnit, sessionDates });
   useEffect(() => {
-    latestRef.current = { selDay, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, durationValue, durationUnit, sessionDates };
+    latestRef.current = { selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, durationValue, durationUnit, sessionDates };
   });
 
   useEffect(() => {
@@ -234,8 +229,8 @@ function SubscribeInner() {
   }, []);
 
   useEffect(() => {
-    if (selDay) setSessionDates(generateAllSessionDates(selDay, timezone, durationValue, durationUnit));
-  }, [selDay, timezone, durationValue, durationUnit]);
+    setSessionDates(generateMFDates(timezone, durationValue, durationUnit));
+  }, [timezone, durationValue, durationUnit]);
 
   useEffect(() => {
     if (userCurrency === "INR") setGateway("razorpay");
@@ -255,7 +250,7 @@ function SubscribeInner() {
       body: JSON.stringify({
         ...paymentInfo,
         courseId: v.courseId, courseName: v.courseName,
-        dayOfWeek: v.selDay, timeSlot: v.selTime, timezone: v.timezone,
+        dayOfWeek: "Mon-Fri", timeSlot: v.selTime, timezone: v.timezone,
         childName: v.childName, childAge: v.childAge, grade: v.grade,
         durationValue: v.durationValue, durationUnit: v.durationUnit,
         sessionDates: v.sessionDates,
@@ -281,7 +276,7 @@ function SubscribeInner() {
 
       // Save for Stripe/PayPal redirects
       localStorage.setItem("pending_subscription", JSON.stringify({
-        courseId, courseName, priceINR, dayOfWeek: selDay, timeSlot: selTime,
+        courseId, courseName, priceINR, dayOfWeek: "Mon-Fri", timeSlot: selTime,
         timezone, childName, childAge, grade, sessionDates, gateway,
         chargeAmount, chargeCurrency,
       }));
@@ -330,7 +325,7 @@ function SubscribeInner() {
     if (urlParams.get("from") !== "subscribe") return;
     const sub = JSON.parse(pending);
     // Restore state and auto-complete
-    setSelDay(sub.dayOfWeek); setSelTime(sub.timeSlot);
+    setSelTime(sub.timeSlot);
     setTimezone(sub.timezone); setChildName(sub.childName);
     setChildAge(sub.childAge); setGrade(sub.grade);
     setSessionDates(sub.sessionDates);
@@ -361,7 +356,7 @@ function SubscribeInner() {
             </div>
             <h1 className="font-display text-3xl font-extrabold text-on-surface">Book Your Sessions</h1>
             <p className="text-on-surface-variant text-sm mt-1">
-              {durationValue} {durationUnit} course · 1 session/week · 45 min each
+              {durationValue} {durationUnit} course · Daily Mon–Fri · 45 min each
             </p>
           </div>
 
@@ -386,54 +381,43 @@ function SubscribeInner() {
           {step === "slot" && (
             <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6">
               <h2 className="font-bold text-on-surface text-lg mb-1 flex items-center gap-2">
-                <Calendar size={20} className="text-primary"/> Choose Your Weekly Slot
+                <Clock size={20} className="text-primary"/> Choose Your Daily Time Slot
               </h2>
-              <p className="text-sm text-on-surface-variant mb-6">Sessions repeat every week on your chosen day &amp; time</p>
+              <p className="text-sm text-on-surface-variant mb-2">Sessions run <strong>Monday to Friday</strong> at your chosen time</p>
+              <div className="flex gap-2 flex-wrap mb-6">
+                {["Mon","Tue","Wed","Thu","Fri"].map(d=>(
+                  <span key={d} className="text-xs font-bold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">{d}</span>
+                ))}
+                {["Sat","Sun"].map(d=>(
+                  <span key={d} className="text-xs font-bold px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant line-through">{d}</span>
+                ))}
+              </div>
 
-              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-3">Day of week</p>
-              <div className="grid grid-cols-7 gap-1.5 mb-6">
-                {DAYS.map((day,i)=>{
-                  const cnt = Object.entries(popularity).filter(([k])=>k.startsWith(day+"-")).reduce((s,[,v])=>s+v,0);
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-3">
+                <Clock size={12} className="inline mr-1"/>Select time slot
+              </p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {TIME_SLOTS.map(time=>{
+                  const cnt = popularity[time] ?? 0;
                   return (
-                    <button key={day} onClick={()=>{setSelDay(day);setSelTime("");}}
-                      className={`flex flex-col items-center py-2.5 rounded-xl border-2 text-xs font-bold transition-all ${
-                        selDay===day ? "border-primary bg-primary text-white" : "border-outline-variant hover:border-primary/40 text-on-surface"
+                    <button key={time} onClick={()=>setSelTime(time)}
+                      className={`relative py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+                        selTime===time ? "border-primary bg-primary text-white" : "border-outline-variant hover:border-primary/40 text-on-surface"
                       }`}>
-                      <span>{DAY_SHORT[i]}</span>
-                      {cnt>0 && <span className={`text-[9px] mt-0.5 ${selDay===day?"text-white/80":"text-amber-600"}`}>{cnt}</span>}
+                      {time}
+                      {cnt>=3 && <span className="absolute -top-1.5 -right-1 text-[9px] bg-amber-400 text-white px-1 rounded-full">🔥</span>}
                     </button>
                   );
                 })}
               </div>
 
-              {selDay ? (
-                <>
-                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-3">
-                    <Clock size={12} className="inline mr-1"/>Time slot
-                  </p>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {TIME_SLOTS.map(time=>{
-                      const cnt = popularity[`${selDay}-${time}`]??0;
-                      return (
-                        <button key={time} onClick={()=>setSelTime(time)}
-                          className={`relative py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
-                            selTime===time ? "border-primary bg-primary text-white" : "border-outline-variant hover:border-primary/40 text-on-surface"
-                          }`}>
-                          {time}
-                          {cnt>=3 && <span className="absolute -top-1.5 -right-1 text-[9px] bg-amber-400 text-white px-1 rounded-full">🔥</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-8 text-on-surface-variant">
-                  <Calendar size={32} className="mx-auto mb-2 opacity-30"/>
-                  <p className="text-sm">Select a day above to see time slots</p>
+              {sessionDates.length > 0 && selTime && (
+                <div className="mt-5 p-3 bg-primary/5 rounded-xl border border-primary/15 text-sm text-on-surface-variant">
+                  <span className="font-semibold text-on-surface">{sessionDates.length} sessions</span> · {sessionDates[0]} → {sessionDates[sessionDates.length-1]}
                 </div>
               )}
 
-              <button onClick={()=>setStep("details")} disabled={!selDay||!selTime}
+              <button onClick={()=>setStep("details")} disabled={!selTime}
                 className="w-full mt-6 flex items-center justify-center gap-2 bg-primary text-white font-bold py-3.5 rounded-2xl hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                 Continue <ChevronRight size={18}/>
               </button>
@@ -450,8 +434,8 @@ function SubscribeInner() {
 
               <div className="bg-primary/5 border border-primary/15 rounded-2xl p-4 mb-5">
                 <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-1">Selected Slot</p>
-                <p className="font-bold text-on-surface">{selDay}s at {selTime}</p>
-                <p className="text-xs text-on-surface-variant mt-0.5">Every week · 4 sessions/month</p>
+                <p className="font-bold text-on-surface">Mon–Fri at {selTime}</p>
+                <p className="text-xs text-on-surface-variant mt-0.5">Daily · {sessionDates.length} sessions total · 45 min each</p>
               </div>
 
               <div className="space-y-4 mb-5">
@@ -501,7 +485,7 @@ function SubscribeInner() {
                   <div>
                     <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wide mb-0.5">Subscribing to</p>
                     <p className="font-bold text-on-surface text-lg">{courseName}</p>
-                    <p className="text-xs text-on-surface-variant mt-0.5">{selDay}s at {selTime} · {sessionDates.length} total sessions · {durationValue} {durationUnit}</p>
+                    <p className="text-xs text-on-surface-variant mt-0.5">Mon–Fri at {selTime} · {sessionDates.length} total sessions · {durationValue} {durationUnit}</p>
                   </div>
                   <div className="text-right shrink-0">
                     {ratesLoading
@@ -596,7 +580,7 @@ function SubscribeInner() {
               </div>
               <h2 className="font-display text-2xl font-extrabold text-on-surface mb-2">All Booked! 🎉</h2>
               <p className="text-on-surface-variant text-sm mb-6">
-                {sessionDates.length} sessions scheduled over {durationValue} {durationUnit}. Zoom links sent to your email. You&apos;ll get a daily reminder + 30 min notice before each session.
+                {sessionDates.length} sessions scheduled (Mon–Fri) over {durationValue} {durationUnit}. Zoom links sent to your email. You&apos;ll get a 30-min reminder before each session.
               </p>
               <div className="space-y-2 mb-6">
                 {(createdSessions.length ? createdSessions : sessionDates.map(d=>({date:d,zoomLink:null}))).slice(0,8).map((s,i)=>(

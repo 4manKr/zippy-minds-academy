@@ -27,6 +27,8 @@ interface DBVideo    { id:string; title:string; subject:string; duration:string;
 interface DBRecording { id:string; title:string; description:string; subject:string; studentName:string; tutorName:string; videoUrl:string; duration:string; fileSize:string; uploadedBy:string; uploadedByRole:string; visibility:string; createdAt:string; }
 interface AvailabilityRecord { id:string; tutorId:string; tutorName:string; monthYear:string; slots:string; timezone:string; isLocked:boolean; createdAt:string; }
 interface ChangeRequest { id:string; tutorId:string; tutorName:string; monthYear:string; currentSlots:string; proposedSlots:string; reason:string; status:string; parentApprovals:string; adminName:string; createdAt:string; expiresAt:string; }
+interface DBPayment { id:string; parentEmail:string; parentName:string; childName:string; amount:number; currency:string; gateway:string; gatewayId?:string|null; status:string; courseName:string; courseId?:string|null; createdAt:string; }
+interface DBEnrollment { id:string; paymentId?:string|null; parentEmail:string; parentName:string; childName:string; subject:string; courseName:string; dayOfWeek:string; timeSlot:string; timezone:string; startDate:string; endDate:string; totalSessions:number; status:string; createdAt:string; sessions:{id:string;date:string;status:string;zoomLink?:string|null}[]; }
 
 
 export default function AdminDashboard() {
@@ -42,10 +44,12 @@ export default function AdminDashboard() {
   const [tickets,   setTickets]   = useState<DBTicket[]>([]);
   const [analytics, setAnalytics] = useState<Analytics|null>(null);
   const [dbSettings,setDbSettings]= useState<Settings>({ siteName:"", contactEmail:"", phone:"", zoomEnabled:"true", emailNotifications:"true", autoApprove:"false", maintenanceMode:"false" });
-  const [resources,   setResources]   = useState<DBResource[]>([]);
-  const [videos,      setVideos]      = useState<DBVideo[]>([]);
-  const [recordings,  setRecordings]  = useState<DBRecording[]>([]);
-  const [loading,   setLoading]   = useState<Record<string,boolean>>({});
+  const [resources,    setResources]    = useState<DBResource[]>([]);
+  const [videos,       setVideos]       = useState<DBVideo[]>([]);
+  const [recordings,   setRecordings]   = useState<DBRecording[]>([]);
+  const [adminPayments,setAdminPayments]= useState<DBPayment[]>([]);
+  const [enrollments,  setEnrollments]  = useState<DBEnrollment[]>([]);
+  const [loading,      setLoading]      = useState<Record<string,boolean>>({});
 
   // UI state
   const [userSearch,     setUserSearch]     = useState("");
@@ -55,6 +59,11 @@ export default function AdminDashboard() {
   const [reassignId,     setReassignId]     = useState<string|null>(null);
   const [reassignTutor,  setReassignTutor]  = useState("");
   const [payFilter,      setPayFilter]      = useState("All");
+  const [enrollFilter,   setEnrollFilter]   = useState("All");
+  const [extendId,       setExtendId]       = useState<string|null>(null);
+  const [extendDays,     setExtendDays]     = useState("5");
+  const [extendLoading,  setExtendLoading]  = useState(false);
+  const [paymentsTab,    setPaymentsTab]    = useState<"payments"|"enrollments">("payments");
   const [supportFilter,  setSupportFilter]  = useState("All");
   const [replyOpen,      setReplyOpen]      = useState<string|null>(null);
   const [replyText,      setReplyText]      = useState("");
@@ -100,22 +109,24 @@ export default function AdminDashboard() {
 
   const setLoad = (key: string, v: boolean) => setLoading(p=>({...p,[key]:v}));
 
-  // Derive payment records from real bookings
-  const payments = useMemo(() => sessions.map(b => ({
-    id:      b.id,
-    parent:  b.parentName,
-    tutor:   b.tutorName,
-    amount:  b.monthlyPrice || 0,
-    subject: b.subject,
-    status:  b.status === "CONFIRMED" ? "success" : b.status === "CANCELLED" ? "refunded" : "pending",
-    date:    new Date(b.createdAt).toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" }),
-  })), [sessions]);
+  // Derived payment filter
+  const filteredAdminPayments = useMemo(() =>
+    adminPayments.filter(p => payFilter === "All" || p.status === payFilter),
+  [adminPayments, payFilter]);
+
+  const filteredEnrollments = useMemo(() =>
+    enrollments.filter(e => enrollFilter === "All" || e.status === enrollFilter),
+  [enrollments, enrollFilter]);
+
+  const totalRevenue = useMemo(() =>
+    adminPayments.filter(p => p.status === "PAID").reduce((a, p) => a + p.amount, 0),
+  [adminPayments]);
 
   // ── Fetch helpers ─────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoad("init", true);
     const safe = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
-    const [u,s,t,c,tk,an,st,res,vid,rec] = await Promise.all([
+    const [u,s,t,c,tk,an,st,res,vid,rec,pay,enr] = await Promise.all([
       safe(fetch("/api/admin/users")),
       safe(fetch("/api/admin/sessions")),
       safe(fetch("/api/admin/tutors")),
@@ -126,17 +137,21 @@ export default function AdminDashboard() {
       safe(fetch("/api/admin/resources")),
       safe(fetch("/api/admin/videos")),
       safe(fetch("/api/recordings")),
+      safe(fetch("/api/admin/payments")),
+      safe(fetch("/api/admin/enrollments")),
     ]);
-    if (u.users)        setUsers(u.users);
-    if (s.bookings)     setSessions(s.bookings);
-    if (t.tutors)       setTutors(t.tutors);
-    if (c.courses)      setCourses(c.courses);
-    if (tk.tickets)     setTickets(tk.tickets);
-    if (an.monthly)     setAnalytics(an);
-    if (st.settings)    setDbSettings(s2 => ({ ...s2, ...st.settings }));
-    if (res.resources)  setResources(res.resources);
-    if (vid.videos)     setVideos(vid.videos);
-    if (rec.recordings) setRecordings(rec.recordings);
+    if (u.users)          setUsers(u.users);
+    if (s.bookings)       setSessions(s.bookings);
+    if (t.tutors)         setTutors(t.tutors);
+    if (c.courses)        setCourses(c.courses);
+    if (tk.tickets)       setTickets(tk.tickets);
+    if (an.monthly)       setAnalytics(an);
+    if (st.settings)      setDbSettings(s2 => ({ ...s2, ...st.settings }));
+    if (res.resources)    setResources(res.resources);
+    if (vid.videos)       setVideos(vid.videos);
+    if (rec.recordings)   setRecordings(rec.recordings);
+    if (pay.payments)     setAdminPayments(pay.payments);
+    if (enr.enrollments)  setEnrollments(enr.enrollments);
     setLoad("init", false);
   }, []);
 
@@ -293,6 +308,32 @@ export default function AdminDashboard() {
     setLoad("addCourse", false);
   };
 
+  // ── Enrollment extend ─────────────────────────────────────────────────────
+  const handleExtendEnrollment = async () => {
+    if (!extendId || !extendDays) return;
+    setExtendLoading(true);
+    try {
+      const res = await fetch("/api/admin/enrollments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enrollmentId: extendId, extraDays: parseInt(extendDays) || 5 }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEnrollments(prev => prev.map(e => e.id === extendId
+          ? { ...e, endDate: data.enrollment.endDate, totalSessions: data.enrollment.totalSessions, status: "ACTIVE" }
+          : e
+        ));
+        setExtendId(null);
+        setExtendDays("5");
+      } else {
+        alert(data.error ?? "Failed to extend enrollment");
+      }
+    } finally {
+      setExtendLoading(false);
+    }
+  };
+
   // ── Support reply / close ─────────────────────────────────────────────────
   const handleReply = async (ticketId: string) => {
     await fetch("/api/admin/support", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ ticketId, status:"closed", reply:replyText }) });
@@ -445,9 +486,7 @@ export default function AdminDashboard() {
     const matchSearch = !q || b.subject.toLowerCase().includes(q) || b.childName.toLowerCase().includes(q) || b.tutorName.toLowerCase().includes(q);
     return matchFilter && matchSearch;
   });
-  const filteredPayments= payments.filter(p => payFilter==="All"||p.status===payFilter);
   const filteredTickets = tickets.filter(t => supportFilter==="All"||t.status===supportFilter);
-  const totalRevenue    = payments.filter(p=>p.status==="success").reduce((a,b)=>a+b.amount,0);
   const maxSessions     = Math.max(...(analytics?.monthly.map(m=>m.sessions)??[1]), 1);
   const openTickets     = tickets.filter(t=>t.status==="open").length;
 
@@ -1181,53 +1220,155 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ══ PAYMENTS ══ */}
+          {/* ══ PAYMENTS & ENROLLMENTS ══ */}
           {section==="payments" && (
             <div className="space-y-5">
+              {/* Summary cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label:"Total Revenue", value:`₹${totalRevenue.toLocaleString("en-IN")}`, icon:TrendingUp,  color:"green"  },
-                  { label:"Successful",    value:payments.filter(p=>p.status==="success").length,  icon:CheckCircle,color:"blue"   },
-                  { label:"Refunded",      value:payments.filter(p=>p.status==="refunded").length, icon:RefreshCw,  color:"red"    },
-                  { label:"Pending",       value:payments.filter(p=>p.status==="pending").length,  icon:Clock,      color:"yellow" },
+                  { label:"Total Revenue",    value:`₹${totalRevenue.toLocaleString("en-IN")}`, icon:TrendingUp,  color:"green"  },
+                  { label:"Paid",             value:adminPayments.filter(p=>p.status==="PAID").length,    icon:CheckCircle,color:"blue"   },
+                  { label:"Active Enrollments",value:enrollments.filter(e=>e.status==="ACTIVE").length,   icon:CalendarDays,color:"purple" },
+                  { label:"Total Students",   value:new Set(enrollments.map(e=>e.parentEmail)).size,      icon:Users,      color:"yellow" },
                 ].map(({ label,value,icon:Icon,color })=>(
                   <div key={label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${color==="green"?"bg-green-50 text-green-600":color==="blue"?"bg-blue-50 text-blue-600":color==="red"?"bg-red-50 text-red-500":"bg-yellow-50 text-yellow-600"}`}><Icon size={19}/></div>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${color==="green"?"bg-green-50 text-green-600":color==="blue"?"bg-blue-50 text-blue-600":color==="purple"?"bg-purple-50 text-purple-600":"bg-yellow-50 text-yellow-600"}`}><Icon size={19}/></div>
                     <p className="text-2xl font-bold text-gray-900">{value}</p>
                     <p className="text-sm text-gray-500 mt-1">{label}</p>
                   </div>
                 ))}
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                  <h2 className="font-bold text-gray-900">Transactions</h2>
-                  <div className="flex gap-2">{["All","success","refunded","pending"].map(f=>(
-                    <button key={f} onClick={()=>setPayFilter(f)} className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${payFilter===f?"bg-blue-600 text-white":"bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{f.charAt(0).toUpperCase()+f.slice(1)}</button>
-                  ))}</div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="bg-gray-50">{["#","Parent","Tutor","Subject","Amount","Date","Status"].map(h=><th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {filteredPayments.map(tx=>(
-                        <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-5 py-3.5 text-gray-400 text-xs">#{tx.id}</td>
-                          <td className="px-5 py-3.5 font-medium text-gray-900">{tx.parent}</td>
-                          <td className="px-5 py-3.5 text-gray-600">{tx.tutor}</td>
-                          <td className="px-5 py-3.5 text-gray-600">{tx.subject}</td>
-                          <td className="px-5 py-3.5 font-bold text-gray-900">₹{tx.amount.toLocaleString("en-IN")}</td>
-                          <td className="px-5 py-3.5 text-gray-500 text-xs">{tx.date}</td>
-                          <td className="px-5 py-3.5">
-                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${tx.status==="success"?"bg-green-100 text-green-700":tx.status==="refunded"?"bg-red-100 text-red-600":"bg-yellow-100 text-yellow-700"}`}>
-                              {tx.status==="success"?"✓ Success":tx.status==="refunded"?"↩ Refunded":"⏳ Pending"}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+
+              {/* Tabs */}
+              <div className="flex gap-2 border-b border-gray-100 pb-0">
+                {(["payments","enrollments"] as const).map(tab=>(
+                  <button key={tab} onClick={()=>setPaymentsTab(tab)}
+                    className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-all ${paymentsTab===tab?"bg-blue-600 text-white":"bg-gray-50 text-gray-500 hover:bg-gray-100"}`}>
+                    {tab === "payments" ? `💳 Payments (${adminPayments.length})` : `📚 Enrollments (${enrollments.length})`}
+                  </button>
+                ))}
               </div>
+
+              {/* Payments Tab */}
+              {paymentsTab === "payments" && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                    <h2 className="font-bold text-gray-900">All Transactions</h2>
+                    <div className="flex gap-2">{["All","PAID","PENDING","FAILED"].map(f=>(
+                      <button key={f} onClick={()=>setPayFilter(f)} className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${payFilter===f?"bg-blue-600 text-white":"bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{f === "All" ? "All" : f}</button>
+                    ))}</div>
+                  </div>
+                  {filteredAdminPayments.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <CreditCard size={32} className="mx-auto mb-2 opacity-30"/>
+                      <p className="text-sm">No payment records yet</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="bg-gray-50">{["#","Parent","Child","Course","Amount","Gateway","Date","Status"].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {filteredAdminPayments.map((tx,i)=>(
+                            <tr key={tx.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-3.5 text-gray-400 text-xs">{i+1}</td>
+                              <td className="px-4 py-3.5">
+                                <p className="font-medium text-gray-900 text-sm">{tx.parentName}</p>
+                                <p className="text-xs text-gray-500">{tx.parentEmail}</p>
+                              </td>
+                              <td className="px-4 py-3.5 text-gray-700 text-sm">{tx.childName}</td>
+                              <td className="px-4 py-3.5 text-gray-700 text-sm">{tx.courseName}</td>
+                              <td className="px-4 py-3.5 font-bold text-gray-900">
+                                {tx.currency === "INR" ? "₹" : tx.currency + " "}{tx.amount.toLocaleString("en-IN")}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-50 text-blue-700 capitalize">{tx.gateway}</span>
+                              </td>
+                              <td className="px-4 py-3.5 text-gray-500 text-xs whitespace-nowrap">
+                                {new Date(tx.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${tx.status==="PAID"?"bg-green-100 text-green-700":tx.status==="FAILED"?"bg-red-100 text-red-600":"bg-yellow-100 text-yellow-700"}`}>
+                                  {tx.status==="PAID"?"✓ Paid":tx.status==="FAILED"?"✗ Failed":"⏳ Pending"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Enrollments Tab */}
+              {paymentsTab === "enrollments" && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                    <h2 className="font-bold text-gray-900">Student Enrollments</h2>
+                    <div className="flex gap-2">{["All","ACTIVE","COMPLETED","CANCELLED"].map(f=>(
+                      <button key={f} onClick={()=>setEnrollFilter(f)} className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${enrollFilter===f?"bg-blue-600 text-white":"bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{f}</button>
+                    ))}</div>
+                  </div>
+                  {filteredEnrollments.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <CalendarDays size={32} className="mx-auto mb-2 opacity-30"/>
+                      <p className="text-sm">No enrollments yet</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {filteredEnrollments.map(en=>{
+                        const completedSessions = en.sessions.filter(s=>s.status==="COMPLETED").length;
+                        const pct = en.totalSessions > 0 ? Math.round((completedSessions/en.totalSessions)*100) : 0;
+                        return (
+                          <div key={en.id} className="px-6 py-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-bold text-gray-900">{en.childName}</p>
+                                  <span className="text-xs text-gray-500">·</span>
+                                  <p className="text-sm text-gray-600">{en.parentName}</p>
+                                  <span className="text-xs text-gray-400">{en.parentEmail}</span>
+                                </div>
+                                <p className="text-sm font-medium text-blue-700 mt-0.5">{en.courseName}</p>
+                                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
+                                  <span>🕐 {en.timeSlot} · Mon–Fri</span>
+                                  <span>📅 {en.startDate} → {en.endDate}</span>
+                                  <span>📊 {completedSessions}/{en.totalSessions} sessions done</span>
+                                </div>
+                                <div className="mt-2 h-1.5 bg-gray-100 rounded-full w-48">
+                                  <div className="h-full bg-blue-500 rounded-full transition-all" style={{width:`${pct}%`}}/>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-2 shrink-0">
+                                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${en.status==="ACTIVE"?"bg-green-100 text-green-700":en.status==="COMPLETED"?"bg-gray-100 text-gray-600":"bg-red-100 text-red-600"}`}>
+                                  {en.status}
+                                </span>
+                                {extendId === en.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <input type="number" min="1" max="100" value={extendDays} onChange={e=>setExtendDays(e.target.value)}
+                                      className="w-16 px-2 py-1 rounded-lg border border-gray-300 text-sm text-center"/>
+                                    <span className="text-xs text-gray-500">days</span>
+                                    <button onClick={handleExtendEnrollment} disabled={extendLoading}
+                                      className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 disabled:opacity-60">
+                                      {extendLoading ? "..." : "Add"}
+                                    </button>
+                                    <button onClick={()=>setExtendId(null)} className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200">✕</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={()=>{setExtendId(en.id);setExtendDays("5");}}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl hover:bg-blue-100 transition-all">
+                                    <Plus size={12}/> Extend
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

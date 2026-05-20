@@ -10,7 +10,8 @@ export async function GET() {
 
     const popularity: Record<string, number> = {};
     for (const s of sessions) {
-      const key = `${s.dayOfWeek}-${s.timeSlot}`;
+      // Key by time slot only (sessions are now daily Mon-Fri)
+      const key = s.timeSlot;
       popularity[key] = (popularity[key] ?? 0) + 1;
     }
 

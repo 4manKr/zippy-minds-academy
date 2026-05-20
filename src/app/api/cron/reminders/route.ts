@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendSessionReminderEmail, sendDailySessionReminderEmail } from "@/lib/emails";
+import { sendSessionReminderEmail } from "@/lib/emails";
 
 /**
  * Converts a date + timeSlot + timezone into a UTC timestamp.
@@ -32,15 +32,6 @@ function sessionToUTC(dateStr: string, timeSlot: string, tz: string): Date | nul
   } catch { return null; }
 }
 
-/** Returns true if it is currently 8–10 AM in the given timezone */
-function isMorningIn(tz: string): boolean {
-  try {
-    const fmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "2-digit", hour12: false });
-    const hour = parseInt(fmt.format(new Date()));
-    return hour >= 8 && hour < 10;
-  } catch { return false; }
-}
-
 /** Returns today's date string in a timezone, e.g. "2026-05-20" */
 function todayIn(tz: string): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -61,8 +52,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const now  = new Date();
-    const sent30:    string[] = [];
-    const sentDaily: string[] = [];
+    const sent30: string[] = [];
 
     // ── A) 30-min reminders for demo Bookings (CONFIRMED) ─────────────────
     const bookings = await prisma.booking.findMany({
@@ -120,31 +110,7 @@ export async function POST(req: NextRequest) {
       sent30.push(ms.id);
     }
 
-    // ── C) Monthly sessions — daily morning reminder (8-10 AM in their tz) ─
-    const msDaily = await prisma.monthlySession.findMany({
-      where: { status: "SCHEDULED", dailyReminderSent: false },
-    });
-
-    for (const ms of msDaily) {
-      // Only send if it's morning in their timezone AND the session is TODAY
-      if (!isMorningIn(ms.timezone)) continue;
-      if (ms.date !== todayIn(ms.timezone)) continue;
-
-      sendDailySessionReminderEmail({
-        to:        ms.parentEmail,
-        toName:    ms.parentName,
-        childName: ms.childName,
-        subject:   ms.subject,
-        date:      ms.date,
-        timeSlot:  ms.timeSlot,
-        timezone:  ms.timezone,
-        zoomLink:  ms.zoomLink,
-      });
-      await prisma.monthlySession.update({ where: { id: ms.id }, data: { dailyReminderSent: true } });
-      sentDaily.push(ms.id);
-    }
-
-    // ── D) Mark enrollments as COMPLETED when end date has passed ─────────
+    // ── C) Mark enrollments as COMPLETED when end date has passed ────────────
     const nowStr = todayIn("UTC");
     const activeEnrollments = await prisma.enrollment.findMany({
       where: { status: "ACTIVE" },
@@ -166,7 +132,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       reminders30min:       sent30.length,
-      remindersDaily:       sentDaily.length,
       enrollmentsCompleted: completed,
     });
   } catch (err) {

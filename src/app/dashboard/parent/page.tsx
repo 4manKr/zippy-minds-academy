@@ -34,6 +34,21 @@ interface Ticket {
   status: string; reply?: string | null; createdAt: string;
 }
 
+/* ─── Enrollment & Payment types ────────────────────────────────────────── */
+
+interface ParentPayment {
+  id: string; childName: string; courseName: string; amount: number;
+  currency: string; gateway: string; status: string; createdAt: string;
+}
+
+interface ParentEnrollment {
+  id: string; childName: string; subject: string; courseName: string;
+  dayOfWeek: string; timeSlot: string; timezone: string;
+  startDate: string; endDate: string; totalSessions: number; status: string;
+  createdAt: string;
+  sessions: { id: string; date: string; status: string; zoomLink?: string | null }[];
+}
+
 /* ─── DB-backed content types ───────────────────────────────────────────── */
 
 interface Resource {
@@ -120,6 +135,8 @@ export default function ParentDashboard() {
   const [videos, setVideos]               = useState<VideoLesson[]>([]);
   const [tutorMaterials, setTutorMaterials] = useState<TutorMaterial[]>([]);
   const [recordings, setRecordings]         = useState<TRecording[]>([]);
+  const [parentPayments, setParentPayments]   = useState<ParentPayment[]>([]);
+  const [parentEnrollments, setParentEnrollments] = useState<ParentEnrollment[]>([]);
   const [loading, setLoading]             = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -159,19 +176,23 @@ export default function ParentDashboard() {
       fetch("/api/parent/videos").then(r => r.json()),
       fetch("/api/parent/materials").then(r => r.json()),
       fetch("/api/recordings").then(r => r.json()),
-    ]).then(([profileData, bookingData, ticketData, resourceData, videoData, matData, recData]) => {
+      fetch("/api/enrollments").then(r => r.json()).catch(() => ({})),
+      fetch("/api/parent/payments").then(r => r.json()).catch(() => ({})),
+    ]).then(([profileData, bookingData, ticketData, resourceData, videoData, matData, recData, enrData, payData]) => {
       if (!profileData.user) { router.push("/auth/login"); return; }
       // Role guard — redirect tutors/admins to their correct dashboard
       if (profileData.user.role === "TUTOR") { router.push("/dashboard/tutor"); return; }
       if (profileData.user.role === "ADMIN") { router.push("/dashboard/admin"); return; }
       setUser(profileData.user);
       setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "" });
-      if (bookingData.bookings)    setBookings(bookingData.bookings);
-      if (ticketData.tickets)      setTickets(ticketData.tickets);
-      if (resourceData.resources)  setResources(resourceData.resources);
-      if (videoData.videos)        setVideos(videoData.videos);
-      if (matData.materials)       setTutorMaterials(matData.materials);
-      if (recData.recordings)      setRecordings(recData.recordings);
+      if (bookingData.bookings)           setBookings(bookingData.bookings);
+      if (ticketData.tickets)             setTickets(ticketData.tickets);
+      if (resourceData.resources)         setResources(resourceData.resources);
+      if (videoData.videos)               setVideos(videoData.videos);
+      if (matData.materials)              setTutorMaterials(matData.materials);
+      if (recData.recordings)             setRecordings(recData.recordings);
+      if (enrData.enrollments)            setParentEnrollments(enrData.enrollments);
+      if (payData.payments)               setParentPayments(payData.payments);
     }).catch(() => {
       router.push("/auth/login");
     }).finally(() => setLoading(false));
@@ -245,11 +266,6 @@ export default function ParentDashboard() {
     return bookings.filter(b => b.status === "CANCELLED");
   }, [bookings, scheduleTab]);
 
-  // Payments data
-  const totalMonthly   = bookings.filter(b => b.status === "CONFIRMED" && b.monthlyPrice > 0)
-                                  .reduce((a, b) => a + b.monthlyPrice, 0);
-  const freeDemos      = bookings.filter(b => b.monthlyPrice === 0).length;
-  const paidSessions   = bookings.filter(b => b.monthlyPrice > 0).length;
 
   /* ── Handlers ── */
   const handleLogout = async () => {
@@ -1057,30 +1073,32 @@ export default function ParentDashboard() {
         {section === "payments" && (
           <div className="space-y-6">
             <div>
-              <h2 className="font-display text-2xl font-extrabold text-on-surface">Payments &amp; Billing</h2>
-              <p className="text-sm text-on-surface-variant mt-1">Your session history and payment summary</p>
+              <h2 className="font-display text-2xl font-extrabold text-on-surface">Payments &amp; Enrollments</h2>
+              <p className="text-sm text-on-surface-variant mt-1">Your payment history and active course enrollments</p>
             </div>
 
             {/* Summary cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 {
-                  label: "Monthly Plan",
-                  value: totalMonthly > 0 ? `₹${totalMonthly.toLocaleString("en-IN")}` : "Free Demo",
-                  sub: totalMonthly > 0 ? "per month committed" : "No paid plan yet",
+                  label: "Total Paid",
+                  value: parentPayments.filter(p=>p.status==="PAID").reduce((a,p)=>a+(p.currency==="INR"?p.amount:p.amount),0) > 0
+                    ? `₹${parentPayments.filter(p=>p.status==="PAID" && p.currency==="INR").reduce((a,p)=>a+p.amount,0).toLocaleString("en-IN")}`
+                    : "—",
+                  sub: `${parentPayments.filter(p=>p.status==="PAID").length} successful payments`,
                   icon: IndianRupee, color: "text-green-600", bg: "bg-green-50",
                 },
                 {
-                  label: "Sessions Booked",
-                  value: bookings.length,
-                  sub: `${freeDemos} free · ${paidSessions} paid`,
-                  icon: Calendar, color: "text-primary", bg: "bg-primary/10",
+                  label: "Active Courses",
+                  value: parentEnrollments.filter(e=>e.status==="ACTIVE").length,
+                  sub: `${parentEnrollments.filter(e=>e.status==="COMPLETED").length} completed`,
+                  icon: BookOpen, color: "text-primary", bg: "bg-primary/10",
                 },
                 {
-                  label: "Confirmed Sessions",
-                  value: confirmedSessions,
-                  sub: "Ready to attend",
-                  icon: CheckCircle, color: "text-blue-600", bg: "bg-blue-50",
+                  label: "Sessions Scheduled",
+                  value: parentEnrollments.reduce((a,e)=>a+e.totalSessions,0),
+                  sub: "Across all enrollments",
+                  icon: Calendar, color: "text-blue-600", bg: "bg-blue-50",
                 },
               ].map(({ label, value, sub, icon: Icon, color, bg }) => (
                 <div key={label} className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5">
@@ -1094,86 +1112,109 @@ export default function ParentDashboard() {
               ))}
             </div>
 
-            {/* Upgrade CTA (if only free demos) */}
-            {totalMonthly === 0 && bookings.length > 0 && (
-              <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-6 text-on-primary flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="font-display font-bold text-lg mb-1">Ready to upgrade?</h3>
-                  <p className="text-on-primary/80 text-sm">You&apos;ve completed your free demo. Start regular sessions from just ₹999/month.</p>
+            {/* Enrollments */}
+            {parentEnrollments.length > 0 && (
+              <div>
+                <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
+                  <BookOpen size={18} className="text-primary" /> My Enrollments
+                </h3>
+                <div className="space-y-3">
+                  {parentEnrollments.map(en => {
+                    const done = en.sessions.filter(s => s.status === "COMPLETED").length;
+                    const pct  = en.totalSessions > 0 ? Math.round((done / en.totalSessions) * 100) : 0;
+                    const nextSession = en.sessions.find(s => s.status === "SCHEDULED");
+                    return (
+                      <div key={en.id} className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-bold text-on-surface">{en.courseName}</p>
+                              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                                en.status === "ACTIVE"    ? "bg-green-100 text-green-700" :
+                                en.status === "COMPLETED" ? "bg-surface-container text-on-surface-variant" :
+                                "bg-red-100 text-red-600"
+                              }`}>{en.status}</span>
+                            </div>
+                            <p className="text-sm text-on-surface-variant mt-0.5">for {en.childName}</p>
+                            <div className="flex flex-wrap gap-3 mt-2 text-xs text-on-surface-variant">
+                              <span>🕐 {en.timeSlot} · Mon–Fri</span>
+                              <span>📅 {en.startDate} → {en.endDate}</span>
+                              <span>📊 {done}/{en.totalSessions} sessions done</span>
+                            </div>
+                          </div>
+                          {nextSession?.zoomLink && en.status === "ACTIVE" && (
+                            <a href={nextSession.zoomLink} target="_blank" rel="noopener noreferrer"
+                              className="shrink-0 text-xs font-bold px-3 py-2 rounded-xl text-white flex items-center gap-1"
+                              style={{ backgroundColor: "#2D8CFF" }}>
+                              <Video size={12} /> Next Session
+                            </a>
+                          )}
+                        </div>
+                        <div className="mt-3">
+                          <div className="flex justify-between text-xs text-on-surface-variant mb-1">
+                            <span>Progress</span><span>{pct}%</span>
+                          </div>
+                          <div className="h-2 bg-surface-container rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${en.status === "COMPLETED" ? "bg-surface-container-highest" : "bg-primary"}`}
+                              style={{ width: `${pct}%` }}/>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <Link href="/book-demo"
-                  className="shrink-0 bg-white text-primary font-bold rounded-full px-6 py-3 text-sm hover:bg-white/90 transition-colors whitespace-nowrap">
-                  Book Paid Session
-                </Link>
               </div>
             )}
 
-            {/* Session invoice list */}
-            {bookings.length > 0 ? (
+            {/* Payment history */}
+            {parentPayments.length > 0 ? (
               <div>
                 <h3 className="font-display font-bold text-on-surface text-base mb-4 flex items-center gap-2">
-                  <FileText size={18} className="text-primary" /> Session Invoices
+                  <CreditCard size={18} className="text-primary" /> Payment History
                 </h3>
                 <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden">
-                  <div className="hidden sm:grid grid-cols-[1fr_1fr_auto_auto_auto] px-5 py-3 bg-surface-container border-b border-outline-variant text-xs font-semibold text-on-surface-variant uppercase tracking-wider gap-4">
-                    <span>Subject / Student</span>
-                    <span>Date &amp; Time</span>
+                  <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto_auto] px-5 py-3 bg-surface-container border-b border-outline-variant text-xs font-semibold text-on-surface-variant uppercase tracking-wider gap-4">
+                    <span>Course / Student</span>
                     <span>Amount</span>
+                    <span>Gateway</span>
+                    <span>Date</span>
                     <span>Status</span>
-                    <span>Action</span>
                   </div>
-                  {bookings.map((b, i) => (
-                    <div key={b.id} className={`flex flex-col sm:grid sm:grid-cols-[1fr_1fr_auto_auto_auto] px-5 py-4 gap-3 sm:gap-4 sm:items-center ${
-                      i < bookings.length - 1 ? "border-b border-outline-variant/50" : ""
+                  {parentPayments.map((p, i) => (
+                    <div key={p.id} className={`flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] px-5 py-4 gap-3 sm:gap-4 sm:items-center ${
+                      i < parentPayments.length - 1 ? "border-b border-outline-variant/50" : ""
                     }`}>
                       <div>
-                        <p className="font-semibold text-on-surface text-sm">{b.subject}</p>
-                        <p className="text-xs text-on-surface-variant">for {b.childName}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-on-surface">{b.date}</p>
-                        <p className="text-xs text-on-surface-variant">{b.timeSlot}</p>
+                        <p className="font-semibold text-on-surface text-sm">{p.courseName}</p>
+                        <p className="text-xs text-on-surface-variant">for {p.childName}</p>
                       </div>
                       <div className="font-bold text-on-surface">
-                        {b.monthlyPrice > 0 ? (
-                          <span className="text-green-700">₹{b.monthlyPrice.toLocaleString("en-IN")}<span className="text-xs font-normal text-on-surface-variant">/mo</span></span>
-                        ) : (
-                          <span className="text-xs font-bold px-2 py-1 bg-blue-50 text-blue-700 rounded-full">FREE</span>
-                        )}
+                        {p.currency === "INR" ? "₹" : p.currency + " "}{p.amount.toLocaleString("en-IN")}
                       </div>
+                      <span className="text-xs font-semibold px-2 py-1 bg-blue-50 text-blue-700 rounded-full capitalize">{p.gateway}</span>
+                      <span className="text-xs text-on-surface-variant whitespace-nowrap">
+                        {new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </span>
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
-                        b.status === "CONFIRMED"  ? "bg-green-100 text-green-700"   :
-                        b.status === "PENDING"    ? "bg-yellow-100 text-yellow-700" :
-                        b.status === "CANCELLED"  ? "bg-red-100 text-red-600"       :
-                        "bg-surface-container text-on-surface-variant"
-                      }`}>{b.status === "PENDING" ? "⏳ Awaiting Tutor" : b.status}</span>
-                      <div>
-                        {b.zoomLink && b.status === "CONFIRMED" ? (
-                          <a href={b.zoomLink} target="_blank" rel="noopener noreferrer"
-                            className="text-xs font-bold px-3 py-1.5 rounded-lg text-white flex items-center gap-1 whitespace-nowrap"
-                            style={{ backgroundColor: "#2D8CFF" }}>
-                            <Video size={11} /> Join
-                          </a>
-                        ) : (
-                          <span className="text-xs text-on-surface-variant">—</span>
-                        )}
-                      </div>
+                        p.status === "PAID"    ? "bg-green-100 text-green-700"  :
+                        p.status === "FAILED"  ? "bg-red-100 text-red-600"      :
+                        "bg-yellow-100 text-yellow-700"
+                      }`}>{p.status === "PAID" ? "✓ Paid" : p.status === "FAILED" ? "✗ Failed" : "⏳ Pending"}</span>
                     </div>
                   ))}
                 </div>
               </div>
-            ) : (
-              <EmptyState icon="💳" title="No sessions yet"
-                desc="Book a free demo session to get started with Zippy Minds!"
-                action={<Link href="/book-demo" className="btn-primary text-sm px-6 py-2.5">Book Free Demo</Link>} />
-            )}
+            ) : parentEnrollments.length === 0 ? (
+              <EmptyState icon="💳" title="No payments yet"
+                desc="Enroll in a course to get started with Zippy Minds!"
+                action={<Link href="/enroll" className="btn-primary text-sm px-6 py-2.5">Browse Courses</Link>} />
+            ) : null}
 
             {/* Payment note */}
             <div className="bg-surface-container rounded-2xl border border-outline-variant p-5 flex items-start gap-3">
               <AlertCircle size={18} className="text-on-surface-variant mt-0.5 shrink-0" />
               <p className="text-sm text-on-surface-variant">
-                Payments are collected securely by your tutor or via bank transfer before each month begins.
-                For payment issues, please <button onClick={() => setSection("support")} className="text-primary font-semibold hover:underline">raise a support ticket</button>.
+                For payment issues or to extend your enrollment, please <button onClick={() => setSection("support")} className="text-primary font-semibold hover:underline">raise a support ticket</button>.
               </p>
             </div>
           </div>
