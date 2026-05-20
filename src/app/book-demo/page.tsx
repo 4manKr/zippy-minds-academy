@@ -240,10 +240,14 @@ function BookDemoInner() {
 
     const dbTutor   = dbTutorBySubject[form.subject];
     const tutorAvail: Record<string, string[]> = dbTutor?.availability ?? {};
-    const hasAnyAvail = Object.values(tutorAvail).some(v => Array.isArray(v) && v.length > 0);
 
-    // Slots the tutor is available for this day-of-week
-    const daySlots: string[] = hasAnyAvail ? (tutorAvail[dayName] ?? []) : ALL_TIME_SLOTS.map(s => s.time);
+    // Use the tutor's slots for this specific day if declared; otherwise show all slots.
+    // This ensures parents always see bookable times even if the tutor hasn't filled in
+    // every day of their availability schedule.
+    const declaredDaySlots = tutorAvail[dayName];
+    const daySlots: string[] = (Array.isArray(declaredDaySlots) && declaredDaySlots.length > 0)
+      ? declaredDaySlots
+      : ALL_TIME_SLOTS.map(s => s.time);
 
     // For today — filter out slots that have already passed (+ 1 hr buffer)
     const nowMinutes = dateEntry?.isToday
