@@ -162,7 +162,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "Unknown gateway" }, { status: 400 });
   } catch (err) {
-    console.error("Payment create-order error:", err);
-    return NextResponse.json({ error: "Failed to create payment order. Please try again." }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Payment create-order error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
