@@ -40,6 +40,10 @@ next-env.d.ts
 # Vercel
 .vercel
 
+# Uploaded files (local dev — keep directory structure but not actual files)
+/public/uploads/**/*
+!/public/uploads/**/.gitkeep
+
 # Claude Code local config (may contain API keys)
 .claude/
 

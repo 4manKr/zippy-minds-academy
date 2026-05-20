@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import { getSession } from "@/lib/session";
+import { storeFile } from "@/lib/fileStorage";
 
 async function requireTutor() {
   const session = await getSession();
@@ -8,7 +8,7 @@ async function requireTutor() {
   return session;
 }
 
-// POST — upload a file to Vercel Blob, return the public URL
+// POST — upload a file, return the public URL
 export async function POST(req: NextRequest) {
   try {
     const session = await requireTutor();
@@ -29,7 +29,10 @@ export async function POST(req: NextRequest) {
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ];
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: "File type not allowed. Use PDF, Word, PPT or images." }, { status: 400 });
+      return NextResponse.json(
+        { error: "File type not allowed. Use PDF, Word, PPT or images." },
+        { status: 400 }
+      );
     }
 
     // Max 10 MB
@@ -37,23 +40,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File too large. Maximum 10 MB." }, { status: 400 });
     }
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const blobPath = `tutor-materials/${session.userId ?? "unknown"}/${Date.now()}-${safeName}`;
+    const folder = `tutor-materials/${session.userId ?? "unknown"}`;
+    const { url, size } = await storeFile(file, folder);
 
-    const blob = await put(blobPath, file, { access: "public" });
-
-    // Human-readable file size
-    const kb = file.size / 1024;
-    const sizeStr = kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb.toFixed(0)} KB`;
-
-    return NextResponse.json({
-      url: blob.url,
-      size: sizeStr,
-      name: file.name,
-      type: file.type,
-    });
+    return NextResponse.json({ url, size, name: file.name, type: file.type });
   } catch (err) {
     console.error("[materials/upload]", err);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
   }
 }

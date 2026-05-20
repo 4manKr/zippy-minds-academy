@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { del } from "@vercel/blob";
+import { deleteFile } from "@/lib/fileStorage";
 
 // GET — fetch recordings visible to the current user
 // Admin: all recordings
@@ -104,10 +104,8 @@ export async function DELETE(req: NextRequest) {
     const existing = await prisma.recordedSession.findUnique({ where: { id: recordingId } });
     if (!existing) return NextResponse.json({ error: "Recording not found" }, { status: 404 });
 
-    // If stored in Vercel Blob, delete the blob too
-    if (existing.videoUrl.includes("blob.vercel-storage.com")) {
-      try { await del(existing.videoUrl); } catch { /* ignore */ }
-    }
+    // Delete stored file
+    await deleteFile(existing.videoUrl);
 
     await prisma.recordedSession.delete({ where: { id: recordingId } });
     return NextResponse.json({ success: true });

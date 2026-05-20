@@ -244,6 +244,28 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleResetDemo = async (email: string, name: string) => {
+    if (!confirm(`Reset free demo for "${name}" (${email})?\n\nThis will delete all their booking records so they can book a new free demo session.`)) return;
+    setLoad(`reset_${email}`, true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset-demo", email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        alert(`✅ Demo reset for ${name}. They can now book a new free demo.`);
+      } else {
+        alert(data.error ?? "Failed to reset demo.");
+      }
+    } catch {
+      alert("Network error — demo was not reset.");
+    } finally {
+      setLoad(`reset_${email}`, false);
+    }
+  };
+
   // ── Admin reassign: manually assign a tutor to a needsAdmin booking ───────
   const handleReassign = async (bookingId: string, tutorName: string) => {
     if (!tutorName) return;
@@ -874,6 +896,19 @@ export default function AdminDashboard() {
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-1.5">
                               <button onClick={()=>setViewUser(u)} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="View"><Eye size={14}/></button>
+                              {u.role === "PARENT" && (
+                                <button
+                                  onClick={()=>handleResetDemo(u.email, u.name)}
+                                  disabled={!!loading[`reset_${u.email}`]}
+                                  className="p-1.5 rounded-lg border border-green-100 text-green-500 hover:bg-green-50 transition-colors disabled:opacity-40"
+                                  title="Reset Free Demo — allow this parent to book a new demo"
+                                >
+                                  {loading[`reset_${u.email}`]
+                                    ? <div className="w-3.5 h-3.5 border-2 border-green-300 border-t-green-500 rounded-full animate-spin"/>
+                                    : <span className="text-xs font-bold leading-none">↺</span>
+                                  }
+                                </button>
+                              )}
                               {u.role !== "ADMIN" && (
                                 <button onClick={()=>handleDeleteUser(u.id, u.name)} disabled={!!loading[`del_${u.id}`]} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors disabled:opacity-40" title="Delete">
                                   {loading[`del_${u.id}`] ? <div className="w-3.5 h-3.5 border-2 border-red-300 border-t-red-500 rounded-full animate-spin"/> : <Trash2 size={14}/>}

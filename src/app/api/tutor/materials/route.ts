@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { del } from "@vercel/blob";
+import { deleteFile } from "@/lib/fileStorage";
 
 async function requireTutor() {
   const session = await getSession();
@@ -79,8 +79,8 @@ export async function DELETE(req: NextRequest) {
     });
     if (!existing) return NextResponse.json({ error: "Material not found" }, { status: 404 });
 
-    // Delete blob from Vercel Blob storage
-    try { await del(existing.fileUrl); } catch { /* blob may already be gone */ }
+    // Delete stored file
+    await deleteFile(existing.fileUrl);
 
     await prisma.tutorMaterial.delete({ where: { id: materialId } });
     return NextResponse.json({ success: true });

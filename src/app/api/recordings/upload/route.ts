@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import { getSession } from "@/lib/session";
+import { storeFile } from "@/lib/fileStorage";
 
-// POST — upload a video/recording file to Vercel Blob
+// POST — upload a video/recording file
 // Accessible by admin and tutor only
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +21,10 @@ export async function POST(req: NextRequest) {
       "video/x-msvideo", "video/mpeg",
     ];
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: "Only video files are allowed (MP4, WebM, MOV, etc.)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Only video files are allowed (MP4, WebM, MOV, etc.)" },
+        { status: 400 }
+      );
     }
 
     // Max 500 MB
@@ -29,17 +32,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File too large. Maximum 500 MB." }, { status: 400 });
     }
 
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const blobPath = `recordings/${session.userId ?? "unknown"}/${Date.now()}-${safeName}`;
+    const folder = `recordings/${session.userId ?? "unknown"}`;
+    const { url, size } = await storeFile(file, folder);
 
-    const blob = await put(blobPath, file, { access: "public" });
-
-    const mb  = file.size / (1024 * 1024);
-    const sizeStr = mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`;
-
-    return NextResponse.json({ url: blob.url, size: sizeStr, name: file.name });
+    return NextResponse.json({ url, size, name: file.name });
   } catch (err) {
     console.error("[recordings/upload]", err);
-    return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+    return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
   }
 }
