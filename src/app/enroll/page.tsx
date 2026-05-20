@@ -171,10 +171,9 @@ function EnrollInner() {
                     <div className="flex items-end gap-1 mb-1">
                       <IndianRupee size={20} className="text-primary mb-0.5" />
                       <span className="font-display text-3xl font-extrabold text-primary">{course.price}</span>
-                      <span className="text-on-surface-variant text-sm mb-0.5">/month</span>
                     </div>
                     <p className="text-xs text-on-surface-variant mb-4 flex items-center gap-1">
-                      <BookOpen size={11} /> {course.durationValue ?? 1} {course.durationUnit ?? "months"} · 1 session/week · 45 min each
+                      <BookOpen size={11} /> for {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
                     </p>
 
                     <div className="mt-auto space-y-2">

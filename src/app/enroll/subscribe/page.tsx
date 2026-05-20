@@ -356,7 +356,7 @@ function SubscribeInner() {
             </div>
             <h1 className="font-display text-3xl font-extrabold text-on-surface">Book Your Sessions</h1>
             <p className="text-on-surface-variant text-sm mt-1">
-              {durationValue} {durationUnit} course · Daily Mon–Fri · 45 min each
+              {durationValue} {durationUnit} course · Daily Mon–Fri
             </p>
           </div>
 
@@ -435,7 +435,7 @@ function SubscribeInner() {
               <div className="bg-primary/5 border border-primary/15 rounded-2xl p-4 mb-5">
                 <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-1">Selected Slot</p>
                 <p className="font-bold text-on-surface">Mon–Fri at {selTime}</p>
-                <p className="text-xs text-on-surface-variant mt-0.5">Daily · {sessionDates.length} sessions total · 45 min each</p>
+                <p className="text-xs text-on-surface-variant mt-0.5">Daily Mon–Fri · {sessionDates.length} sessions over {durationValue} {durationUnit}</p>
               </div>
 
               <div className="space-y-4 mb-5">
@@ -485,7 +485,7 @@ function SubscribeInner() {
                   <div>
                     <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wide mb-0.5">Subscribing to</p>
                     <p className="font-bold text-on-surface text-lg">{courseName}</p>
-                    <p className="text-xs text-on-surface-variant mt-0.5">Mon–Fri at {selTime} · {sessionDates.length} total sessions · {durationValue} {durationUnit}</p>
+                    <p className="text-xs text-on-surface-variant mt-0.5">Mon–Fri at {selTime} · {sessionDates.length} sessions · {durationValue} {durationUnit} course</p>
                   </div>
                   <div className="text-right shrink-0">
                     {ratesLoading
@@ -494,7 +494,7 @@ function SubscribeInner() {
                           {currInfo.symbol}{converted.toLocaleString("en",{minimumFractionDigits:2,maximumFractionDigits:2})}
                         </span>
                     }
-                    <p className="text-xs text-on-surface-variant">/month</p>
+                    <p className="text-xs text-on-surface-variant">for {durationValue} {durationUnit}</p>
                     {!isINR && !ratesLoading && <p className="text-[11px] text-on-surface-variant/60 mt-0.5">Base: ₹{priceINR}</p>}
                   </div>
                 </div>
