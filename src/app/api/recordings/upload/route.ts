@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { storeFile } from "@/lib/fileStorage";
 
-// POST — upload a video/recording file
-// Accessible by admin and tutor only
+// Force Node.js runtime — required for filesystem access (fs/promises)
+export const runtime = "nodejs";
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
@@ -11,10 +12,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch {
+      return NextResponse.json({ error: "Could not parse uploaded file. Please try again." }, { status: 400 });
+    }
 
-    if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    const file = formData.get("file") as File | null;
+    if (!file) {
+      return NextResponse.json({ error: "No file provided." }, { status: 400 });
+    }
 
     const allowedTypes = [
       "video/mp4", "video/webm", "video/ogg", "video/quicktime",
@@ -27,7 +35,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Max 500 MB
+    // 500 MB limit
     if (file.size > 500 * 1024 * 1024) {
       return NextResponse.json({ error: "File too large. Maximum 500 MB." }, { status: 400 });
     }
@@ -37,7 +45,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url, size, name: file.name });
   } catch (err) {
-    console.error("[recordings/upload]", err);
-    return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
+    console.error("[recordings/upload] error:", err);
+    const message = err instanceof Error ? err.message : "Unknown server error";
+    return NextResponse.json(
+      { error: `Upload failed: ${message}` },
+      { status: 500 }
+    );
   }
 }

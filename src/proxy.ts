@@ -7,8 +7,7 @@ const MAINTENANCE_BYPASS = [
   "/maintenance",
   "/auth/admin-login",
   "/dashboard/admin",
-  "/api/maintenance-status",
-  "/api/auth",
+  "/api/",          // ALL API routes bypass maintenance (never block server-side calls)
   "/_next",
 ];
 
@@ -49,6 +48,10 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$|.*\\.webp$).*)",
+    /*
+     * Run proxy on page routes only — skip API routes, static files, and images
+     * so uploads and other API calls are never intercepted.
+     */
+    "/((?!api/|_next/static|_next/image|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$|.*\\.webp$).*)",
   ],
 };

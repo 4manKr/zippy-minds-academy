@@ -2,22 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { storeFile } from "@/lib/fileStorage";
 
+// Force Node.js runtime — required for filesystem access (fs/promises)
+export const runtime = "nodejs";
+
 async function requireTutor() {
   const session = await getSession();
   if (!session.isLoggedIn || session.role !== "TUTOR") return null;
   return session;
 }
 
-// POST — upload a file, return the public URL
 export async function POST(req: NextRequest) {
   try {
     const session = await requireTutor();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const formData = await req.formData();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch {
+      return NextResponse.json({ error: "Could not parse uploaded file. Please try again." }, { status: 400 });
+    }
+
     const file = formData.get("file") as File | null;
-
-    if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "No file provided." }, { status: 400 });
+    }
 
     // Validate type
     const allowedTypes = [
@@ -30,14 +41,14 @@ export async function POST(req: NextRequest) {
     ];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: "File type not allowed. Use PDF, Word, PPT or images." },
+        { error: `File type "${file.type}" is not allowed. Please use PDF, Word, PPT or images.` },
         { status: 400 }
       );
     }
 
-    // Max 10 MB
+    // 10 MB limit
     if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: "File too large. Maximum 10 MB." }, { status: 400 });
+      return NextResponse.json({ error: "File is too large. Maximum size is 10 MB." }, { status: 400 });
     }
 
     const folder = `tutor-materials/${session.userId ?? "unknown"}`;
@@ -45,7 +56,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url, size, name: file.name, type: file.type });
   } catch (err) {
-    console.error("[materials/upload]", err);
-    return NextResponse.json({ error: "Upload failed. Please try again." }, { status: 500 });
+    console.error("[tutor/materials/upload] error:", err);
+    const message = err instanceof Error ? err.message : "Unknown server error";
+    return NextResponse.json(
+      { error: `Upload failed: ${message}` },
+      { status: 500 }
+    );
   }
 }
