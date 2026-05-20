@@ -45,6 +45,7 @@ model Booking {
   zoomMeetingId  String?
   declinedTutors String   @default("[]")   // JSON array of tutor names who already declined
   needsAdmin     Boolean  @default(false)  // true when all available tutors declined
+  reminderSent   Boolean  @default(false)  // true once the 30-min reminder has been sent
   createdAt      DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id])

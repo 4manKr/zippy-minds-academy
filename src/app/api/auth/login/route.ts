@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { sendAdminNewUserAlert } from "@/lib/emails";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,6 +40,8 @@ export async function POST(req: NextRequest) {
       user = await prisma.user.create({
         data: { name, email, password: "otp-user", role: dbRole, approvalStatus },
       });
+      // Notify admin of new user (fire-and-forget)
+      sendAdminNewUserAlert({ name: user.name, email: user.email, phone: null, role: user.role });
     }
 
     // Create session

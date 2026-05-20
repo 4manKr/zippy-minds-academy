@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { createZoomMeeting } from "@/lib/zoom";
-import { sendSessionConfirmedEmail } from "@/lib/emails";
+import { sendSessionConfirmedEmail, sendTutorSessionConfirmedEmail } from "@/lib/emails";
 
 async function requireTutor() {
   const session = await getSession();
@@ -83,6 +83,25 @@ export async function PATCH(req: NextRequest) {
         tutorName:   updated.tutorName,
         zoomLink:    updated.zoomLink,
       });
+      // Also notify the tutor with their host (start) URL
+      prisma.user.findFirst({ where: { name: updated.tutorName, role: "TUTOR" }, select: { email: true } })
+        .then(t => {
+          if (t?.email) {
+            sendTutorSessionConfirmedEmail({
+              tutorName:   updated.tutorName,
+              tutorEmail:  t.email,
+              parentName:  updated.parentName,
+              childName:   updated.childName,
+              subject:     updated.subject,
+              grade:       updated.grade || "",
+              date:        updated.date,
+              timeSlot:    updated.timeSlot,
+              timezone:    updated.timezone,
+              zoomStartUrl: updated.zoomStartUrl,
+              zoomLink:    updated.zoomLink,
+            });
+          }
+        }).catch(() => {});
 
       return NextResponse.json({ session: updated, zoomReady: !!zoom });
     }

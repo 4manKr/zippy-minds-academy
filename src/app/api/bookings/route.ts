@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { sendDemoBookedEmail, sendAdminNewBookingAlert } from "@/lib/emails";
+import { sendDemoBookedEmail, sendAdminNewBookingAlert, sendTutorNewRequestEmail } from "@/lib/emails";
 
 // POST — create a new demo booking + auto-generate Zoom meeting
 export async function POST(req: NextRequest) {
@@ -94,6 +94,27 @@ export async function POST(req: NextRequest) {
       timezone:    resolvedTimezone,
       tutorName:   tutorName || "TBD",
     });
+
+    // Notify the assigned tutor (if we have their email)
+    if (tutorName && tutorName !== "TBD") {
+      prisma.user.findFirst({ where: { name: tutorName, role: "TUTOR" }, select: { email: true } })
+        .then(tutor => {
+          if (tutor?.email) {
+            sendTutorNewRequestEmail({
+              tutorName,
+              tutorEmail:  tutor.email,
+              parentName:  resolvedParentName,
+              parentEmail: resolvedParentEmail,
+              childName,
+              subject,
+              grade:       grade || "",
+              date,
+              timeSlot,
+              timezone:    resolvedTimezone,
+            });
+          }
+        }).catch(() => {});
+    }
 
     return NextResponse.json({
       success:   true,

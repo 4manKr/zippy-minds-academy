@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { createZoomMeeting } from "@/lib/zoom";
-import { sendSessionConfirmedEmail, sendSessionCancelledEmail } from "@/lib/emails";
+import { sendSessionConfirmedEmail, sendSessionCancelledEmail, sendTutorSessionConfirmedEmail } from "@/lib/emails";
 
 export async function GET() {
   try {
@@ -70,6 +70,7 @@ export async function PATCH(req: Request) {
 
     // ── Fire emails based on the new status ──────────────────────────────────
     if (status === "CONFIRMED" && booking.status !== "CONFIRMED") {
+      // Email parent
       sendSessionConfirmedEmail({
         parentName:  updated.parentName,
         parentEmail: updated.parentEmail,
@@ -82,6 +83,25 @@ export async function PATCH(req: Request) {
         tutorName:   updated.tutorName,
         zoomLink:    updated.zoomLink,
       });
+      // Email tutor with host link
+      prisma.user.findFirst({ where: { name: updated.tutorName, role: "TUTOR" }, select: { email: true } })
+        .then(t => {
+          if (t?.email) {
+            sendTutorSessionConfirmedEmail({
+              tutorName:   updated.tutorName,
+              tutorEmail:  t.email,
+              parentName:  updated.parentName,
+              childName:   updated.childName,
+              subject:     updated.subject,
+              grade:       updated.grade || "",
+              date:        updated.date,
+              timeSlot:    updated.timeSlot,
+              timezone:    updated.timezone,
+              zoomStartUrl: updated.zoomStartUrl,
+              zoomLink:    updated.zoomLink,
+            });
+          }
+        }).catch(() => {});
     }
 
     if (status === "CANCELLED" && booking.status !== "CANCELLED") {

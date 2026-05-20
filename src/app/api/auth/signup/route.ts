@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+import { sendAdminNewUserAlert } from "@/lib/emails";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,6 +44,9 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.create({
       data: { name, email, phone: phone || null, password: hashed, role: "PARENT" },
     });
+
+    // Notify admin of new user (fire-and-forget)
+    sendAdminNewUserAlert({ name: user.name, email: user.email, phone: user.phone, role: user.role });
 
     // Auto-login after signup
     const session = await getSession();

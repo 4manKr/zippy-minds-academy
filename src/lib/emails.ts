@@ -531,3 +531,186 @@ export async function sendParentResponseAlertToAdmin(params: {
     html,
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. NEW USER ALERT — tells admin when someone registers
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendAdminNewUserAlert(user: {
+  name:    string;
+  email:   string;
+  phone?:  string | null;
+  role:    string;
+}) {
+  const roleLabel  = user.role === "TUTOR" ? "Tutor" : "Parent";
+  const roleColor  = user.role === "TUTOR" ? "#7c3aed" : "#1d4ed8";
+  const roleBg     = user.role === "TUTOR" ? "#ede9fe" : "#dbeafe";
+
+  const html = wrapper(`
+    <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
+      🎉 New ${roleLabel} Registered
+    </h2>
+    <p style="font-size:14px;color:#555;margin:0 0 20px;">
+      A new ${roleLabel.toLowerCase()} just signed up on Zippy Minds Academy.
+    </p>
+    <div style="background:#f0f7ff;border:1px solid #c7dcf5;border-radius:14px;padding:16px;margin-bottom:20px;">
+      <table width="100%" cellpadding="0" cellspacing="6">
+        ${infoRow("Name",  user.name)}
+        ${infoRow("Email", user.email)}
+        ${infoRow("Phone", user.phone ?? "Not provided")}
+        ${infoRow("Role",  `<span style="background:${roleBg};color:${roleColor};font-weight:700;padding:2px 10px;border-radius:20px;font-size:12px;">${roleLabel}</span>`)}
+      </table>
+    </div>
+    ${user.role === "TUTOR"
+      ? `<div style="background:#faf5ff;border:1px solid #d8b4fe;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+           <p style="font-size:13px;color:#7c3aed;font-weight:700;margin:0;">⚠️ This tutor is pending approval. Review and approve from the admin dashboard.</p>
+         </div>`
+      : ""}
+    ${btnPrimary("Open Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
+  `);
+
+  await send(ADMIN_EMAIL, `🎉 New ${roleLabel} — ${user.name} (${user.email})`, html);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. TUTOR NEW SESSION REQUEST — sent to tutor when a parent books a demo
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendTutorNewRequestEmail(params: {
+  tutorName:   string;
+  tutorEmail:  string;
+  parentName:  string;
+  parentEmail: string;
+  childName:   string;
+  subject:     string;
+  grade:       string;
+  date:        string;
+  timeSlot:    string;
+  timezone:    string;
+}) {
+  const { tutorName, tutorEmail, parentName, childName, subject, grade, date, timeSlot, timezone } = params;
+
+  const html = wrapper(`
+    <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
+      📋 New Demo Request
+    </h2>
+    <p style="font-size:14px;color:#555;margin:0 0 6px;">
+      Hi <strong>${tutorName}</strong>, you have a new demo session request waiting for your confirmation.
+    </p>
+    <div style="background:#f0f7ff;border:1px solid #c7dcf5;border-radius:14px;padding:16px;margin:16px 0;">
+      <table width="100%" cellpadding="0" cellspacing="6">
+        ${infoRow("Student",  childName)}
+        ${infoRow("Grade",    grade)}
+        ${infoRow("Subject",  subject)}
+        ${infoRow("Date",     date)}
+        ${infoRow("Time",     `${timeSlot} (${timezone})`)}
+        ${infoRow("Parent",   parentName)}
+      </table>
+    </div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+      <p style="font-size:13px;color:#c2410c;font-weight:700;margin:0;">
+        ⏰ Please log in and accept or decline this request as soon as possible.
+      </p>
+    </div>
+    ${btnPrimary("Go to Tutor Dashboard →", `${BASE_URL}/dashboard/tutor`)}
+  `);
+
+  await send(tutorEmail, `📋 New Demo Request — ${subject} for ${childName} on ${date}`, html);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. TUTOR SESSION CONFIRMED — sent to tutor when Zoom link is ready
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendTutorSessionConfirmedEmail(params: {
+  tutorName:   string;
+  tutorEmail:  string;
+  parentName:  string;
+  childName:   string;
+  subject:     string;
+  grade:       string;
+  date:        string;
+  timeSlot:    string;
+  timezone:    string;
+  zoomStartUrl?: string | null;
+  zoomLink?:     string | null;
+}) {
+  const { tutorName, tutorEmail, parentName, childName, subject, grade, date, timeSlot, timezone, zoomStartUrl, zoomLink } = params;
+  const meetingUrl = zoomStartUrl ?? zoomLink ?? "";
+
+  const html = wrapper(`
+    <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
+      🎊 Session Confirmed — Zoom Ready!
+    </h2>
+    <p style="font-size:14px;color:#555;margin:0 0 6px;">
+      Hi <strong>${tutorName}</strong>, your session has been confirmed and the Zoom meeting is ready.
+    </p>
+    <div style="background:#f0f7ff;border:1px solid #c7dcf5;border-radius:14px;padding:16px;margin:16px 0;">
+      <table width="100%" cellpadding="0" cellspacing="6">
+        ${infoRow("Student",  childName)}
+        ${infoRow("Grade",    grade)}
+        ${infoRow("Subject",  subject)}
+        ${infoRow("Date",     date)}
+        ${infoRow("Time",     `${timeSlot} (${timezone})`)}
+        ${infoRow("Parent",   parentName)}
+      </table>
+    </div>
+    ${meetingUrl
+      ? `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:14px;padding:18px;margin-bottom:20px;text-align:center;">
+           <p style="font-size:13px;font-weight:700;color:#166534;margin:0 0 12px;">🎥 Your Host Link (Start the Meeting)</p>
+           <a href="${meetingUrl}" style="display:inline-block;background:#059669;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:10px;text-decoration:none;">
+             Start Zoom Meeting →
+           </a>
+         </div>`
+      : ""}
+    ${btnPrimary("Open Tutor Dashboard →", `${BASE_URL}/dashboard/tutor`)}
+  `);
+
+  await send(tutorEmail, `🎊 Confirmed — ${subject} with ${childName} on ${date}`, html);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. SESSION REMINDER — sent 30 min before to both parent and tutor
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendSessionReminderEmail(params: {
+  to:          string;
+  toName:      string;
+  role:        "parent" | "tutor";
+  childName:   string;
+  subject:     string;
+  date:        string;
+  timeSlot:    string;
+  timezone:    string;
+  tutorName:   string;
+  zoomLink?:   string | null;
+  zoomStartUrl?: string | null;
+}) {
+  const { to, toName, role, childName, subject, date, timeSlot, timezone, tutorName, zoomLink, zoomStartUrl } = params;
+  const meetingUrl = role === "tutor" ? (zoomStartUrl ?? zoomLink ?? "") : (zoomLink ?? "");
+
+  const html = wrapper(`
+    <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
+      ⏰ Your Session Starts in 30 Minutes!
+    </h2>
+    <p style="font-size:14px;color:#555;margin:0 0 6px;">
+      Hi <strong>${toName}</strong>, your ${subject} session is coming up soon. Get ready!
+    </p>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:16px;margin:16px 0;">
+      <table width="100%" cellpadding="0" cellspacing="6">
+        ${infoRow("Subject",  subject)}
+        ${role === "parent" ? infoRow("Student",  childName) : infoRow("Student", childName)}
+        ${infoRow("Tutor",    tutorName)}
+        ${infoRow("Time",     `${timeSlot} (${timezone})`)}
+        ${infoRow("Date",     date)}
+      </table>
+    </div>
+    ${meetingUrl
+      ? `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:14px;padding:18px;margin-bottom:20px;text-align:center;">
+           <p style="font-size:13px;font-weight:700;color:#166534;margin:0 0 12px;">🎥 ${role === "tutor" ? "Start the meeting (host link)" : "Join your session"}</p>
+           <a href="${meetingUrl}" style="display:inline-block;background:#059669;color:#fff;font-weight:700;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none;">
+             ${role === "tutor" ? "Start Zoom Meeting →" : "Join Zoom Meeting →"}
+           </a>
+         </div>`
+      : `<p style="font-size:13px;color:#666;text-align:center;">Your Zoom link will be shared shortly. Check your dashboard.</p>`}
+    ${btnPrimary("Open Dashboard →", `${BASE_URL}/${role === "tutor" ? "dashboard/tutor" : "dashboard/parent"}`)}
+  `);
+
+  await send(to, `⏰ Reminder: ${subject} session in 30 mins — ${timeSlot}`, html);
+}
