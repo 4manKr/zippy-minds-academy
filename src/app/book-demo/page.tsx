@@ -244,16 +244,30 @@ function BookDemoInner() {
     [tutorAvail],
   );
 
+  // Whether a DB tutor is matched for the selected subject
+  const hasDbTutor = !!dbTutorBySubject[form.subject];
+
   // Compute available time slots for the selected date based on tutor's availability
   const timeSlots = useMemo(() => {
     const dateEntry = calendarDates[form.selectedDateIdx];
     const dayName   = dateEntry?.dayShort ?? "";
 
-    // Use the tutor's slots for this specific day if declared; otherwise show all slots.
     const declaredDaySlots = tutorAvail[dayName];
-    const daySlots: string[] = (Array.isArray(declaredDaySlots) && declaredDaySlots.length > 0)
-      ? declaredDaySlots
-      : ALL_TIME_SLOTS.map(s => s.time);
+    let daySlots: string[];
+
+    if (!hasDbTutor) {
+      // No DB tutor — show all slots generically (tutorPool fallback)
+      daySlots = ALL_TIME_SLOTS.map(s => s.time);
+    } else if (tutorHasAnyAvail) {
+      // Tutor has declared availability → strict: only use declared slots for this day.
+      // Empty/undeclared day means tutor is NOT available that day.
+      daySlots = (Array.isArray(declaredDaySlots) && declaredDaySlots.length > 0)
+        ? declaredDaySlots
+        : [];
+    } else {
+      // Tutor exists but hasn't set up availability yet → show all (pending confirmation)
+      daySlots = ALL_TIME_SLOTS.map(s => s.time);
+    }
 
     // For today — filter out slots that have already passed (+ 1 hr buffer)
     const nowMinutes = dateEntry?.isToday
@@ -649,9 +663,14 @@ function BookDemoInner() {
               </h2>
               <p className="text-sm text-on-surface-variant mb-4">
                 Showing times in <span className="font-medium text-on-surface">{tzLabel}</span>
-                {tutorHasAnyAvail && (
+                {hasDbTutor && tutorHasAnyAvail && (
                   <> · <span className="text-primary font-medium">
-                    {assignedTutor.name}&apos;s available slots
+                    {assignedTutor.name}&apos;s declared slots only
+                  </span></>
+                )}
+                {hasDbTutor && !tutorHasAnyAvail && (
+                  <> · <span className="text-amber-600 font-medium">
+                    Availability pending — tutor will confirm
                   </span></>
                 )}
               </p>
@@ -709,20 +728,33 @@ function BookDemoInner() {
                 })}
               </div>
 
+              {/* Amber banner when tutor exists but hasn't set availability */}
+              {hasDbTutor && !tutorHasAnyAvail && (
+                <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                  <span className="text-lg shrink-0">⚠️</span>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {assignedTutor.name} hasn&apos;t set their schedule yet
+                    </p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      All time slots are shown for now. Pick your preferred slot and your tutor will confirm the session.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {timeSlots.every(s => !s.available) ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <span className="text-4xl mb-3">📅</span>
                   <p className="font-semibold text-on-surface">
                     {timeSlots.some(s => s.isPast && !s.available)
                       ? "All slots for today have passed"
-                      : `No slots available on ${selectedDateEntry?.dayShort}s`}
+                      : `${assignedTutor.name} is not available on ${selectedDateEntry?.dayShort}s`}
                   </p>
                   <p className="text-sm text-on-surface-variant mt-1">
                     {timeSlots.some(s => s.isPast)
                       ? "Please select a future date to book your demo."
-                      : tutorHasAnyAvail
-                      ? `${assignedTutor.name} hasn't declared slots on ${selectedDateEntry?.dayShort}s. Try a day with a 🟢 dot.`
-                      : "Please select a different date."}
+                      : "Please pick a date with a 🟢 dot — those are days with declared availability."}
                   </p>
                 </div>
               ) : (
@@ -751,7 +783,9 @@ function BookDemoInner() {
                   </div>
                   <p className="text-xs text-on-surface-variant/60 mt-4 text-center">
                     {tutorHasAnyAvail
-                      ? `Dimmed slots = outside ${assignedTutor.name}'s declared hours · Times in your timezone`
+                      ? `Dimmed = outside ${assignedTutor.name}'s declared hours · Times in your timezone`
+                      : hasDbTutor
+                      ? `All slots subject to ${assignedTutor.name}'s confirmation · Times in your timezone`
                       : "Dimmed slots have already passed · Times shown in your local timezone"}
                   </p>
                 </>
