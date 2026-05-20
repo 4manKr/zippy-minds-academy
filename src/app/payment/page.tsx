@@ -63,12 +63,8 @@ const TZ_CURRENCY: Record<string, string> = {
   "Pacific/Auckland":    "NZD",
 };
 
-// Which gateways handle which currencies
-const GATEWAY_CURRENCIES: Record<string, string[]> = {
-  razorpay: ["INR"],                                // INR only
-  stripe:   ["USD","GBP","EUR","AED","SGD","AUD","CAD","MYR","SAR","NZD"],
-  paypal:   ["USD","GBP","EUR","AUD","CAD","SGD","NZD"],
-};
+// PayPal supported currencies (server auto-falls back to USD if not in this list)
+const PAYPAL_CURRENCIES = ["USD","GBP","EUR","AUD","CAD","SGD","NZD","MYR"];
 
 // ── Gateway list ──────────────────────────────────────────────────────────────
 
@@ -144,10 +140,10 @@ function PaymentInner() {
       .finally(() => setRatesLoading(false));
   }, []);
 
-  // Auto-select best gateway when currency is known
+  // Auto-select best gateway when currency is known (just a default — user can pick any)
   useEffect(() => {
     if (userCurrency === "INR") { setSelected("razorpay"); return; }
-    if (GATEWAY_CURRENCIES.paypal.includes(userCurrency)) { setSelected("paypal"); return; }
+    if (PAYPAL_CURRENCIES.includes(userCurrency)) { setSelected("paypal"); return; }
     setSelected("stripe");
   }, [userCurrency]);
 
@@ -157,14 +153,13 @@ function PaymentInner() {
   const converted  = Math.ceil(inrAmount * rate * 100) / 100; // round up to 2dp
   const isINR      = userCurrency === "INR";
 
-  // Gateways: mark recommended based on currency + mark unsupported
+  // All gateways are always available — just mark the recommended one
   const enrichedGateways = GATEWAYS.map(gw => {
-    let supported = true;
     let recommended = false;
-    if (gw.id === "razorpay") { supported = isINR;    recommended = isINR; }
-    if (gw.id === "stripe")   { supported = !isINR;   recommended = !isINR && !GATEWAY_CURRENCIES.paypal.includes(userCurrency); }
-    if (gw.id === "paypal")   { supported = GATEWAY_CURRENCIES.paypal.includes(userCurrency); recommended = !isINR && GATEWAY_CURRENCIES.paypal.includes(userCurrency); }
-    return { ...gw, supported, recommended };
+    if (gw.id === "razorpay" && isINR) recommended = true;
+    if (gw.id === "paypal"   && !isINR && PAYPAL_CURRENCIES.includes(userCurrency)) recommended = true;
+    if (gw.id === "stripe"   && !isINR && !PAYPAL_CURRENCIES.includes(userCurrency)) recommended = true;
+    return { ...gw, supported: true, recommended };
   });
 
   const handleCopy = (text: string, key: string) => {
@@ -185,9 +180,28 @@ function PaymentInner() {
 
     setLoading(true);
     try {
-      // Razorpay always in INR; others in user's currency
-      const chargeAmount   = selected === "razorpay" ? inrAmount  : converted;
-      const chargeCurrency = selected === "razorpay" ? "INR"      : userCurrency;
+      // Razorpay → always INR
+      // PayPal   → user currency if supported, otherwise USD
+      // Stripe   → user currency if not INR, otherwise USD
+      let chargeAmount   = converted;
+      let chargeCurrency = userCurrency;
+
+      if (selected === "razorpay") {
+        chargeAmount   = inrAmount;
+        chargeCurrency = "INR";
+      } else if (selected === "paypal") {
+        if (!PAYPAL_CURRENCIES.includes(userCurrency)) {
+          // Convert to USD for PayPal when currency not supported
+          chargeCurrency = "USD";
+          chargeAmount   = Math.ceil(inrAmount * (rates["USD"] ?? 0.012) * 100) / 100;
+        }
+      } else if (selected === "stripe") {
+        if (userCurrency === "INR") {
+          // Stripe can handle INR in some regions; fall back to USD if needed
+          chargeCurrency = "USD";
+          chargeAmount   = Math.ceil(inrAmount * (rates["USD"] ?? 0.012) * 100) / 100;
+        }
+      }
 
       const res = await fetch("/api/payment/create-order", {
         method:  "POST",
@@ -339,49 +353,36 @@ function PaymentInner() {
 
           {/* Gateway selection */}
           <div className="space-y-3 mb-6">
-            {enrichedGateways.map(gw => {
-              const isUnsupported = !gw.supported && (gw.id === "razorpay" || gw.id === "stripe" || gw.id === "paypal");
-              return (
-                <button key={gw.id}
-                  onClick={() => gw.supported && setSelected(gw.id)}
-                  disabled={isUnsupported}
-                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
-                    isUnsupported
-                      ? "border-outline-variant/30 bg-surface-container/40 opacity-40 cursor-not-allowed"
-                      : selected === gw.id
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-outline-variant hover:border-primary/40 bg-surface-container-lowest"
-                  }`}>
-                  <div className={`w-11 h-11 rounded-xl ${gw.iconBg} flex items-center justify-center text-xl shrink-0`}>
-                    {gw.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-on-surface text-sm">{gw.label}</span>
-                      {gw.recommended && (
-                        <span className="text-[10px] font-bold bg-primary text-on-primary px-2 py-0.5 rounded-full">
-                          Recommended
-                        </span>
-                      )}
-                      {isUnsupported && (
-                        <span className="text-[10px] font-medium text-on-surface-variant/60">
-                          (not available for {currInfo.code})
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-on-surface-variant mt-0.5">{gw.subtitle}</p>
-                  </div>
-                  <div className="shrink-0 flex items-center gap-2">
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${gw.badgeColor}`}>{gw.badge}</span>
-                    {!isUnsupported && (
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selected === gw.id ? "border-primary bg-primary" : "border-outline-variant"}`}>
-                        {selected === gw.id && <div className="w-2 h-2 rounded-full bg-white" />}
-                      </div>
+            {enrichedGateways.map(gw => (
+              <button key={gw.id}
+                onClick={() => setSelected(gw.id)}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
+                  selected === gw.id
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-outline-variant hover:border-primary/40 bg-surface-container-lowest"
+                }`}>
+                <div className={`w-11 h-11 rounded-xl ${gw.iconBg} flex items-center justify-center text-xl shrink-0`}>
+                  {gw.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-on-surface text-sm">{gw.label}</span>
+                    {gw.recommended && (
+                      <span className="text-[10px] font-bold bg-primary text-on-primary px-2 py-0.5 rounded-full">
+                        Recommended
+                      </span>
                     )}
                   </div>
-                </button>
-              );
-            })}
+                  <p className="text-xs text-on-surface-variant mt-0.5">{gw.subtitle}</p>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${gw.badgeColor}`}>{gw.badge}</span>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selected === gw.id ? "border-primary bg-primary" : "border-outline-variant"}`}>
+                    {selected === gw.id && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
 
           {/* Inline bank details */}
