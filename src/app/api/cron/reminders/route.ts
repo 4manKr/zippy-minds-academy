@@ -45,13 +45,16 @@ function sessionToUTC(dateStr: string, timeSlot: string, tz: string): Date | nul
 
 // POST — called by Vercel Cron every minute; sends reminders for sessions starting in ~30 min
 export async function POST(req: NextRequest) {
-  // Verify cron secret so this can't be called by anyone
+  // Verify cron secret — accept via Authorization header OR ?secret= query param
   const authHeader = req.headers.get("authorization");
-  if (
-    process.env.CRON_SECRET &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const querySecret = req.nextUrl.searchParams.get("secret");
+  const secret = process.env.CRON_SECRET;
+  if (secret) {
+    const headerOk = authHeader === `Bearer ${secret}`;
+    const queryOk  = querySecret === secret;
+    if (!headerOk && !queryOk) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   try {
