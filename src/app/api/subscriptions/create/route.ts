@@ -6,41 +6,53 @@ import { sendSubscriptionConfirmedEmail, sendTutorEnrollmentAssignedEmail } from
 
 export const runtime = "nodejs";
 
-// ── Date generation (server-side, Mon-Fri daily) ─────────────────────────────
+// ── Date generation (server-side, selected weekdays) ─────────────────────────
 function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
-function generateMFDates(
+const DAY_NUMS: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+function generateSelectedDaysDates(
   timezone: string,
+  selectedDays: string[],   // e.g. ["Mon","Wed","Fri"]
   durationValue: number,
   durationUnit: string,
 ): string[] {
+  if (selectedDays.length === 0) return [];
+
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year:"numeric", month:"2-digit", day:"2-digit" });
   const todayStr = fmt.format(new Date());
-  const [y,m,d] = todayStr.split("-").map(Number);
+  const [y, m, d] = todayStr.split("-").map(Number);
+
+  const dayNums = selectedDays
+    .map(dn => DAY_NUMS[dn])
+    .filter((n): n is number => n !== undefined);
 
   const start = new Date(y, m-1, d+1);
   let end: Date;
-  if      (durationUnit === "days")  end = new Date(y, m-1, d + durationValue * 2 + 10); // buffer for weekends
-  else if (durationUnit === "weeks") end = new Date(y, m-1, d + durationValue * 7 + 1);
-  else                               end = new Date(y, m-1 + durationValue, d + 1);
+  if (durationUnit === "days") {
+    const weeksNeeded = Math.ceil(durationValue / selectedDays.length) + 2;
+    end = new Date(y, m-1, d + weeksNeeded * 7 + 7);
+  } else if (durationUnit === "weeks") {
+    end = new Date(y, m-1, d + durationValue * 7 + 1);
+  } else {
+    end = new Date(y, m-1 + durationValue, d + 1);
+  }
 
   const dates: string[] = [];
   const cur = new Date(start);
 
   if (durationUnit === "days") {
-    // Generate exactly durationValue weekdays
     while (dates.length < durationValue) {
-      const day = cur.getDay();
-      if (day >= 1 && day <= 5) dates.push(toDateStr(cur));
+      if (dayNums.includes(cur.getDay())) dates.push(toDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
   } else {
-    // Generate all Mon-Fri within range
     while (cur < end) {
-      const day = cur.getDay();
-      if (day >= 1 && day <= 5) dates.push(toDateStr(cur));
+      if (dayNums.includes(cur.getDay())) dates.push(toDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
   }
@@ -59,6 +71,7 @@ export async function POST(req: NextRequest) {
       gateway, gatewayId,
       amount, currency,
       courseId, courseName,
+      selectedDays,
       timeSlot, timezone,
       childName, childAge, grade,
       durationValue, durationUnit,
@@ -71,11 +84,14 @@ export async function POST(req: NextRequest) {
     const parentName  = session.name  ?? "Parent";
     const parentEmail = session.email ?? "";
 
-    // Regenerate dates server-side (don't trust client) — daily Mon-Fri
-    const dv  = Number(durationValue) || 1;
-    const du  = durationUnit ?? "months";
-    const tz  = timezone ?? "Asia/Kolkata";
-    const sessionDates = generateMFDates(tz, dv, du);
+    // Regenerate dates server-side (don't trust client)
+    const dv   = Number(durationValue) || 1;
+    const du   = durationUnit ?? "months";
+    const tz   = timezone ?? "Asia/Kolkata";
+    const days: string[] = Array.isArray(selectedDays) && selectedDays.length > 0
+      ? selectedDays
+      : ["Mon","Tue","Wed","Thu","Fri"];   // fallback to Mon-Fri
+    const sessionDates = generateSelectedDaysDates(tz, days, dv, du);
 
     if (sessionDates.length === 0) {
       return NextResponse.json({ error: "No valid session dates generated" }, { status: 400 });
@@ -109,7 +125,7 @@ export async function POST(req: NextRequest) {
         subject:       courseName,
         courseId:      courseId ?? null,
         courseName,
-        dayOfWeek:     "Mon-Fri",
+        dayOfWeek:     days.join(","),
         timeSlot,
         timezone:      tz,
         startDate:     sessionDates[0],
@@ -143,7 +159,7 @@ export async function POST(req: NextRequest) {
           childName:     childName ?? "",
           subject:       courseName,
           grade:         grade ?? "",
-          dayOfWeek:     "Mon-Fri",
+          dayOfWeek:     days.join(","),
           date,
           timeSlot,
           timezone:      tz,
@@ -204,7 +220,7 @@ export async function POST(req: NextRequest) {
       parentEmail,
       childName:    childName ?? "",
       courseName,
-      dayOfWeek:    "Mon-Fri",
+      dayOfWeek:    days.join(", "),
       timeSlot,
       timezone:     tz,
       durationValue: dv,
