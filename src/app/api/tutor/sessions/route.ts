@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { createZoomMeeting } from "@/lib/zoom";
 import { sendSessionConfirmedEmail, sendTutorSessionConfirmedEmail } from "@/lib/emails";
+import { findBestTutor } from "@/lib/tutorAssignment";
 
 async function requireTutor() {
   const session = await getSession();
@@ -141,38 +142,31 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ session: updated, zoomReady: !!zoom });
     }
 
-    // ── Reject: cascade to next available tutor ───────────────────────────
+    // ── Reject: cascade to next available tutor by priority ──────────────
     if (action === "reject") {
-      // Build the declined list, add the current tutor
       const declinedList: string[] = (() => {
         try { return JSON.parse(booking.declinedTutors || "[]") as string[]; } catch { return []; }
       })();
       if (!declinedList.includes(session.name!)) declinedList.push(session.name!);
 
-      // Find next approved tutor for this subject, not already declined
-      const allTutors = await prisma.user.findMany({
-        where: { role: "TUTOR", approvalStatus: "APPROVED" },
-        select: { id: true, name: true, subjects: true },
+      // Derive day-of-week from booking date for availability check
+      const bookingDateObj = new Date(booking.date);
+      const dayShorts = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const bookingDay = dayShorts[bookingDateObj.getDay()];
+
+      const nextTutor = await findBestTutor({
+        subject:      booking.subject,
+        timeSlot:     booking.timeSlot,
+        days:         [bookingDay],
+        excludeNames: declinedList,
       });
 
-      const nextTutor = allTutors.find((t) => {
-        if (declinedList.includes(t.name)) return false;
-        try {
-          const subjectList: string[] = JSON.parse(t.subjects || "[]");
-          return subjectList.includes(booking.subject);
-        } catch { return false; }
-      }) ?? null;
-
       if (nextTutor) {
-        // Reassign to next tutor — parent still sees "Pending"
-        const initials = nextTutor.name
-          .split(" ").filter(Boolean).map((p) => p[0]).join("").toUpperCase().slice(0, 2);
-
         const updated = await prisma.booking.update({
           where: { id: bookingId },
           data: {
             tutorName:      nextTutor.name,
-            tutorInitials:  initials,
+            tutorInitials:  nextTutor.initials,
             declinedTutors: JSON.stringify(declinedList),
             status:         "PENDING",
             needsAdmin:     false,
@@ -181,13 +175,13 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ session: updated, reassigned: true });
       }
 
-      // No tutor available — escalate to admin, parent still sees "Pending"
+      // No tutor available — escalate to admin
       const updated = await prisma.booking.update({
         where: { id: bookingId },
         data: {
           declinedTutors: JSON.stringify(declinedList),
           needsAdmin:     true,
-          tutorName:      "",   // unassigned until admin acts
+          tutorName:      "",
           tutorInitials:  "",
           status:         "PENDING",
         },

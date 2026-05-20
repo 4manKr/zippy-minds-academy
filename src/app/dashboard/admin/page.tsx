@@ -49,6 +49,11 @@ export default function AdminDashboard() {
   const [recordings,   setRecordings]   = useState<DBRecording[]>([]);
   const [adminPayments,setAdminPayments]= useState<DBPayment[]>([]);
   const [enrollments,  setEnrollments]  = useState<DBEnrollment[]>([]);
+  // Tutor priority
+  const [priorityTutors,  setPriorityTutors]  = useState<{id:string;name:string;email:string;subjects:string[];tutorPriority:number}[]>([]);
+  const [priorityEdits,   setPriorityEdits]   = useState<Record<string,string>>({});
+  const [prioritySaving,  setPrioritySaving]  = useState<Record<string,boolean>>({});
+  const [tutorTab,        setTutorTab]        = useState<"list"|"priority">("list");
   const [loading,      setLoading]      = useState<Record<string,boolean>>({});
 
   // UI state
@@ -172,7 +177,33 @@ export default function AdminDashboard() {
       fetch("/api/admin/availability").then(r=>r.json()).then(d => { if(d.availabilities) setAvailabilities(d.availabilities); });
       fetch("/api/admin/availability/change-request").then(r=>r.json()).then(d => { if(d.requests) setChangeRequests(d.requests); });
     }
+    if (section === "tutors") {
+      fetch("/api/admin/tutor-priority").then(r=>r.ok?r.json():{tutors:[]}).then(d => {
+        if (d.tutors) {
+          setPriorityTutors(d.tutors);
+          const edits: Record<string,string> = {};
+          for (const t of d.tutors) edits[t.id] = String(t.tutorPriority === 999 ? "" : t.tutorPriority);
+          setPriorityEdits(edits);
+        }
+      }).catch(()=>{});
+    }
   }, [section]);
+
+  const handleSavePriority = async (tutorId: string) => {
+    const raw = priorityEdits[tutorId] ?? "";
+    const val = parseInt(raw, 10);
+    if (!raw || isNaN(val) || val < 1) return;
+    setPrioritySaving(p=>({...p,[tutorId]:true}));
+    try {
+      await fetch("/api/admin/tutor-priority", {
+        method:"PATCH", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ tutorId, priority: val }),
+      });
+      setPriorityTutors(p => p.map(t => t.id===tutorId ? {...t, tutorPriority:val} : t).sort((a,b)=>(a.tutorPriority-b.tutorPriority||0)));
+    } finally {
+      setPrioritySaving(p=>({...p,[tutorId]:false}));
+    }
+  };
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method:"POST" });
@@ -980,6 +1011,70 @@ export default function AdminDashboard() {
           {/* ══ TUTOR APPROVALS ══ */}
           {section==="tutors" && (
             <div className="space-y-4">
+
+              {/* Sub-tab switcher */}
+              <div className="flex gap-2">
+                {(["list","priority"] as const).map(tab => (
+                  <button key={tab} onClick={()=>setTutorTab(tab)}
+                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${tutorTab===tab?"bg-blue-600 text-white":"bg-white border border-gray-200 text-gray-600 hover:border-blue-400"}`}>
+                    {tab==="list" ? "All Tutors" : "🎯 Assignment Priority"}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Priority tab ── */}
+              {tutorTab==="priority" && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                  <div className="mb-4">
+                    <h2 className="font-bold text-gray-900 text-lg">Tutor Assignment Priority</h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Lower number = assigned first. Tutors with priority 1 are always tried before priority 2, etc.
+                      Leave blank to use default order (999).
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    {priorityTutors.length === 0 && (
+                      <p className="text-sm text-gray-400 text-center py-6">No approved tutors yet.</p>
+                    )}
+                    {priorityTutors.map((t, idx) => (
+                      <div key={t.id} className="flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-blue-200 transition-all">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
+                          {idx+1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 truncate">{t.name}</p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {t.subjects.slice(0,3).join(", ")}{t.subjects.length>3 ? ` +${t.subjects.length-3}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-gray-400">Priority:</span>
+                          <input
+                            type="number" min="1" max="999" placeholder="—"
+                            value={priorityEdits[t.id] ?? ""}
+                            onChange={e => setPriorityEdits(p=>({...p,[t.id]:e.target.value}))}
+                            className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:border-blue-400"
+                          />
+                          <button
+                            onClick={()=>handleSavePriority(t.id)}
+                            disabled={prioritySaving[t.id]}
+                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 transition-all">
+                            {prioritySaving[t.id] ? "…" : "Save"}
+                          </button>
+                        </div>
+                        {t.tutorPriority < 999 && (
+                          <span className="text-xs bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full shrink-0">
+                            #{t.tutorPriority}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Tutor list tab ── */}
+              {tutorTab==="list" && (<>
               <div className="grid grid-cols-3 gap-4">
                 {[
                   { label:"Pending",  value:tutors.filter(t=>t.approvalStatus==="PENDING").length,  color:"yellow" },
@@ -1057,6 +1152,7 @@ export default function AdminDashboard() {
                   <TutorTable tutors={tutors} onAction={handleTutorAction} onEdit={t=>{ setEditTutor(t); setEditTutorForm({ name:t.name, phone:t.phone??'', subjects:t.subjects??[], approvalStatus:t.approvalStatus??"PENDING" }); }}/>
                 )}
               </div>
+              </>)}
             </div>
           )}
 

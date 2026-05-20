@@ -206,6 +206,8 @@ function SubscribeInner() {
 
   // Tutor availability for the selected subject (course)
   const [tutorAvailability, setTutorAvailability] = useState<Record<string, string[]>>({});
+  // Preview: highest-priority tutor who would be assigned for the chosen slot+days
+  const [previewTutor, setPreviewTutor] = useState<{ name: string; initials: string; priority: number } | null>(null);
 
   // Details
   const [childName,   setChildName]   = useState("");
@@ -265,6 +267,16 @@ function SubscribeInner() {
   useEffect(() => {
     setSessionDates(generateSelectedDaysDates(timezone, selDays, durationValue, durationUnit));
   }, [timezone, selDays, durationValue, durationUnit]);
+
+  // Fetch preview tutor when subject + days + time slot are all set
+  useEffect(() => {
+    if (!courseName || !selTime || selDays.length === 0) { setPreviewTutor(null); return; }
+    const daysParam = selDays.join(",");
+    fetch(`/api/tutors/for-slot?subject=${encodeURIComponent(courseName)}&timeSlot=${encodeURIComponent(selTime)}&days=${encodeURIComponent(daysParam)}`)
+      .then(r => r.ok ? r.json() : { tutor: null })
+      .then(d => setPreviewTutor(d.tutor ?? null))
+      .catch(() => setPreviewTutor(null));
+  }, [courseName, selTime, selDays]);
 
   // Reset time slot if it's no longer available after day change
   const availableTimeSlots = useMemo(() => {
@@ -530,12 +542,27 @@ function SubscribeInner() {
                 )}
               </div>
 
-              {/* Preview */}
+              {/* Session count + date range preview */}
               {sessionDates.length > 0 && selTime && (
                 <div className="p-3 bg-primary/5 rounded-xl border border-primary/15 text-sm text-on-surface-variant">
                   <span className="font-semibold text-on-surface">{sessionDates.length} sessions</span>
                   {" · "}{sessionDates[0]} → {sessionDates[sessionDates.length-1]}
                   {" · "}{daysLabel} at {selTime}
+                </div>
+              )}
+
+              {/* Assigned tutor preview */}
+              {previewTutor && selTime && (
+                <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                    {previewTutor.initials}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Your assigned tutor</p>
+                    <p className="font-bold text-on-surface">{previewTutor.name}</p>
+                    <p className="text-xs text-green-600 mt-0.5">Priority #{previewTutor.priority === 999 ? "—" : previewTutor.priority} · Will be assigned automatically</p>
+                  </div>
+                  <CheckCircle size={18} className="text-green-500 shrink-0" />
                 </div>
               )}
 

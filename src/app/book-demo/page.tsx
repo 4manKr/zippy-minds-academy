@@ -103,6 +103,7 @@ function buildCalendarDates() {
       monthShort: MONTH_SHORT[d.getMonth()],
       monthYear:  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
       fullDate:   `${MONTH_FULL[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`,
+      isoDate:    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,
       isToday:    i === 0,
     };
   });
@@ -128,8 +129,14 @@ function BookDemoInner() {
   const [authUser, setAuthUser]       = useState<{ id: string; email: string; name: string; role: string } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Live DB tutors: subject → first approved tutor
+  // Live DB tutors: subject → merged availability
   const [dbTutorBySubject, setDbTutorBySubject] = useState<Record<string, DbTutor>>({});
+
+  // Booked slots for the selected date + subject: { "4:00 PM": "Tutor Name" }
+  const [bookedSlots, setBookedSlots] = useState<Record<string, string>>({});
+
+  // Preview: which tutor would be assigned for the selected slot
+  const [previewTutor, setPreviewTutor] = useState<{ name: string; initials: string } | null>(null);
 
   // Build dynamic calendar dates once (client-side only to avoid SSR mismatch)
   const calendarDates = useMemo(() => buildCalendarDates(), []);
@@ -197,6 +204,28 @@ function BookDemoInner() {
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (detected) setForm((f) => ({ ...f, timezone: detected }));
   }, []);
+
+  // Fetch already-booked slots for the selected date + subject
+  useEffect(() => {
+    const dateEntry = calendarDates[form.selectedDateIdx];
+    if (!form.subject || !dateEntry?.isoDate) { setBookedSlots({}); return; }
+    fetch(`/api/bookings/slots?date=${dateEntry.isoDate}&subject=${encodeURIComponent(form.subject)}`)
+      .then(r => r.ok ? r.json() : { booked: {} })
+      .then(d => setBookedSlots(d.booked ?? {}))
+      .catch(() => setBookedSlots({}));
+  }, [form.subject, form.selectedDateIdx, calendarDates]);
+
+  // Fetch preview tutor for the selected slot + subject
+  useEffect(() => {
+    const dateEntry = calendarDates[form.selectedDateIdx];
+    const day = dateEntry?.dayShort ?? "";
+    const slot = ALL_TIME_SLOTS.find(s => s.id === form.selectedSlot)?.time;
+    if (!form.subject || !slot) { setPreviewTutor(null); return; }
+    fetch(`/api/tutors/for-slot?subject=${encodeURIComponent(form.subject)}&timeSlot=${encodeURIComponent(slot)}&days=${day}`)
+      .then(r => r.ok ? r.json() : { tutor: null })
+      .then(d => setPreviewTutor(d.tutor ?? null))
+      .catch(() => setPreviewTutor(null));
+  }, [form.subject, form.selectedSlot, form.selectedDateIdx, calendarDates]);
 
   const nextStep = () => setStep((s) => Math.min(4, s + 1) as Step);
   const prevStep = () => setStep((s) => Math.max(1, s - 1) as Step);
@@ -761,14 +790,21 @@ function BookDemoInner() {
                 <>
                   <div className="grid grid-cols-3 gap-3">
                     {timeSlots.map((slot) => {
-                      const isSelected = form.selectedSlot === slot.id;
+                      const isSelected   = form.selectedSlot === slot.id;
+                      const bookedByName = bookedSlots[slot.time];
+                      const isTaken      = !!bookedByName;
                       return (
                         <button key={slot.id}
-                          disabled={!slot.available}
+                          disabled={!slot.available || isTaken}
                           onClick={() => setForm({ ...form, selectedSlot: slot.id })}
-                          title={slot.isPast ? "This slot has already passed" : !slot.available ? "Tutor unavailable at this time" : ""}
-                          className={`p-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
-                            !slot.available
+                          title={
+                            isTaken       ? `Already booked (${bookedByName})` :
+                            slot.isPast   ? "This slot has already passed" :
+                            !slot.available ? "Tutor unavailable at this time" : ""}
+                          className={`relative p-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
+                            isTaken
+                              ? "bg-red-50 border border-red-200 text-red-400 cursor-not-allowed"
+                              : !slot.available
                               ? "bg-surface-container text-on-surface-variant/30 cursor-not-allowed opacity-50"
                               : isSelected
                               ? "bg-primary text-on-primary shadow-sm ring-2 ring-primary/30"
@@ -776,18 +812,33 @@ function BookDemoInner() {
                           }`}>
                           <Clock size={13} />
                           <span>{slot.time}</span>
-                          {isSelected && <CheckCircle size={13} className="shrink-0" />}
+                          {isTaken     && <span className="absolute -top-1.5 -right-1 text-[9px] bg-red-400 text-white px-1 rounded-full">Taken</span>}
+                          {isSelected  && <CheckCircle size={13} className="shrink-0" />}
                         </button>
                       );
                     })}
                   </div>
                   <p className="text-xs text-on-surface-variant/60 mt-4 text-center">
                     {tutorHasAnyAvail
-                      ? `Dimmed = outside ${assignedTutor.name}'s declared hours · Times in your timezone`
+                      ? `Dimmed = outside tutor's declared hours · Red = already booked · Times in your timezone`
                       : hasDbTutor
-                      ? `All slots subject to ${assignedTutor.name}'s confirmation · Times in your timezone`
+                      ? `Red = already booked · All other slots subject to tutor confirmation`
                       : "Dimmed slots have already passed · Times shown in your local timezone"}
                   </p>
+
+                  {/* Preview tutor card — shown when a slot is selected */}
+                  {previewTutor && form.selectedSlot && (
+                    <div className="mt-4 flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-2xl px-4 py-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/40 to-primary flex items-center justify-center text-white text-sm font-bold shrink-0">
+                        {previewTutor.initials}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-primary uppercase tracking-wide">Your assigned tutor</p>
+                        <p className="font-bold text-on-surface">{previewTutor.name}</p>
+                      </div>
+                      <CheckCircle size={18} className="text-primary ml-auto shrink-0" />
+                    </div>
+                  )}
                 </>
               )}
             </div>

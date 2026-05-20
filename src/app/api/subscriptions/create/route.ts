@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { createZoomMeeting } from "@/lib/zoom";
 import { sendSubscriptionConfirmedEmail, sendTutorEnrollmentAssignedEmail } from "@/lib/emails";
+import { findBestTutor } from "@/lib/tutorAssignment";
 
 export const runtime = "nodejs";
 
@@ -174,25 +175,18 @@ export async function POST(req: NextRequest) {
       sessions.push(ms);
     }
 
-    // ── 4. Auto-assign a tutor for this subject ───────────────────────────
+    // ── 4. Priority-based tutor assignment ───────────────────────────────
     try {
-      const allTutors = await prisma.user.findMany({
-        where: { role: "TUTOR", approvalStatus: "APPROVED" },
-        select: { id: true, name: true, email: true, subjects: true },
+      const assignedTutor = await findBestTutor({
+        subject:  courseName,
+        timeSlot,
+        days,
       });
-      const assignedTutor = allTutors.find(t => {
-        try {
-          const subjectList: string[] = JSON.parse(t.subjects || "[]");
-          return subjectList.includes(courseName);
-        } catch { return false; }
-      }) ?? null;
 
       if (assignedTutor) {
-        const initials = assignedTutor.name
-          .split(" ").filter(Boolean).map((p: string) => p[0]).join("").toUpperCase().slice(0, 2);
         await prisma.monthlySession.updateMany({
           where: { enrollmentId: enrollment.id },
-          data: { tutorName: assignedTutor.name, tutorInitials: initials },
+          data: { tutorName: assignedTutor.name, tutorInitials: assignedTutor.initials },
         });
         if (assignedTutor.email) {
           sendTutorEnrollmentAssignedEmail({

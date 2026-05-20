@@ -17,6 +17,7 @@ model User {
   approvalStatus String   @default("APPROVED") // PENDING | APPROVED | REJECTED (for TUTOR role)
   subjects       String   @default("[]")       // JSON array of subject strings, e.g. '["Mathematics","Science"]'
   availability   String   @default("{}")       // JSON: { "Mon": ["9:00 AM", "10:00 AM"], ... }
+  tutorPriority  Int      @default(999)        // lower = assigned first (1 = top priority)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

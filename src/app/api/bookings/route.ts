@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { sendDemoBookedEmail, sendAdminNewBookingAlert, sendTutorNewRequestEmail } from "@/lib/emails";
+import { findBestTutor } from "@/lib/tutorAssignment";
 
 // POST — create a new demo booking + auto-generate Zoom meeting
 export async function POST(req: NextRequest) {
@@ -48,6 +49,21 @@ export async function POST(req: NextRequest) {
       await prisma.otpCode.update({ where: { id: record.id }, data: { used: true } });
     }
 
+    // ── Server-side priority-based tutor assignment ───────────────────────
+    // Ignore whatever tutorName the client sent; find the best available tutor.
+    // dayShort: derive day-of-week from the booking date string (e.g. "May 25, 2026")
+    const bookingDateObj = new Date(date);
+    const dayShorts = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const bookingDay = dayShorts[bookingDateObj.getDay()];
+
+    const bestTutor = await findBestTutor({
+      subject,
+      timeSlot,
+      days: [bookingDay],
+    });
+    const assignedName     = bestTutor?.name     ?? tutorName     ?? "TBD";
+    const assignedInitials = bestTutor?.initials ?? tutorInitials ?? "??";
+
     // ── Create the booking — always PENDING until tutor accepts ──────────
     // Zoom link is generated only when the tutor confirms via their dashboard.
     const booking = await prisma.booking.create({
@@ -60,8 +76,8 @@ export async function POST(req: NextRequest) {
         grade:         grade         || "",
         timezone:      resolvedTimezone,
         subject,
-        tutorName:     tutorName     || "TBD",
-        tutorInitials: tutorInitials || "??",
+        tutorName:     assignedName,
+        tutorInitials: assignedInitials,
         date,
         timeSlot,
         notes:         notes         || "",
@@ -96,12 +112,12 @@ export async function POST(req: NextRequest) {
     });
 
     // Notify the assigned tutor (if we have their email)
-    if (tutorName && tutorName !== "TBD") {
-      prisma.user.findFirst({ where: { name: tutorName, role: "TUTOR" }, select: { email: true } })
+    if (assignedName && assignedName !== "TBD") {
+      prisma.user.findFirst({ where: { name: assignedName, role: "TUTOR" }, select: { email: true } })
         .then(tutor => {
           if (tutor?.email) {
             sendTutorNewRequestEmail({
-              tutorName,
+              tutorName:   assignedName,
               tutorEmail:  tutor.email,
               parentName:  resolvedParentName,
               parentEmail: resolvedParentEmail,
