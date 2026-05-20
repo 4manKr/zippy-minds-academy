@@ -160,24 +160,27 @@ export default function TutorDashboard() {
 
   /* ── Data loading ── */
   useEffect(() => {
+    const safe = (p: Promise<Response>) =>
+      p.then(r => r.json()).catch(() => ({}));
+
     Promise.all([
-      fetch("/api/auth/profile").then(r => r.json()),
-      fetch("/api/tutor/sessions").then(r => r.json()),
-      fetch("/api/tutor/materials").then(r => r.json()),
-      fetch("/api/recordings").then(r => r.json()),
-      fetch("/api/tutor/availability").then(r => r.json()),
+      fetch("/api/auth/profile").then(r => r.json()),   // critical — must succeed
+      safe(fetch("/api/tutor/sessions")),
+      safe(fetch("/api/tutor/materials")),
+      safe(fetch("/api/recordings")),
+      safe(fetch("/api/tutor/availability")),
     ]).then(([profileData, sessData, matData, recData, availData]) => {
-      if (!profileData.user) { router.push("/auth/login"); return; }
+      if (!profileData?.user) { router.push("/auth/login"); return; }
       // Role guard — redirect non-tutors to their correct dashboard
       if (profileData.user.role === "ADMIN")  { router.push("/dashboard/admin");  return; }
       if (profileData.user.role === "PARENT") { router.push("/dashboard/parent"); return; }
       setUser(profileData.user);
       setProfileForm({ name: profileData.user.name ?? "", phone: profileData.user.phone ?? "", subjects: profileData.user.subjects ?? [] });
       setAvailForm(profileData.user.availability ?? {});
-      if (sessData.sessions)          setSessions(sessData.sessions);
-      if (matData.materials)          setMaterials(matData.materials);
-      if (recData.recordings)         setRecordings(recData.recordings);
-      if (availData.availabilities)   setMonthlyAvail(availData.availabilities);
+      if (sessData?.sessions)        setSessions(sessData.sessions);
+      if (matData?.materials)        setMaterials(matData.materials);
+      if (recData?.recordings)       setRecordings(recData.recordings);
+      if (availData?.availabilities) setMonthlyAvail(availData.availabilities);
     }).catch(() => router.push("/auth/login"))
       .finally(() => setLoading(false));
   }, [router]);

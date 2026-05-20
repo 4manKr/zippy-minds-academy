@@ -26,11 +26,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No admin account found with this email" }, { status: 401 });
     }
 
-    // Password check — support both bcrypt hashes and legacy "otp-user" placeholder
-    const passwordValid =
-      user.password === "otp-user"
-        ? false
-        : await bcrypt.compare(password, user.password);
+    // Password check — support both bcrypt hashes and legacy "otp-user" / empty placeholder
+    const isBcryptHash = user.password.startsWith("$2");
+    const passwordValid = isBcryptHash
+      ? await bcrypt.compare(password, user.password)
+      : false;
 
     if (!passwordValid) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });

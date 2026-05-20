@@ -114,17 +114,18 @@ export default function AdminDashboard() {
   // ── Fetch helpers ─────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoad("init", true);
+    const safe = (p: Promise<Response>) => p.then(r => r.json()).catch(() => ({}));
     const [u,s,t,c,tk,an,st,res,vid,rec] = await Promise.all([
-      fetch("/api/admin/users").then(r=>r.json()),
-      fetch("/api/admin/sessions").then(r=>r.json()),
-      fetch("/api/admin/tutors").then(r=>r.json()),
-      fetch("/api/admin/courses").then(r=>r.json()),
-      fetch("/api/admin/support").then(r=>r.json()),
-      fetch("/api/admin/analytics").then(r=>r.json()),
-      fetch("/api/admin/settings").then(r=>r.json()),
-      fetch("/api/admin/resources").then(r=>r.json()),
-      fetch("/api/admin/videos").then(r=>r.json()),
-      fetch("/api/recordings").then(r=>r.json()),
+      safe(fetch("/api/admin/users")),
+      safe(fetch("/api/admin/sessions")),
+      safe(fetch("/api/admin/tutors")),
+      safe(fetch("/api/admin/courses")),
+      safe(fetch("/api/admin/support")),
+      safe(fetch("/api/admin/analytics")),
+      safe(fetch("/api/admin/settings")),
+      safe(fetch("/api/admin/resources")),
+      safe(fetch("/api/admin/videos")),
+      safe(fetch("/api/recordings")),
     ]);
     if (u.users)        setUsers(u.users);
     if (s.bookings)     setSessions(s.bookings);
