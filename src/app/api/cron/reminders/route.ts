@@ -100,12 +100,28 @@ export async function POST(req: NextRequest) {
       const minutesUntil = (sessionUTC.getTime() - now.getTime()) / 60_000;
       if (minutesUntil < 25 || minutesUntil > 35) continue;
 
+      // Remind parent
       sendSessionReminderEmail({
         to: ms.parentEmail, toName: ms.parentName, role: "parent",
         childName: ms.childName, subject: ms.subject,
         date: ms.date, timeSlot: ms.timeSlot, timezone: ms.timezone,
         tutorName: ms.tutorName, zoomLink: ms.zoomLink, zoomStartUrl: ms.zoomStartUrl,
       });
+      // Remind assigned tutor (if not TBD)
+      if (ms.tutorName && ms.tutorName !== "TBD") {
+        const tutor = await prisma.user.findFirst({
+          where: { name: ms.tutorName, role: "TUTOR" },
+          select: { email: true, name: true },
+        });
+        if (tutor?.email) {
+          sendSessionReminderEmail({
+            to: tutor.email, toName: tutor.name, role: "tutor",
+            childName: ms.childName, subject: ms.subject,
+            date: ms.date, timeSlot: ms.timeSlot, timezone: ms.timezone,
+            tutorName: ms.tutorName, zoomLink: ms.zoomLink, zoomStartUrl: ms.zoomStartUrl,
+          });
+        }
+      }
       await prisma.monthlySession.update({ where: { id: ms.id }, data: { reminderSent: true } });
       sent30.push(ms.id);
     }

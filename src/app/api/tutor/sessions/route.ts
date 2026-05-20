@@ -10,16 +10,51 @@ async function requireTutor() {
   return session;
 }
 
-// GET — all bookings where tutorName matches this tutor's name
+// GET — bookings + monthly (enrolled) sessions for this tutor
 export async function GET() {
   try {
     const session = await requireTutor();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const sessions = await prisma.booking.findMany({
+    // Demo bookings
+    const bookings = await prisma.booking.findMany({
       where: { tutorName: session.name },
       orderBy: { createdAt: "desc" },
     });
+
+    // Enrolled course sessions (MonthlySession)
+    const monthlySessions = await prisma.monthlySession.findMany({
+      where: { tutorName: session.name },
+      orderBy: { date: "asc" },
+    });
+
+    // Map MonthlySession → same shape as Booking so the dashboard can render them uniformly
+    const mappedMonthly = monthlySessions.map(ms => ({
+      id:           ms.id,
+      childName:    ms.childName,
+      subject:      ms.subject,
+      date:         ms.date,
+      timeSlot:     ms.timeSlot,
+      status:       ms.status,          // SCHEDULED | COMPLETED | CANCELLED
+      monthlyPrice: 0,
+      zoomLink:     ms.zoomLink,
+      zoomStartUrl: ms.zoomStartUrl,
+      parentName:   ms.parentName,
+      parentEmail:  ms.parentEmail,
+      notes:        "",
+      createdAt:    ms.createdAt.toISOString(),
+      tutorName:    ms.tutorName,
+      grade:        ms.grade,
+      sessionType:  "enrollment" as const,  // flag so UI can distinguish
+      sessionNumber: ms.sessionNumber,
+      enrollmentId:  ms.enrollmentId,
+    }));
+
+    // Merge: demo bookings first, then enrolled sessions
+    const sessions = [
+      ...bookings.map(b => ({ ...b, sessionType: "booking" as const })),
+      ...mappedMonthly,
+    ];
 
     return NextResponse.json({ sessions });
   } catch {

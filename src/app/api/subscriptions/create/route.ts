@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { createZoomMeeting } from "@/lib/zoom";
-import { sendSubscriptionConfirmedEmail } from "@/lib/emails";
+import { sendSubscriptionConfirmedEmail, sendTutorEnrollmentAssignedEmail } from "@/lib/emails";
 
 export const runtime = "nodejs";
 
@@ -158,7 +158,47 @@ export async function POST(req: NextRequest) {
       sessions.push(ms);
     }
 
-    // ── 4. Send confirmation email ────────────────────────────────────────
+    // ── 4. Auto-assign a tutor for this subject ───────────────────────────
+    try {
+      const allTutors = await prisma.user.findMany({
+        where: { role: "TUTOR", approvalStatus: "APPROVED" },
+        select: { id: true, name: true, email: true, subjects: true },
+      });
+      const assignedTutor = allTutors.find(t => {
+        try {
+          const subjectList: string[] = JSON.parse(t.subjects || "[]");
+          return subjectList.includes(courseName);
+        } catch { return false; }
+      }) ?? null;
+
+      if (assignedTutor) {
+        const initials = assignedTutor.name
+          .split(" ").filter(Boolean).map((p: string) => p[0]).join("").toUpperCase().slice(0, 2);
+        await prisma.monthlySession.updateMany({
+          where: { enrollmentId: enrollment.id },
+          data: { tutorName: assignedTutor.name, tutorInitials: initials },
+        });
+        if (assignedTutor.email) {
+          sendTutorEnrollmentAssignedEmail({
+            tutorName:     assignedTutor.name,
+            tutorEmail:    assignedTutor.email,
+            parentName,
+            childName:     childName ?? "",
+            subject:       courseName,
+            timeSlot,
+            timezone:      tz,
+            startDate:     sessionDates[0],
+            endDate:       sessionDates[sessionDates.length - 1],
+            totalSessions: sessions.length,
+          });
+        }
+      }
+    } catch (tutorErr) {
+      console.warn("[subscriptions/create] tutor assignment failed:", tutorErr);
+      // non-fatal — enrollment still succeeds
+    }
+
+    // ── 5. Send confirmation email ────────────────────────────────────────
     sendSubscriptionConfirmedEmail({
       parentName,
       parentEmail,

@@ -796,3 +796,50 @@ export async function sendDailySessionReminderEmail(data: {
 
   await send(to, `📅 Session Today — ${subject} at ${timeSlot}`, html);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TUTOR ENROLLMENT ASSIGNED — sent to tutor when assigned to a new enrollment
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendTutorEnrollmentAssignedEmail(params: {
+  tutorName:     string;
+  tutorEmail:    string;
+  parentName:    string;
+  childName:     string;
+  subject:       string;
+  timeSlot:      string;
+  timezone:      string;
+  startDate:     string;
+  endDate:       string;
+  totalSessions: number;
+}) {
+  const { tutorName, tutorEmail, parentName, childName, subject, timeSlot, timezone, startDate, endDate, totalSessions } = params;
+
+  const html = wrapper(`
+    <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
+      🎓 New Enrollment Assigned
+    </h2>
+    <p style="font-size:14px;color:#555;margin:0 0 6px;">
+      Hi <strong>${tutorName}</strong>, you have been assigned to a new enrolled student. Sessions run <strong>Mon–Fri</strong> at the chosen time slot.
+    </p>
+    <div style="background:#f0f7ff;border:1px solid #c7dcf5;border-radius:14px;padding:16px;margin:16px 0;">
+      <table width="100%" cellpadding="0" cellspacing="6">
+        ${infoRow("Student",        childName)}
+        ${infoRow("Subject",        subject)}
+        ${infoRow("Parent",         parentName)}
+        ${infoRow("Daily Time",     `${timeSlot} (${timezone})`)}
+        ${infoRow("Schedule",       "Mon–Fri (no weekends)")}
+        ${infoRow("Start Date",     startDate)}
+        ${infoRow("End Date",       endDate)}
+        ${infoRow("Total Sessions", String(totalSessions))}
+      </table>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+      <p style="font-size:13px;color:#166534;font-weight:700;margin:0;">
+        ✅ These sessions are confirmed — no action needed. Zoom links are auto-generated for each session. You will receive a 30-minute reminder before each class.
+      </p>
+    </div>
+    ${btnPrimary("View Your Sessions →", `${BASE_URL}/dashboard/tutor`)}
+  `);
+
+  await send(tutorEmail, `🎓 New Enrollment — ${subject} for ${childName} (Mon–Fri at ${timeSlot})`, html);
+}

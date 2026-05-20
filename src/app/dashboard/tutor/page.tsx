@@ -40,6 +40,9 @@ interface TSession {
   zoomLink?: string | null; zoomStartUrl?: string | null;
   parentName: string; parentEmail: string; notes?: string;
   createdAt: string; tutorName: string; grade?: string;
+  sessionType?: "booking" | "enrollment";
+  sessionNumber?: number;
+  enrollmentId?: string | null;
 }
 
 interface UserInfo {
@@ -102,7 +105,7 @@ export default function TutorDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Sessions
-  const [sessionTab, setSessionTab]       = useState<"requests" | "upcoming" | "all" | "cancelled">("requests");
+  const [sessionTab, setSessionTab]       = useState<"requests" | "upcoming" | "enrolled" | "all" | "cancelled">("requests");
   const [sessionSearch, setSessionSearch] = useState("");
   const [actioning, setActioning]         = useState<Record<string, boolean>>({});
 
@@ -237,12 +240,17 @@ export default function TutorDashboard() {
   // Pending requests = sessions the tutor hasn't acted on yet
   const pendingRequests = useMemo(() => sessions.filter(s => s.status === "PENDING"), [sessions]);
 
+  // Split by type
+  const demoSessions     = useMemo(() => sessions.filter(s => s.sessionType !== "enrollment"), [sessions]);
+  const enrolledSessions = useMemo(() => sessions.filter(s => s.sessionType === "enrollment"), [sessions]);
+
   // Filtered sessions
   const filteredSessions = useMemo(() => {
     return sessions.filter(s => {
       const matchesTab =
         sessionTab === "requests"  ? s.status === "PENDING" :
         sessionTab === "upcoming"  ? s.status === "CONFIRMED" :
+        sessionTab === "enrolled"  ? s.sessionType === "enrollment" && s.status !== "CANCELLED" :
         sessionTab === "cancelled" ? s.status === "CANCELLED" : true;
       const q = sessionSearch.toLowerCase();
       const matchesSearch = !q || s.childName.toLowerCase().includes(q) || s.subject.toLowerCase().includes(q) || s.parentName.toLowerCase().includes(q);
@@ -808,20 +816,24 @@ export default function TutorDashboard() {
               </div>
               <div className="flex gap-2 flex-wrap">
                 {([
-                  { id: "requests",  label: "Requests",  count: sessions.filter(s => s.status === "PENDING").length },
-                  { id: "upcoming",  label: "Upcoming",  count: sessions.filter(s => s.status === "CONFIRMED").length },
-                  { id: "all",       label: "All",       count: sessions.length },
-                  { id: "cancelled", label: "Cancelled", count: sessions.filter(s => s.status === "CANCELLED").length },
+                  { id: "requests",  label: "Demo Requests", count: demoSessions.filter(s => s.status === "PENDING").length },
+                  { id: "upcoming",  label: "Upcoming",      count: demoSessions.filter(s => s.status === "CONFIRMED").length },
+                  { id: "enrolled",  label: "Enrolled",      count: enrolledSessions.filter(s => s.status !== "CANCELLED").length },
+                  { id: "all",       label: "All",           count: sessions.length },
+                  { id: "cancelled", label: "Cancelled",     count: sessions.filter(s => s.status === "CANCELLED").length },
                 ] as const).map(tab => (
                   <button key={tab.id} onClick={() => setSessionTab(tab.id)}
                     className={`relative px-4 py-2 rounded-full text-xs font-bold transition-all ${
                       sessionTab === tab.id
-                        ? tab.id === "requests" ? "bg-amber-500 text-white" : "bg-primary text-on-primary"
+                        ? tab.id === "requests" ? "bg-amber-500 text-white" : tab.id === "enrolled" ? "bg-green-600 text-white" : "bg-primary text-on-primary"
                         : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
                     }`}>
                     {tab.label} ({tab.count})
                     {tab.id === "requests" && tab.count > 0 && sessionTab !== "requests" && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
+                    )}
+                    {tab.id === "enrolled" && tab.count > 0 && sessionTab !== "enrolled" && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full" />
                     )}
                   </button>
                 ))}
@@ -859,13 +871,24 @@ export default function TutorDashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="font-bold text-on-surface">{s.subject}</span>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                          s.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
-                          s.status === "PENDING"   ? "bg-amber-100 text-amber-700" :
-                          "bg-red-100 text-red-600"
-                        }`}>
-                          {s.status === "PENDING" ? "⏳ Awaiting Your Response" : s.status}
-                        </span>
+                        {s.sessionType === "enrollment" ? (
+                          <>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                              📚 Enrolled
+                            </span>
+                            {s.sessionNumber && (
+                              <span className="text-xs text-on-surface-variant">Session #{s.sessionNumber}</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            s.status === "CONFIRMED" ? "bg-green-100 text-green-700" :
+                            s.status === "PENDING"   ? "bg-amber-100 text-amber-700" :
+                            "bg-red-100 text-red-600"
+                          }`}>
+                            {s.status === "PENDING" ? "⏳ Awaiting Your Response" : s.status}
+                          </span>
+                        )}
                         {s.monthlyPrice > 0 && <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">₹{s.monthlyPrice}/mo</span>}
                       </div>
                       <p className="text-sm text-on-surface-variant">👦 {s.childName} &nbsp;·&nbsp; 👤 Parent: {s.parentName}</p>
@@ -881,7 +904,7 @@ export default function TutorDashboard() {
 
                     {/* Actions */}
                     <div className="flex gap-2 shrink-0 flex-wrap justify-end">
-                      {s.status === "PENDING" ? (
+                      {s.status === "PENDING" && s.sessionType !== "enrollment" ? (
                         /* ── Demo request: Accept / Reject ── */
                         <>
                           <button
@@ -901,9 +924,9 @@ export default function TutorDashboard() {
                           </button>
                         </>
                       ) : (
-                        /* ── Confirmed: Zoom link + Notes ── */
+                        /* ── Confirmed / Enrolled: Zoom link + Notes ── */
                         <>
-                          {s.status === "CONFIRMED" && (
+                          {(s.status === "CONFIRMED" || s.sessionType === "enrollment") && (
                             s.zoomStartUrl ? (
                               <a href={s.zoomStartUrl} target="_blank" rel="noopener noreferrer"
                                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
@@ -918,12 +941,14 @@ export default function TutorDashboard() {
                               </a>
                             ) : null
                           )}
-                          <button
-                            onClick={() => { setNoteOpen(s.id); setNoteText(s.notes ?? ""); }}
-                            className="p-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-primary/10 hover:text-primary hover:border-primary transition-all"
-                            title="Add note">
-                            <FileText size={15} />
-                          </button>
+                          {s.sessionType !== "enrollment" && (
+                            <button
+                              onClick={() => { setNoteOpen(s.id); setNoteText(s.notes ?? ""); }}
+                              className="p-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-primary/10 hover:text-primary hover:border-primary transition-all"
+                              title="Add note">
+                              <FileText size={15} />
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
