@@ -3,10 +3,12 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 function PayPalReturnInner() {
   const searchParams = useSearchParams();
   const router       = useRouter();
+  const { whatsappNumber } = useSiteSettings();
 
   const token      = searchParams.get("token");      // PayPal order ID
   const courseName = searchParams.get("courseName") ?? "your course";
@@ -65,7 +67,7 @@ function PayPalReturnInner() {
               className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary font-bold py-3.5 rounded-2xl hover:opacity-90 transition-all">
               Try Again
             </Link>
-            <a href="https://wa.me/919311483555"
+            <a href={`https://wa.me/${whatsappNumber}`}
               className="block w-full text-center text-sm text-on-surface-variant hover:text-primary transition-colors py-2">
               Contact Support on WhatsApp
             </a>

@@ -12,6 +12,7 @@ import {
   MessageSquare, Send, AlertCircle, ChevronLeft, RefreshCw,
   Lock, Unlock, XCircle, FolderOpen, ExternalLink,
 } from "lucide-react";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -125,6 +126,7 @@ function fmtDate(iso?: string) {
 
 export default function ParentDashboard() {
   const router = useRouter();
+  const { contactEmail, whatsappNumber } = useSiteSettings();
 
   /* ── State ── */
   const [section, setSection]         = useState<Section>("dashboard");
@@ -1316,17 +1318,17 @@ export default function ParentDashboard() {
 
                 {/* Quick contact */}
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <a href="mailto:zippymindsacademy@gmail.com"
+                  <a href={`mailto:${contactEmail}`}
                     className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-4 flex items-center gap-3 hover:shadow-card transition-shadow">
                     <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
                       <Mail size={18} className="text-primary" />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-on-surface">Email Us</p>
-                      <p className="text-xs text-on-surface-variant">zippymindsacademy@gmail.com</p>
+                      <p className="text-xs text-on-surface-variant">{contactEmail}</p>
                     </div>
                   </a>
-                  <a href="https://wa.me/919999999999" target="_blank" rel="noopener noreferrer"
+                  <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noopener noreferrer"
                     className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-4 flex items-center gap-3 hover:shadow-card transition-shadow">
                     <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
                       <Phone size={18} className="text-green-600" />

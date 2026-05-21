@@ -4,9 +4,31 @@
  * the details are logged to console so nothing crashes.
  */
 
-const FROM_EMAIL  = process.env.FROM_EMAIL  ?? "Zippy Minds Academy <noreply@zippymindsacademy.com>";
-const ADMIN_EMAIL = "zippymindsacademy@gmail.com";
-const BASE_URL    = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.zippymindsacademy.com";
+import { prisma } from "@/lib/prisma";
+
+const FROM_EMAIL         = process.env.FROM_EMAIL ?? "Zippy Minds Academy <noreply@zippymindsacademy.com>";
+const DEFAULT_ADMIN_EMAIL = "zippymindsacademy@gmail.com";
+const DEFAULT_PHONE       = "+91 93114 83555";
+const DEFAULT_WA_NUMBER   = "919311483555";
+const BASE_URL            = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.zippymindsacademy.com";
+
+/** Reads contact settings from DB at email-send time so they stay current. */
+async function getContactSettings(): Promise<{ adminEmail: string; phone: string; waNumber: string }> {
+  try {
+    const rows = await prisma.platformSetting.findMany({
+      where: { key: { in: ["contactEmail", "phone"] } },
+    });
+    const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+    const phone = map["phone"] ?? DEFAULT_PHONE;
+    return {
+      adminEmail: map["contactEmail"] ?? DEFAULT_ADMIN_EMAIL,
+      phone,
+      waNumber: phone.replace(/[^\d]/g, "") || DEFAULT_WA_NUMBER,
+    };
+  } catch {
+    return { adminEmail: DEFAULT_ADMIN_EMAIL, phone: DEFAULT_PHONE, waNumber: DEFAULT_WA_NUMBER };
+  }
+}
 
 // ─── shared helpers ───────────────────────────────────────────────────────────
 
@@ -21,7 +43,7 @@ function logoHeader() {
     </div>`;
 }
 
-function wrapper(content: string) {
+function wrapper(content: string, adminEmail = DEFAULT_ADMIN_EMAIL) {
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -42,7 +64,7 @@ function wrapper(content: string) {
             <p style="font-size:12px;color:#9ba3b5;margin:0;">
               <a href="${BASE_URL}" style="color:#005da8;text-decoration:none;">zippymindsacademy.com</a>
               &nbsp;·&nbsp;
-              <a href="mailto:${ADMIN_EMAIL}" style="color:#005da8;text-decoration:none;">${ADMIN_EMAIL}</a>
+              <a href="mailto:${adminEmail}" style="color:#005da8;text-decoration:none;">${adminEmail}</a>
             </p>
           </div>
         </td></tr>
@@ -105,6 +127,7 @@ export async function sendDemoBookedEmail(booking: {
   timezone:    string;
   tutorName:   string;
 }) {
+  const { adminEmail, phone, waNumber } = await getContactSettings();
   const html = wrapper(`
     <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
       🎉 Demo Booked Successfully!
@@ -147,9 +170,9 @@ export async function sendDemoBookedEmail(booking: {
 
     <p style="font-size:12px;color:#888;text-align:center;margin:12px 0 0;">
       Questions? Reply to this email or WhatsApp us at
-      <a href="https://wa.me/919311483555" style="color:#005da8;">+91 93114 83555</a>
+      <a href="https://wa.me/${waNumber}" style="color:#005da8;">${phone}</a>
     </p>
-  `);
+  `, adminEmail);
 
   await send(
     booking.parentEmail,
@@ -173,6 +196,7 @@ export async function sendSessionConfirmedEmail(booking: {
   tutorName:   string;
   zoomLink?:   string | null;
 }) {
+  const { adminEmail, waNumber } = await getContactSettings();
   const zoomSection = booking.zoomLink
     ? `
       <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:14px;padding:20px;margin-bottom:20px;text-align:center;">
@@ -233,10 +257,10 @@ export async function sendSessionConfirmedEmail(booking: {
 
     <p style="font-size:12px;color:#888;text-align:center;margin:12px 0 0;">
       Need to reschedule? Contact us at least 24 hours before via
-      <a href="https://wa.me/919311483555" style="color:#005da8;">WhatsApp</a>
+      <a href="https://wa.me/${waNumber}" style="color:#005da8;">WhatsApp</a>
       or reply to this email.
     </p>
-  `);
+  `, adminEmail);
 
   await send(
     booking.parentEmail,
@@ -256,6 +280,7 @@ export async function sendSessionCancelledEmail(booking: {
   date:        string;
   timeSlot:    string;
 }) {
+  const { adminEmail, waNumber } = await getContactSettings();
   const html = wrapper(`
     <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
       Session Cancelled
@@ -281,10 +306,10 @@ export async function sendSessionCancelledEmail(booking: {
 
     <p style="font-size:12px;color:#888;text-align:center;margin:12px 0 0;">
       Need help? Contact us at
-      <a href="mailto:${ADMIN_EMAIL}" style="color:#005da8;">${ADMIN_EMAIL}</a>
-      or <a href="https://wa.me/919311483555" style="color:#005da8;">WhatsApp</a>.
+      <a href="mailto:${adminEmail}" style="color:#005da8;">${adminEmail}</a>
+      or <a href="https://wa.me/${waNumber}" style="color:#005da8;">WhatsApp</a>.
     </p>
-  `);
+  `, adminEmail);
 
   await send(
     booking.parentEmail,
@@ -308,6 +333,7 @@ export async function sendAdminNewBookingAlert(booking: {
   tutorName:   string;
   id:          string;
 }) {
+  const { adminEmail } = await getContactSettings();
   const html = wrapper(`
     <h2 style="font-size:20px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
       📥 New Demo Booking
@@ -329,10 +355,10 @@ export async function sendAdminNewBookingAlert(booking: {
     </div>
 
     ${btnPrimary("Open Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
-  `);
+  `, adminEmail);
 
   await send(
-    ADMIN_EMAIL,
+    adminEmail,
     `📥 New Demo Booking — ${booking.subject} for ${booking.childName} on ${booking.date}`,
     html,
   );
@@ -372,6 +398,7 @@ export async function sendAvailabilityChangeRequestEmail(params: {
 }) {
   const { parentName, parentEmail, tutorName, monthYear, currentSlots, proposedSlots, reason, approveUrl, rejectUrl, expiresAt } = params;
   const expiry = expiresAt.toLocaleDateString("en-IN", { day:"numeric", month:"short", year:"numeric" });
+  const { adminEmail, waNumber } = await getContactSettings();
 
   const html = wrapper(`
     <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
@@ -410,9 +437,9 @@ export async function sendAvailabilityChangeRequestEmail(params: {
 
     <p style="font-size:12px;color:#888;text-align:center;margin:12px 0 0;">
       This link expires on <strong>${expiry}</strong>. Questions? Contact us at
-      <a href="https://wa.me/919311483555" style="color:#005da8;">WhatsApp</a>.
+      <a href="https://wa.me/${waNumber}" style="color:#005da8;">WhatsApp</a>.
     </p>
-  `);
+  `, adminEmail);
 
   await send(
     parentEmail,
@@ -431,6 +458,7 @@ export async function sendAvailabilityAdminAlert(params: {
   requestId: string;
 }) {
   const { tutorName, monthYear, parentCount, requestId } = params;
+  const { adminEmail } = await getContactSettings();
   const html = wrapper(`
     <h2 style="font-size:20px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
       Availability Change Request Created
@@ -448,9 +476,9 @@ export async function sendAvailabilityAdminAlert(params: {
       </table>
     </div>
     ${btnPrimary("View in Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
-  `);
+  `, adminEmail);
 
-  await send(ADMIN_EMAIL, `Availability Change Request — ${tutorName} (${monthLabel(monthYear)})`, html);
+  await send(adminEmail, `Availability Change Request — ${tutorName} (${monthLabel(monthYear)})`, html);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -464,6 +492,7 @@ export async function sendAvailabilityAppliedEmail(params: {
   newSlots: Record<string, string[]>;
 }) {
   const { parentName, parentEmail, tutorName, monthYear, newSlots } = params;
+  const { adminEmail, waNumber } = await getContactSettings();
   const html = wrapper(`
     <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
       Tutor Availability Updated
@@ -480,10 +509,10 @@ export async function sendAvailabilityAppliedEmail(params: {
     ${btnPrimary("View My Dashboard →", `${BASE_URL}/dashboard/parent`)}
     <p style="font-size:12px;color:#888;text-align:center;margin:12px 0 0;">
       Questions? Contact us at
-      <a href="mailto:${ADMIN_EMAIL}" style="color:#005da8;">${ADMIN_EMAIL}</a>
-      or <a href="https://wa.me/919311483555" style="color:#005da8;">WhatsApp</a>.
+      <a href="mailto:${adminEmail}" style="color:#005da8;">${adminEmail}</a>
+      or <a href="https://wa.me/${waNumber}" style="color:#005da8;">WhatsApp</a>.
     </p>
-  `);
+  `, adminEmail);
 
   await send(parentEmail, `Tutor Schedule Updated — ${tutorName} for ${monthLabel(monthYear)}`, html);
 }
@@ -502,6 +531,7 @@ export async function sendParentResponseAlertToAdmin(params: {
   const { parentName, parentEmail, tutorName, action, allResolved, status } = params;
   const actionLabel = action === "approve" ? "APPROVED" : "REJECTED";
   const statusColor = action === "approve" ? "#166534" : "#991b1b";
+  const { adminEmail } = await getContactSettings();
   const html = wrapper(`
     <h2 style="font-size:20px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
       Parent ${actionLabel} Availability Change
@@ -523,10 +553,10 @@ export async function sendParentResponseAlertToAdmin(params: {
          </div>`
       : ""}
     ${btnPrimary("Open Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
-  `);
+  `, adminEmail);
 
   await send(
-    ADMIN_EMAIL,
+    adminEmail,
     `Parent ${actionLabel} — ${tutorName} Availability Change`,
     html,
   );
@@ -544,6 +574,7 @@ export async function sendAdminNewUserAlert(user: {
   const roleLabel  = user.role === "TUTOR" ? "Tutor" : "Parent";
   const roleColor  = user.role === "TUTOR" ? "#7c3aed" : "#1d4ed8";
   const roleBg     = user.role === "TUTOR" ? "#ede9fe" : "#dbeafe";
+  const { adminEmail } = await getContactSettings();
 
   const html = wrapper(`
     <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
@@ -566,9 +597,9 @@ export async function sendAdminNewUserAlert(user: {
          </div>`
       : ""}
     ${btnPrimary("Open Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
-  `);
+  `, adminEmail);
 
-  await send(ADMIN_EMAIL, `🎉 New ${roleLabel} — ${user.name} (${user.email})`, html);
+  await send(adminEmail, `🎉 New ${roleLabel} — ${user.name} (${user.email})`, html);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

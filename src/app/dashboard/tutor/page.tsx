@@ -16,6 +16,7 @@ import {
 const ALL_DAYS       = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const ALL_AVAIL_SLOTS = ["9:00 AM", "10:00 AM", "11:00 AM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM"] as const;
 import { SUBJECTS } from "@/lib/utils";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 type Section = "dashboard" | "sessions" | "students" | "earnings" | "materials" | "availability" | "profile";
@@ -96,6 +97,7 @@ const TIPS = [
 ══════════════════════════════════════════════════════════════════════════════ */
 export default function TutorDashboard() {
   const router = useRouter();
+  const { contactEmail } = useSiteSettings();
 
   /* ── State ── */
   const [section, setSection]         = useState<Section>("dashboard");
@@ -639,7 +641,7 @@ export default function TutorDashboard() {
             <XCircle size={18} className="text-red-600 mt-0.5 shrink-0" />
             <div>
               <p className="font-bold text-sm">Application not approved</p>
-              <p className="text-xs mt-0.5">Please contact zippymindsacademy@gmail.com to understand the reason and reapply.</p>
+              <p className="text-xs mt-0.5">Please contact {contactEmail} to understand the reason and reapply.</p>
             </div>
           </div>
         )}
@@ -1164,7 +1166,7 @@ export default function TutorDashboard() {
             <div className="bg-surface-container rounded-2xl border border-outline-variant p-5 flex items-start gap-3">
               <AlertCircle size={18} className="text-on-surface-variant mt-0.5 shrink-0" />
               <p className="text-sm text-on-surface-variant">
-                Payments are processed monthly by Zippy Minds. For queries contact <strong>zippymindsacademy@gmail.com</strong>
+                Payments are processed monthly by Zippy Minds. For queries contact <strong>{contactEmail}</strong>
               </p>
             </div>
           </div>
@@ -1666,7 +1668,7 @@ export default function TutorDashboard() {
 
               <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex items-start gap-3">
                 <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-800">Only admins can delete recordings. Contact <strong>zippymindsacademy@gmail.com</strong> to remove a recording.</p>
+                <p className="text-xs text-amber-800">Only admins can delete recordings. Contact <strong>{contactEmail}</strong> to remove a recording.</p>
               </div>
 
             </> /* end recordings tab */}

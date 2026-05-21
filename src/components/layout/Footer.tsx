@@ -1,6 +1,9 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { Mail, Phone, Globe, Facebook, Twitter, Instagram, Linkedin, Youtube, ArrowRight } from "lucide-react";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 const footerLinks = {
   Platform: [
@@ -33,6 +36,8 @@ const socials = [
 ];
 
 export default function Footer() {
+  const { contactEmail, phone } = useSiteSettings();
+
   return (
     <footer className="bg-[#0a0f1e] text-white">
 
@@ -74,19 +79,19 @@ export default function Footer() {
               1-to-1 online learning sessions. Premium education, globally accessible.
             </p>
             <div className="space-y-3">
-              <a href="mailto:zippymindsacademy@gmail.com"
+              <a href={`mailto:${contactEmail}`}
                 className="flex items-center gap-3 text-sm text-white/60 hover:text-yellow-300 transition-colors group">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-yellow-400/20 transition-colors shrink-0">
                   <Mail size={14} className="text-yellow-400" />
                 </div>
-                zippymindsacademy@gmail.com
+                {contactEmail}
               </a>
-              <a href="tel:+919311483555"
+              <a href={`tel:${phone.replace(/\s/g, "")}`}
                 className="flex items-center gap-3 text-sm text-white/60 hover:text-yellow-300 transition-colors group">
                 <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center group-hover:bg-yellow-400/20 transition-colors shrink-0">
                   <Phone size={14} className="text-yellow-400" />
                 </div>
-                +91 93114 83555
+                {phone}
               </a>
               <a href="https://www.zippymindsacademy.com" target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-3 text-sm text-white/60 hover:text-yellow-300 transition-colors group">

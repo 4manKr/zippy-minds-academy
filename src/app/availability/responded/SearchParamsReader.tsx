@@ -2,10 +2,13 @@
 
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 export function SearchParamsReader() {
   const params = useSearchParams();
   const action = params.get("action");
+  const { whatsappNumber } = useSiteSettings();
+  const waHref = `https://wa.me/${whatsappNumber}`;
 
   if (action === "approve") {
     return (
@@ -28,7 +31,7 @@ export function SearchParamsReader() {
           </p>
         </div>
         <Link
-          href="https://wa.me/919311483555"
+          href={waHref}
           target="_blank"
           className="inline-block bg-green-600 text-white font-bold px-6 py-3 rounded-xl text-sm hover:bg-green-700 transition-colors"
         >
@@ -59,7 +62,7 @@ export function SearchParamsReader() {
           </p>
         </div>
         <Link
-          href="https://wa.me/919311483555"
+          href={waHref}
           target="_blank"
           className="inline-block bg-red-600 text-white font-bold px-6 py-3 rounded-xl text-sm hover:bg-red-700 transition-colors"
         >
@@ -82,7 +85,7 @@ export function SearchParamsReader() {
         This link is invalid or has already been used. If you believe this is an error, please contact us.
       </p>
       <Link
-        href="https://wa.me/919311483555"
+        href={waHref}
         target="_blank"
         className="inline-block bg-blue-600 text-white font-bold px-6 py-3 rounded-xl text-sm hover:bg-blue-700 transition-colors"
       >

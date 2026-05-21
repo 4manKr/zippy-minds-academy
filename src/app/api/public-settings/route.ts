@@ -14,12 +14,19 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const PUBLIC_KEYS = ["showPricing"] as const;
+const PUBLIC_KEYS = ["showPricing", "contactEmail", "phone", "siteName"] as const;
 
 const NO_CACHE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
   "Pragma": "no-cache",
   "Expires": "0",
+};
+
+const DEFAULTS = {
+  showPricing:  "true",
+  contactEmail: "zippymindsacademy@gmail.com",
+  phone:        "+91 93114 83555",
+  siteName:     "Zippy Minds Academy",
 };
 
 export async function GET() {
@@ -29,16 +36,17 @@ export async function GET() {
     });
     const settings = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
-    // Defaults for keys not yet stored
     return NextResponse.json(
-      { showPricing: settings["showPricing"] ?? "true" },
+      {
+        showPricing:  settings["showPricing"]  ?? DEFAULTS.showPricing,
+        contactEmail: settings["contactEmail"] ?? DEFAULTS.contactEmail,
+        phone:        settings["phone"]        ?? DEFAULTS.phone,
+        siteName:     settings["siteName"]     ?? DEFAULTS.siteName,
+      },
       { headers: NO_CACHE_HEADERS },
     );
   } catch {
-    // Fail open — show pricing if DB check fails
-    return NextResponse.json(
-      { showPricing: "true" },
-      { headers: NO_CACHE_HEADERS },
-    );
+    // Fail open — return defaults if DB check fails
+    return NextResponse.json(DEFAULTS, { headers: NO_CACHE_HEADERS });
   }
 }

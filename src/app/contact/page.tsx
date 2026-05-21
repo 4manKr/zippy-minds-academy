@@ -2,15 +2,19 @@
 
 import { useState } from "react";
 import { Mail, Phone, Globe, Clock, Send, MessageSquare, CheckCircle } from "lucide-react";
-
-const contactInfo = [
-  { icon: Mail,  title: "Email Us",      detail: "zippymindsacademy@gmail.com", sub: "Reply within 4 hours",         href: "mailto:zippymindsacademy@gmail.com" },
-  { icon: Phone, title: "Call / WhatsApp",detail: "+91 93114 83555",            sub: "Mon–Sat, 9 AM–8 PM IST",       href: "tel:+919311483555" },
-  { icon: Globe, title: "Website",       detail: "www.zippymindsacademy.com",   sub: "Explore all courses & tutors", href: "https://www.zippymindsacademy.com" },
-  { icon: Clock, title: "Support Hours", detail: "24/7 for urgent issues",      sub: "Standard: Mon–Sat 9–8 IST",    href: undefined },
-];
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 export default function ContactPage() {
+  const { contactEmail, phone } = useSiteSettings();
+  const telHref = `tel:${phone.replace(/\s/g, "")}`;
+
+  const contactInfo = [
+    { icon: Mail,  title: "Email Us",       detail: contactEmail,               sub: "Reply within 4 hours",         href: `mailto:${contactEmail}` },
+    { icon: Phone, title: "Call / WhatsApp", detail: phone,                     sub: "Mon–Sat, 9 AM–8 PM IST",       href: telHref },
+    { icon: Globe, title: "Website",        detail: "www.zippymindsacademy.com", sub: "Explore all courses & tutors", href: "https://www.zippymindsacademy.com" },
+    { icon: Clock, title: "Support Hours",  detail: "24/7 for urgent issues",   sub: "Standard: Mon–Sat 9–8 IST",    href: undefined },
+  ];
+
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [sent, setSent] = useState(false);
 
@@ -49,13 +53,13 @@ export default function ContactPage() {
 
           {/* Quick contact chips */}
           <div className="flex flex-wrap justify-center gap-3">
-            <a href="mailto:zippymindsacademy@gmail.com"
+            <a href={`mailto:${contactEmail}`}
                className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-white/20 transition-all">
-              <Mail size={14} /> zippymindsacademy@gmail.com
+              <Mail size={14} /> {contactEmail}
             </a>
-            <a href="tel:+919311483555"
+            <a href={telHref}
                className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-white/20 transition-all">
-              <Phone size={14} /> +91 93114 83555
+              <Phone size={14} /> {phone}
             </a>
             <span className="inline-flex items-center gap-2 bg-secondary-container/20 border border-secondary-container/30 text-secondary-container text-sm font-semibold px-4 py-2 rounded-full">
               <Clock size={14} /> 24/7 Support

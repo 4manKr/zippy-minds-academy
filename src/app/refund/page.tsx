@@ -1,12 +1,9 @@
+"use client";
+
 import Link from "next/link";
-import type { Metadata } from "next";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
-export const metadata: Metadata = {
-  title: "Refund Policy",
-  description: "Zippy Minds Academy refund and cancellation policy for online tutoring sessions.",
-};
-
-const sections = [
+const STATIC_SECTIONS = [
   {
     title: "Free Demo Sessions",
     content: [
@@ -52,7 +49,7 @@ const sections = [
   {
     title: "How to Request a Refund",
     content: [
-      "Email us at zippymindsacademy@gmail.com with your name, booking ID, and reason for the refund request.",
+      "Email us at our contact address with your name, booking ID, and reason for the refund request.",
       "Alternatively, raise a support ticket from your parent dashboard.",
       "Refund requests are reviewed within 2 business days.",
       "Approved refunds are processed within 5–7 business days via the original payment method.",
@@ -66,18 +63,23 @@ const sections = [
       "Promotional or discounted sessions are non-refundable unless cancelled by us.",
     ],
   },
-  {
-    title: "Contact Us",
-    content: [
-      "For all refund queries, please contact our support team:",
-      "📧 zippymindsacademy@gmail.com",
-      "📞 +91 93114 83555",
-      "We aim to resolve all refund requests fairly and promptly.",
-    ],
-  },
 ];
 
 export default function RefundPage() {
+  const { contactEmail, phone } = useSiteSettings();
+
+  const contactSection = {
+    title: "Contact Us",
+    content: [
+      "For all refund queries, please contact our support team:",
+      `📧 ${contactEmail}`,
+      `📞 ${phone}`,
+      "We aim to resolve all refund requests fairly and promptly.",
+    ],
+  };
+
+  const sections = [...STATIC_SECTIONS, contactSection];
+
   return (
     <div className="min-h-screen bg-surface pt-24 pb-16 px-4">
       <div className="max-w-3xl mx-auto">

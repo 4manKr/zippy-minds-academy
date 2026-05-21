@@ -8,6 +8,7 @@ import {
   ArrowRight, User,
 } from "lucide-react";
 import { usePricingVisibility } from "@/hooks/usePricingVisibility";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 import Script from "next/script";
 
 declare global { interface Window { Razorpay: any; } }
@@ -202,6 +203,7 @@ function SubscribeInner() {
 
   // Pricing visibility (admin toggle)
   const { showPricing } = usePricingVisibility();
+  const { whatsappNumber } = useSiteSettings();
 
   // Geo-detection: null = detecting, true = India, false = International
   const [isIndia,      setIsIndia]      = useState<boolean | null>(null);
@@ -709,7 +711,7 @@ function SubscribeInner() {
                       Share your slot details with us and we&apos;ll confirm your sessions and send payment info directly.
                     </p>
                     <a
-                      href={`https://wa.me/919311483555?text=${encodeURIComponent(
+                      href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
                         `Hi! I'd like to enroll in *${courseName}*.\n\n` +
                         `📅 Days: ${daysLabel}\n` +
                         `🕐 Time: ${selTime}\n` +

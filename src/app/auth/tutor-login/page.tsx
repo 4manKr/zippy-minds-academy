@@ -5,9 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, GraduationCap, AlertCircle } from "lucide-react";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 export default function TutorLoginPage() {
   const router = useRouter();
+  const { contactEmail } = useSiteSettings();
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
@@ -130,7 +132,7 @@ export default function TutorLoginPage() {
 
           <p className="text-center text-sm text-on-surface-variant mt-6">
             Need access?{" "}
-            <a href="mailto:zippymindsacademy@gmail.com" className="font-semibold text-tertiary hover:underline">
+            <a href={`mailto:${contactEmail}`} className="font-semibold text-tertiary hover:underline">
               Contact admin
             </a>
           </p>

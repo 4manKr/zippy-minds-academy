@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-const ADMIN_EMAIL = "zippymindsacademy@gmail.com";
+const DEFAULT_ADMIN_EMAIL = "zippymindsacademy@gmail.com";
+
+async function getAdminEmail(): Promise<string> {
+  try {
+    const row = await prisma.platformSetting.findUnique({ where: { key: "contactEmail" } });
+    return row?.value ?? DEFAULT_ADMIN_EMAIL;
+  } catch {
+    return DEFAULT_ADMIN_EMAIL;
+  }
+}
 
 async function notifyAdmin(name: string, email: string, subject: string, message: string) {
+  const adminEmail = await getAdminEmail();
   if (!process.env.RESEND_API_KEY) {
     console.log(`📩 New contact from ${name} <${email}>: ${subject}`);
     return;
@@ -13,7 +23,7 @@ async function notifyAdmin(name: string, email: string, subject: string, message
     const resend = new Resend(process.env.RESEND_API_KEY);
     await resend.emails.send({
       from: process.env.FROM_EMAIL ?? "Zippy Minds Academy <noreply@zippymindsacademy.com>",
-      to: ADMIN_EMAIL,
+      to: adminEmail,
       subject: `📩 New Contact Message: ${subject || "General Enquiry"}`,
       html: `
         <div style="font-family:sans-serif;max-width:560px;margin:auto;padding:32px;background:#f4fafd;border-radius:16px;">

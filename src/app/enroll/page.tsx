@@ -8,9 +8,7 @@ import {
   Sparkles, BookOpen, ArrowRight, Star, CreditCard, HelpCircle,
 } from "lucide-react";
 import { usePricingVisibility } from "@/hooks/usePricingVisibility";
-
-const WHATSAPP_NUMBER = "919311483555";
-const SUPPORT_EMAIL   = "zippymindsacademy@gmail.com";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 const INCLUDES = [
   "Live 1-on-1 sessions with your assigned tutor",
@@ -70,6 +68,7 @@ function EnrollInner() {
   const [loading, setLoading]   = useState(true);
   const [isIndia, setIsIndia]   = useState<boolean | null>(null);
   const { showPricing }         = usePricingVisibility();
+  const { whatsappNumber, contactEmail } = useSiteSettings();
 
   useEffect(() => {
     Promise.all([
@@ -145,7 +144,7 @@ function EnrollInner() {
               const isFeatured  = course.name === preSubject;
               const icon        = SUBJECT_ICONS[course.name]  ?? "📚";
               const gradient    = SUBJECT_COLORS[course.name] ?? "from-blue-400 to-indigo-600";
-              const waLink      = `https://wa.me/${WHATSAPP_NUMBER}?text=${waMsg(course.name)}`;
+              const waLink      = `https://wa.me/${whatsappNumber}?text=${waMsg(course.name)}`;
 
               return (
                 <div key={course.id}
@@ -232,12 +231,12 @@ function EnrollInner() {
             <Sparkles size={16} className="text-primary" /> Other ways to enroll
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <a href="tel:+919311483555"
+            <a href={`tel:${contactEmail.replace(/\s/g,"")}`}
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-outline-variant hover:bg-surface-container transition-all text-sm font-medium text-on-surface">
               <Phone size={16} className="text-primary shrink-0" />
-              Call +91 93114 83555
+              Call us
             </a>
-            <a href={`mailto:${SUPPORT_EMAIL}?subject=Enrollment${preSubject ? ` — ${preSubject}` : ""}`}
+            <a href={`mailto:${contactEmail}?subject=Enrollment${preSubject ? ` — ${preSubject}` : ""}`}
               className="flex items-center gap-3 px-4 py-3 rounded-xl border border-outline-variant hover:bg-surface-container transition-all text-sm font-medium text-on-surface">
               <MessageSquare size={16} className="text-primary shrink-0" />
               Email us

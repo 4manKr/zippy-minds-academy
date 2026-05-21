@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import { SiteSettingsProvider } from "@/context/SiteSettingsContext";
 
 const DASHBOARD_PREFIXES = ["/dashboard", "/auth"];
 
@@ -11,14 +12,14 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
   const isDashboard = DASHBOARD_PREFIXES.some(p => pathname.startsWith(p));
 
   if (isDashboard) {
-    return <>{children}</>;
+    return <SiteSettingsProvider>{children}</SiteSettingsProvider>;
   }
 
   return (
-    <>
+    <SiteSettingsProvider>
       <Navbar />
       <main className="min-h-screen">{children}</main>
       <Footer />
-    </>
+    </SiteSettingsProvider>
   );
 }

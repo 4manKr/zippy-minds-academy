@@ -1,9 +1,12 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-
-export const metadata = { title: "Under Maintenance | Zippy Minds Academy" };
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 export default function MaintenancePage() {
+  const { contactEmail, phone, whatsappNumber } = useSiteSettings();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-surface to-secondary/10 flex items-center justify-center p-6">
       <div className="max-w-lg w-full text-center">
@@ -40,20 +43,20 @@ export default function MaintenancePage() {
         <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant p-5 mb-6 text-left space-y-3">
           <p className="text-sm font-semibold text-on-surface">Need help right now?</p>
           <a
-            href="https://wa.me/919311483555"
+            href={`https://wa.me/${whatsappNumber}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 text-sm text-on-surface hover:text-primary transition-colors"
           >
             <span className="text-xl">💬</span>
-            WhatsApp us at +91 93114 83555
+            WhatsApp us at {phone}
           </a>
           <a
-            href="mailto:zippymindsacademy@gmail.com"
+            href={`mailto:${contactEmail}`}
             className="flex items-center gap-3 text-sm text-on-surface hover:text-primary transition-colors"
           >
             <span className="text-xl">✉️</span>
-            zippymindsacademy@gmail.com
+            {contactEmail}
           </a>
         </div>
 

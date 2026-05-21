@@ -7,6 +7,7 @@ import {
   ArrowRight, AlertCircle, Sparkles, RefreshCw, ChevronDown,
 } from "lucide-react";
 import Script from "next/script";
+import { useSiteSettings } from "@/context/SiteSettingsContext";
 
 declare global {
   interface Window {
@@ -85,11 +86,7 @@ const BANK_DETAILS = {
   "Branch":         "Mumbai, India",
 };
 
-const WISE_DETAILS = {
-  "Account Name": "Zippy Minds Academy",
-  "Email (Wise)": "zippymindsacademy@gmail.com",
-  "Currency":     "INR / USD / GBP / EUR",
-};
+// WISE_DETAILS is built dynamically inside the component using live contactEmail
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -109,6 +106,13 @@ function detectCurrency(): string {
 function PaymentInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
+  const { whatsappNumber, contactEmail } = useSiteSettings();
+
+  const WISE_DETAILS = {
+    "Account Name": "Zippy Minds Academy",
+    "Email (Wise)": contactEmail,
+    "Currency":     "INR / USD / GBP / EUR",
+  };
 
   const courseName = searchParams.get("course")   ?? "Subscription";
   const courseId   = searchParams.get("courseId") ?? "";
@@ -173,7 +177,7 @@ function PaymentInner() {
 
     if (selected === "whatsapp") {
       const msg = encodeURIComponent(`Hi! I'd like to pay for ${courseName}. Please share payment details.`);
-      window.open(`https://wa.me/919311483555?text=${msg}`, "_blank");
+      window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, "_blank");
       return;
     }
     if (selected === "bank" || selected === "wise") return;
@@ -402,7 +406,7 @@ function PaymentInner() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-amber-600 mt-3">Transfer <strong>₹{inrAmount}</strong> and send UTR to <strong>zippymindsacademy@gmail.com</strong></p>
+              <p className="text-xs text-amber-600 mt-3">Transfer <strong>₹{inrAmount}</strong> and send UTR to <strong>{contactEmail}</strong></p>
             </div>
           )}
 
@@ -423,7 +427,7 @@ function PaymentInner() {
                 ))}
               </div>
               <p className="text-xs text-teal-600 mt-3">
-                Send <strong>{formatAmount(converted, currInfo)}</strong> via Wise, then email confirmation to <strong>zippymindsacademy@gmail.com</strong>
+                Send <strong>{formatAmount(converted, currInfo)}</strong> via Wise, then email confirmation to <strong>{contactEmail}</strong>
               </p>
             </div>
           )}
