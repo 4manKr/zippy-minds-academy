@@ -66,10 +66,10 @@ export default function Navbar() {
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <div className="relative w-14 h-14 md:w-[72px] md:h-[72px]">
-            <Image src="/zippy-logo-new.jpeg" alt="Zippy Minds Academy" fill className="object-contain" priority />
+          <div className="relative w-14 h-14 md:w-[72px] md:h-[72px] rounded-xl overflow-hidden">
+            <Image src="/zippy-logo-new.jpeg" alt="Zippy Minds Academy" fill className="object-cover" priority />
           </div>
-          <div className="relative w-14 h-14 md:w-[72px] md:h-[72px]">
+          <div className="relative w-16 h-16 md:w-[88px] md:h-[88px]">
             <Image src="/zippy-logo.jpeg" alt="Zippy Minds Academy" fill className="object-contain" priority />
           </div>
         </Link>
