@@ -75,8 +75,9 @@ export default function Footer() {
               </div>
             </Link>
             <p className="text-sm text-white/60 leading-relaxed mb-6">
-              Connecting parents worldwide with expert Indian tutors for personalized
-              1-to-1 online learning sessions. Premium education, globally accessible.
+              Where Bright Minds Grow With Confidence.
+              Fun live online classes in Phonics, Grammar, Mathematics &amp; Public Speaking
+              for children aged 3–14, from anywhere in the world.
             </p>
             <div className="space-y-3">
               <a href={`mailto:${contactEmail}`}
