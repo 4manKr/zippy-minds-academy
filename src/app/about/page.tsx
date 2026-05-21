@@ -29,8 +29,16 @@ async function getStats() {
   }
 }
 
+// Parse the numeric floor from the fallback string (e.g. "10K+" → 10000, "500+" → 500)
+function fallbackMin(fallback: string): number {
+  const m = fallback.match(/^(\d+(?:\.\d+)?)(K?)\+?$/i);
+  if (!m) return Infinity;
+  return parseFloat(m[1]) * (m[2].toUpperCase() === "K" ? 1000 : 1);
+}
+
+// Only show live count when it exceeds the fallback marketing number
 function fmt(n: number, fallback: string): string {
-  if (n <= 0) return fallback;
+  if (n < fallbackMin(fallback)) return fallback;
   if (n >= 10000) return `${Math.floor(n / 1000)}K+`;
   if (n >= 1000)  return `${(n / 1000).toFixed(1)}K+`;
   return `${n}+`;

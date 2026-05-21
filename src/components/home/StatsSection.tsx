@@ -16,6 +16,11 @@ function formatCount(n: number): string {
   return "—";
 }
 
+// Minimum thresholds — live DB count only shown when it exceeds these
+const MIN_STUDENTS = 10000;
+const MIN_TUTORS   = 500;
+const MIN_SESSIONS = 1000000;
+
 export default function StatsSection() {
   const [live, setLive] = useState<LiveStats | null>(null);
 
@@ -27,12 +32,24 @@ export default function StatsSection() {
   }, []);
 
   const stats = [
-    { icon: Users,    value: live ? formatCount(live.parents)  : "10,000+", label: "Happy Students" },
-    { icon: BookOpen, value: live ? formatCount(live.tutors)   : "500+",    label: "Expert Tutors" },
-    { icon: Globe,    value: "50+",                                           label: "Countries Served" },
-    { icon: Star,     value: "4.9/5",                                         label: "Average Rating" },
-    { icon: Clock,    value: live ? formatCount(live.sessions) : "1M+",     label: "Sessions Completed" },
-    { icon: Award,    value: "98%",                                           label: "Satisfaction Rate" },
+    {
+      icon: Users,
+      value: live && live.parents  > MIN_STUDENTS ? formatCount(live.parents)  : "10,000+",
+      label: "Happy Students",
+    },
+    {
+      icon: BookOpen,
+      value: live && live.tutors   > MIN_TUTORS   ? formatCount(live.tutors)   : "500+",
+      label: "Expert Tutors",
+    },
+    { icon: Globe,  value: "50+",    label: "Countries Served" },
+    { icon: Star,   value: "4.9/5",  label: "Average Rating" },
+    {
+      icon: Clock,
+      value: live && live.sessions > MIN_SESSIONS ? formatCount(live.sessions) : "1M+",
+      label: "Sessions Completed",
+    },
+    { icon: Award,  value: "98%",    label: "Satisfaction Rate" },
   ];
 
   return (

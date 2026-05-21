@@ -139,11 +139,14 @@ export default function CoursesPage() {
     return matchSearch && matchCat;
   });
 
+  // Only show live DB counts once they exceed the minimum marketing thresholds,
+  // so small real counts (e.g. 4 tutors during early launch) never replace
+  // the published marketing numbers.
   const heroStats = [
-    { value: stats.courses > 0 ? `${stats.courses}` : "8+", label: "Subjects" },
-    { value: stats.tutors  > 0 ? `${stats.tutors}+`  : "500+", label: "Expert Tutors" },
-    { value: stats.parents > 0 ? `${stats.parents}+` : "10K+", label: "Students" },
-    { value: "50+", label: "Countries" },
+    { value: stats.courses >= 8    ? `${stats.courses}+` : "8+",    label: "Subjects"      },
+    { value: stats.tutors  >= 500  ? `${stats.tutors}+`  : "500+",  label: "Expert Tutors" },
+    { value: stats.parents >= 10000? `${stats.parents}+` : "10K+",  label: "Students"      },
+    { value: "50+",                                                   label: "Countries"     },
   ];
 
   return (
