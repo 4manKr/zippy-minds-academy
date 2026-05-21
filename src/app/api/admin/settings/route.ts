@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 async function requireAdmin() {
   const session = await getSession();
   if (!session.isLoggedIn || session.role !== "ADMIN") return null;

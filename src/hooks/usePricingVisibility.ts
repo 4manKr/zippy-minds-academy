@@ -15,7 +15,7 @@ export function usePricingVisibility(): { showPricing: boolean; loading: boolean
   const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
-    fetch("/api/public-settings")
+    fetch("/api/public-settings", { cache: "no-store" })
       .then(r => r.ok ? r.json() : null)
       .then(d => setShowPricing(d?.showPricing !== "false"))
       .catch(() => setShowPricing(true))
