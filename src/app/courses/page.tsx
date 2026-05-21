@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Star, Filter, IndianRupee, BookOpen } from "lucide-react";
+import { Search, Star, Filter, IndianRupee, DollarSign, BookOpen } from "lucide-react";
 import { SUBJECT_COLORS } from "@/lib/utils";
 import DemoCTA from "@/components/DemoCTA";
+import { usePricingVisibility } from "@/hooks/usePricingVisibility";
 
 // Enrichment metadata for each subject — display fields not stored in DB
 const COURSE_META: Record<string, {
@@ -102,6 +103,7 @@ interface Course {
   name: string;
   description: string;
   price: number;
+  priceUSD: number;
   status: string;
   durationValue?: number;
   durationUnit?: string;
@@ -113,6 +115,8 @@ export default function CoursesPage() {
   const [search,  setSearch]    = useState("");
   const [category, setCategory] = useState("All");
   const [stats,   setStats]     = useState({ parents: 0, tutors: 0, sessions: 0, courses: 0 });
+  const [isIndia,  setIsIndia]  = useState<boolean | null>(null);
+  const { showPricing }         = usePricingVisibility();
 
   useEffect(() => {
     fetch("/api/courses")
@@ -125,6 +129,11 @@ export default function CoursesPage() {
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setStats(d); })
       .catch(() => {});
+
+    fetch("/api/geo")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setIsIndia(d?.isIndia ?? true))
+      .catch(() => setIsIndia(true));
   }, []);
 
   const categories = ["All", ...courses.map(c => c.name)];
@@ -312,8 +321,19 @@ export default function CoursesPage() {
 
                     {/* Price */}
                     <div className="flex items-baseline gap-0.5 mb-4">
-                      <IndianRupee size={15} className="text-primary mb-0.5 shrink-0" />
-                      <span className="font-display text-2xl font-extrabold text-primary leading-none">{course.price}</span>
+                      {showPricing ? (
+                        <>
+                          {isIndia !== false
+                            ? <IndianRupee size={15} className="text-primary mb-0.5 shrink-0" />
+                            : <DollarSign  size={15} className="text-primary mb-0.5 shrink-0" />
+                          }
+                          <span className="font-display text-2xl font-extrabold text-primary leading-none">
+                            {isIndia !== false ? course.price : (course.priceUSD ?? 15)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-sm font-semibold text-on-surface-variant">Contact for pricing</span>
+                      )}
                     </div>
 
                     <DemoCTA subject={course.name}
