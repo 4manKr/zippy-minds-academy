@@ -82,12 +82,10 @@ function EnrollInner() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Feature the pre-selected subject first, then the rest alphabetically
+  // When a subject is pre-selected (coming from a course card / demo),
+  // show ONLY that course. Otherwise show everything.
   const sorted = preSubject
-    ? [
-        ...courses.filter(c => c.name === preSubject),
-        ...courses.filter(c => c.name !== preSubject),
-      ]
+    ? courses.filter(c => c.name === preSubject)
     : courses;
 
   const waMsg = (courseName: string) =>
@@ -113,7 +111,7 @@ function EnrollInner() {
           </h1>
           <p className="text-on-surface-variant mt-2 max-w-xl mx-auto">
             {preSubject
-              ? "Your free demo is done. Subscribe to start regular sessions with your tutor — or explore all available subjects below."
+              ? "Pick a slot and subscribe to start your regular sessions with your assigned tutor."
               : "Choose any subject and enroll today. All sessions are live 1-on-1 with an expert tutor."}
           </p>
         </div>
