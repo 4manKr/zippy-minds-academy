@@ -4,9 +4,10 @@ import { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Calendar, Clock, ChevronRight, ChevronLeft, CheckCircle,
-  CreditCard, Globe, Sparkles, AlertCircle, ChevronDown,
-  ArrowRight, User, IndianRupee,
+  CreditCard, Sparkles, AlertCircle,
+  ArrowRight, User,
 } from "lucide-react";
+import { usePricingVisibility } from "@/hooks/usePricingVisibility";
 import Script from "next/script";
 
 declare global { interface Window { Razorpay: any; } }
@@ -30,25 +31,6 @@ const GATEWAYS = [
   { id: "stripe",   label: "Stripe",    subtitle: "Visa · Mastercard · Amex",   icon: "💳", iconBg: "bg-purple-50", badge: "🌍 International",  badgeColor: "bg-purple-50 text-purple-700" },
   { id: "paypal",   label: "PayPal",    subtitle: "PayPal balance · Card",       icon: "🅿️", iconBg: "bg-sky-50",   badge: "🌐 Worldwide",      badgeColor: "bg-sky-50 text-sky-700" },
 ];
-const PAYPAL_CURRENCIES = ["USD","GBP","EUR","AUD","CAD","SGD","NZD","MYR"];
-
-const CURRENCIES: Record<string, { symbol: string; flag: string; name: string }> = {
-  INR: { symbol: "₹",    flag: "🇮🇳", name: "Indian Rupee" },
-  USD: { symbol: "$",    flag: "🇺🇸", name: "US Dollar" },
-  GBP: { symbol: "£",    flag: "🇬🇧", name: "British Pound" },
-  EUR: { symbol: "€",    flag: "🇪🇺", name: "Euro" },
-  AED: { symbol: "AED ", flag: "🇦🇪", name: "UAE Dirham" },
-  SGD: { symbol: "S$",   flag: "🇸🇬", name: "Singapore Dollar" },
-  AUD: { symbol: "A$",   flag: "🇦🇺", name: "Australian Dollar" },
-  CAD: { symbol: "CA$",  flag: "🇨🇦", name: "Canadian Dollar" },
-};
-const TZ_CURRENCY: Record<string, string> = {
-  "Asia/Kolkata":"INR","America/New_York":"USD","America/Los_Angeles":"USD",
-  "America/Chicago":"USD","America/Denver":"USD","America/Toronto":"CAD",
-  "America/Vancouver":"CAD","Europe/London":"GBP","Europe/Paris":"EUR",
-  "Europe/Berlin":"EUR","Asia/Dubai":"AED","Asia/Singapore":"SGD",
-  "Australia/Sydney":"AUD","Australia/Melbourne":"AUD",
-};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function detectTimezone() {
@@ -190,9 +172,10 @@ function SessionPreview({ dates, timeSlot, courseName, compact }: {
 function SubscribeInner() {
   const router      = useRouter();
   const params      = useSearchParams();
-  const courseName    = params.get("course")   ?? "Subscription";
-  const courseId      = params.get("courseId") ?? "";
-  const priceINR      = parseInt(params.get("price") ?? "199", 10) || 199;
+  const courseName    = params.get("course")    ?? "Subscription";
+  const courseId      = params.get("courseId")  ?? "";
+  const priceINR      = parseInt(params.get("price")    ?? "199", 10) || 199;
+  const priceUSD      = parseInt(params.get("priceUSD") ?? "15",  10) || 15;
   const durationValue = parseInt(params.get("dv") ?? "1", 10) || 1;
   const durationUnit  = params.get("du") ?? "months";
 
@@ -217,28 +200,35 @@ function SubscribeInner() {
   const [parentName,  setParentName]  = useState("");
   const [parentEmail, setParentEmail] = useState("");
 
+  // Pricing visibility (admin toggle)
+  const { showPricing } = usePricingVisibility();
+
+  // Geo-detection: null = detecting, true = India, false = International
+  const [isIndia,      setIsIndia]      = useState<boolean | null>(null);
+
   // Payment
   const [gateway,        setGateway]        = useState("razorpay");
-  const [userCurrency,   setUserCurrency]   = useState("INR");
-  const [rates,          setRates]          = useState<Record<string,number>>({ INR:1 });
-  const [ratesLoading,   setRatesLoading]   = useState(true);
   const [payLoading,     setPayLoading]     = useState(false);
   const [payError,       setPayError]       = useState("");
-  const [showCurrPicker, setShowCurrPicker] = useState(false);
   const [sessionDates,   setSessionDates]   = useState<string[]>([]);
   const [createdSessions, setCreatedSessions] = useState<{date:string;zoomLink?:string|null}[]>([]);
 
   // keep latest values accessible inside Razorpay callback
-  const latestRef = useRef({ selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, durationValue, durationUnit, sessionDates });
+  const latestRef = useRef({ selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates });
   useEffect(() => {
-    latestRef.current = { selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, durationValue, durationUnit, sessionDates };
+    latestRef.current = { selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates };
   });
 
   useEffect(() => {
-    const tz   = detectTimezone();
+    const tz = detectTimezone();
     setTimezone(tz);
-    const curr = TZ_CURRENCY[tz] ?? "USD";
-    setUserCurrency(curr);
+
+    // Detect country → sets India or International pricing + gateway
+    fetch("/api/geo").then(r=>r.ok?r.json():null).then(d=>{
+      const india = d?.isIndia ?? true;
+      setIsIndia(india);
+      setGateway(india ? "razorpay" : "stripe");
+    }).catch(()=>{ setIsIndia(true); setGateway("razorpay"); });
 
     fetch("/api/auth/profile").then(r=>r.ok?r.json():null).then(d=>{
       if (d?.user) {
@@ -246,10 +236,6 @@ function SubscribeInner() {
         setParentEmail(d.user.email ?? "");
       }
     }).catch(()=>{});
-
-    fetch("/api/currency").then(r=>r.ok?r.json():null)
-      .then(d=>{ if(d?.rates) setRates(d.rates); }).catch(()=>{})
-      .finally(()=>setRatesLoading(false));
 
     fetch("/api/subscriptions/slot-popularity").then(r=>r.ok?r.json():null)
       .then(d=>{ if(d?.popularity) setPopularity(d.popularity); }).catch(()=>{});
@@ -295,17 +281,11 @@ function SubscribeInner() {
     if (selTime && !availableTimeSlots.includes(selTime)) setSelTime("");
   }, [availableTimeSlots, selTime]);
 
-  useEffect(() => {
-    if (userCurrency === "INR") setGateway("razorpay");
-    else if (PAYPAL_CURRENCIES.includes(userCurrency)) setGateway("paypal");
-    else setGateway("stripe");
-  }, [userCurrency]);
-
-  const currInfo  = CURRENCIES[userCurrency] ?? CURRENCIES["USD"];
-  const rate      = rates[userCurrency] ?? 1;
-  const converted = Math.ceil(priceINR * rate * 100) / 100;
-  const isINR     = userCurrency === "INR";
-  const daysLabel = formatDays(selDays);
+  // Geo-derived display values
+  const chargePrice    = isIndia !== false ? priceINR : priceUSD;
+  const chargeCurrency = isIndia !== false ? "INR" : "USD";
+  const priceSymbol    = isIndia !== false ? "₹" : "$";
+  const daysLabel      = formatDays(selDays);
 
   const doCreateSubscription = async (paymentInfo: { gateway:string; gatewayId:string; amount:number; currency:string }) => {
     const v = latestRef.current;
@@ -331,16 +311,13 @@ function SubscribeInner() {
   const handlePay = async () => {
     setPayError(""); setPayLoading(true);
     try {
-      let chargeAmount = converted, chargeCurrency = userCurrency;
-      if (gateway === "razorpay") { chargeAmount = priceINR; chargeCurrency = "INR"; }
-      else if (gateway === "paypal" && !PAYPAL_CURRENCIES.includes(userCurrency)) {
-        chargeCurrency = "USD"; chargeAmount = Math.ceil(priceINR*(rates["USD"]??0.012)*100)/100;
-      } else if (gateway === "stripe" && userCurrency === "INR") {
-        chargeCurrency = "USD"; chargeAmount = Math.ceil(priceINR*(rates["USD"]??0.012)*100)/100;
-      }
+      const v = latestRef.current;
+      // India → Razorpay + INR price; International → Stripe/PayPal + USD price
+      const chargeAmount   = v.isIndia !== false ? v.priceINR : v.priceUSD;
+      const chargeCurrency = v.isIndia !== false ? "INR" : "USD";
 
       localStorage.setItem("pending_subscription", JSON.stringify({
-        courseId, courseName, priceINR, selectedDays: selDays, timeSlot: selTime,
+        courseId, courseName, priceINR, priceUSD, selectedDays: selDays, timeSlot: selTime,
         timezone, childName, childAge, grade, sessionDates, gateway,
         chargeAmount, chargeCurrency,
       }));
@@ -366,7 +343,7 @@ function SubscribeInner() {
           theme: { color: "#005da8" },
           handler: async (response: { razorpay_payment_id: string }) => {
             try {
-              await doCreateSubscription({ gateway:"razorpay", gatewayId:response.razorpay_payment_id, amount:priceINR, currency:"INR" });
+              await doCreateSubscription({ gateway:"razorpay", gatewayId:response.razorpay_payment_id, amount:chargeAmount, currency:chargeCurrency });
             } catch(e) {
               setPayError(e instanceof Error ? e.message : "Could not create sessions. Contact support.");
             } finally { setPayLoading(false); }
@@ -644,35 +621,26 @@ function SubscribeInner() {
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    {ratesLoading
-                      ? <div className="w-20 h-8 bg-primary/10 rounded animate-pulse"/>
-                      : <span className="font-display text-3xl font-extrabold text-primary">
-                          {currInfo.symbol}{converted.toLocaleString("en",{minimumFractionDigits:2,maximumFractionDigits:2})}
-                        </span>
-                    }
-                    <p className="text-xs text-on-surface-variant">{durationValue} {durationUnit} course</p>
-                    {!isINR && !ratesLoading && <p className="text-[11px] text-on-surface-variant/60 mt-0.5">Base: ₹{priceINR}</p>}
+                    {showPricing ? (
+                      <>
+                        {isIndia === null
+                          ? <div className="w-20 h-8 bg-primary/10 rounded animate-pulse"/>
+                          : <span className="font-display text-3xl font-extrabold text-primary">
+                              {priceSymbol}{chargePrice}
+                            </span>
+                        }
+                        <p className="text-xs text-on-surface-variant">{durationValue} {durationUnit} course</p>
+                        <p className="text-[11px] text-on-surface-variant/60 mt-0.5">
+                          {isIndia !== false ? "🇮🇳 India · INR" : "🌍 International · USD"}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-sm font-semibold text-on-surface-variant">Contact for pricing</span>
+                        <p className="text-xs text-on-surface-variant mt-1">{durationValue} {durationUnit} course</p>
+                      </>
+                    )}
                   </div>
-                </div>
-                <div className="mt-3 pt-3 border-t border-primary/10">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-on-surface-variant">{currInfo.flag} {currInfo.name}</span>
-                    <button onClick={()=>setShowCurrPicker(p=>!p)} className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
-                      Change <ChevronDown size={11} className={`transition-transform ${showCurrPicker?"rotate-180":""}`}/>
-                    </button>
-                  </div>
-                  {showCurrPicker && (
-                    <div className="mt-2 grid grid-cols-4 gap-1.5">
-                      {Object.entries(CURRENCIES).map(([code,info])=>(
-                        <button key={code} onClick={()=>{setUserCurrency(code);setShowCurrPicker(false);}}
-                          className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                            userCurrency===code?"bg-primary text-white border-primary":"border-outline-variant hover:border-primary text-on-surface-variant"
-                          }`}>
-                          {info.flag} {code}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -680,49 +648,87 @@ function SubscribeInner() {
                 <SessionPreview dates={sessionDates} timeSlot={selTime} courseName={courseName} compact />
               </div>
 
-              <div className="space-y-2">
-                {GATEWAYS.map(gw=>(
-                  <button key={gw.id} onClick={()=>setGateway(gw.id)}
-                    className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left ${
-                      gateway===gw.id?"border-primary bg-primary/5":"border-outline-variant hover:border-primary/40 bg-surface-container-lowest"
-                    }`}>
-                    <div className={`w-10 h-10 rounded-xl ${gw.iconBg} flex items-center justify-center text-lg shrink-0`}>{gw.icon}</div>
-                    <div className="flex-1">
-                      <div className="font-bold text-on-surface text-sm">{gw.label}</div>
-                      <p className="text-xs text-on-surface-variant">{gw.subtitle}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${gw.badgeColor}`}>{gw.badge}</span>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${gateway===gw.id?"border-primary bg-primary":"border-outline-variant"}`}>
-                        {gateway===gw.id && <div className="w-2 h-2 rounded-full bg-white"/>}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              {showPricing ? (
+                /* ── Normal payment flow ── */
+                <>
+                  {/* Gateway selection — India: Razorpay only; International: Stripe + PayPal */}
+                  <div className="space-y-2">
+                    {GATEWAYS
+                      .filter(gw => isIndia !== false ? gw.id === "razorpay" : gw.id !== "razorpay")
+                      .map(gw=>(
+                        <button key={gw.id} onClick={()=>setGateway(gw.id)}
+                          className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left ${
+                            gateway===gw.id?"border-primary bg-primary/5":"border-outline-variant hover:border-primary/40 bg-surface-container-lowest"
+                          }`}>
+                          <div className={`w-10 h-10 rounded-xl ${gw.iconBg} flex items-center justify-center text-lg shrink-0`}>{gw.icon}</div>
+                          <div className="flex-1">
+                            <div className="font-bold text-on-surface text-sm">{gw.label}</div>
+                            <p className="text-xs text-on-surface-variant">{gw.subtitle}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${gw.badgeColor}`}>{gw.badge}</span>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${gateway===gw.id?"border-primary bg-primary":"border-outline-variant"}`}>
+                              {gateway===gw.id && <div className="w-2 h-2 rounded-full bg-white"/>}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    }
+                  </div>
 
-              {payError && (
-                <div className="flex items-start gap-2 bg-red-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm">
-                  <AlertCircle size={16} className="shrink-0 mt-0.5"/>{payError}
-                </div>
+                  {payError && (
+                    <div className="flex items-start gap-2 bg-red-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm">
+                      <AlertCircle size={16} className="shrink-0 mt-0.5"/>{payError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button onClick={()=>setStep("details")}
+                      className="flex items-center gap-1 px-4 py-3 rounded-2xl border border-outline-variant text-on-surface-variant text-sm font-semibold hover:bg-surface-container transition-all">
+                      <ChevronLeft size={16}/> Back
+                    </button>
+                    <button onClick={handlePay} disabled={payLoading}
+                      className="flex-1 flex items-center justify-center gap-2 bg-primary text-white font-bold py-3.5 rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60">
+                      {payLoading
+                        ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
+                        : <><CreditCard size={18}/>Pay {priceSymbol}{chargePrice} &amp; Book Sessions<ArrowRight size={18}/></>
+                      }
+                    </button>
+                  </div>
+                  <p className="text-center text-xs text-on-surface-variant flex items-center justify-center gap-1.5">🔒 256-bit SSL · Secure payment</p>
+                </>
+              ) : (
+                /* ── Pricing OFF: WhatsApp only ── */
+                <>
+                  <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-5 text-center">
+                    <div className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <span className="text-2xl">💬</span>
+                    </div>
+                    <p className="font-bold text-green-800 text-base mb-1">Complete your enrollment on WhatsApp</p>
+                    <p className="text-sm text-green-700 mb-4">
+                      Share your slot details with us and we&apos;ll confirm your sessions and send payment info directly.
+                    </p>
+                    <a
+                      href={`https://wa.me/919311483555?text=${encodeURIComponent(
+                        `Hi! I'd like to enroll in *${courseName}*.\n\n` +
+                        `📅 Days: ${daysLabel}\n` +
+                        `🕐 Time: ${selTime}\n` +
+                        `👦 Child: ${childName || "—"}\n` +
+                        `📚 Duration: ${durationValue} ${durationUnit}\n\n` +
+                        `Please share the payment details and confirm my sessions.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-bold py-3.5 rounded-2xl transition-all active:scale-[0.98] text-sm"
+                    >
+                      <span className="text-lg">💬</span>
+                      Chat on WhatsApp to Confirm Enrollment
+                      <ArrowRight size={16}/>
+                    </a>
+                  </div>
+
+                </>
               )}
-
-              <div className="flex gap-3">
-                <button onClick={()=>setStep("details")}
-                  className="flex items-center gap-1 px-4 py-3 rounded-2xl border border-outline-variant text-on-surface-variant text-sm font-semibold hover:bg-surface-container transition-all">
-                  <ChevronLeft size={16}/> Back
-                </button>
-                <button onClick={handlePay} disabled={payLoading}
-                  className="flex-1 flex items-center justify-center gap-2 bg-primary text-white font-bold py-3.5 rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60">
-                  {payLoading
-                    ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
-                    : <><CreditCard size={18}/>
-                        Pay {isINR?`₹${priceINR}`:`${currInfo.symbol}${converted}`} &amp; Book Sessions
-                        <ArrowRight size={18}/></>
-                  }
-                </button>
-              </div>
-              <p className="text-center text-xs text-on-surface-variant flex items-center justify-center gap-1.5">🔒 256-bit SSL · Secure payment</p>
             </div>
           )}
 
@@ -761,7 +767,6 @@ function SubscribeInner() {
             </div>
           )}
 
-          <IndianRupee size={0} className="hidden"/>
         </div>
       </div>
     </>

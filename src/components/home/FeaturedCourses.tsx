@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { Star, Clock, ArrowRight } from "lucide-react";
 import DemoCTA from "@/components/DemoCTA";
+import { useState, useEffect } from "react";
+import { usePricingVisibility } from "@/hooks/usePricingVisibility";
 
 const courses = [
   {
     id: 1, subject: "Phonics & Reading", icon: "🔤",
     title: "Phonics Foundations",
     desc: "Build a rock-solid foundation for a lifetime of confident reading and literacy.",
-    tutor: "Ms. Ananya Singh", price: 199, rating: 4.9, reviews: 512,
+    tutor: "Ms. Ananya Singh", price: 199, priceUSD: 12, rating: 4.9, reviews: 512,
     duration: "30 min/session", ageGroup: "Ages 3–7",
     borderColor: "border-tertiary",
     subjectColor: "bg-tertiary-fixed text-tertiary",
@@ -18,7 +20,7 @@ const courses = [
     id: 2, subject: "Mathematics", icon: "🔢",
     title: "Mathematics Excellence",
     desc: "Master logic, problem-solving, and advanced concepts with visual learning tools.",
-    tutor: "Mr. Rahul Verma", price: 229, rating: 4.9, reviews: 634,
+    tutor: "Mr. Rahul Verma", price: 229, priceUSD: 15, rating: 4.9, reviews: 634,
     duration: "45 min/session", ageGroup: "Ages 5–15",
     borderColor: "border-secondary-container",
     subjectColor: "bg-secondary-container/30 text-secondary",
@@ -27,7 +29,7 @@ const courses = [
     id: 4, subject: "Public Speaking", icon: "🎤",
     title: "Speak Up & Shine",
     desc: "Unleash the leader within. Learn to speak with poise, clarity, and confidence.",
-    tutor: "Ms. Kavya Nair", price: 219, rating: 4.8, reviews: 278,
+    tutor: "Ms. Kavya Nair", price: 219, priceUSD: 14, rating: 4.8, reviews: 278,
     duration: "30 min/session", ageGroup: "Ages 7–15",
     borderColor: "border-primary",
     subjectColor: "bg-primary/10 text-primary",
@@ -36,7 +38,7 @@ const courses = [
     id: 2, subject: "English Grammar", icon: "💬",
     title: "English Grammar Mastery",
     desc: "Learn better, express better — build vocabulary and grammar every day.",
-    tutor: "Ms. Priya Sharma", price: 219, rating: 4.8, reviews: 389,
+    tutor: "Ms. Priya Sharma", price: 219, priceUSD: 14, rating: 4.8, reviews: 389,
     duration: "45 min/session", ageGroup: "Ages 6–12",
     borderColor: "border-primary-container",
     subjectColor: "bg-primary-fixed text-primary",
@@ -45,7 +47,7 @@ const courses = [
     id: 5, subject: "Coding", icon: "💻",
     title: "Kids Coding Adventures",
     desc: "Build apps, games & the future — from Scratch to Python and beyond.",
-    tutor: "Mr. Arjun Mehta", price: 249, rating: 4.9, reviews: 341,
+    tutor: "Mr. Arjun Mehta", price: 249, priceUSD: 18, rating: 4.9, reviews: 341,
     duration: "45 min/session", ageGroup: "Ages 8–15",
     borderColor: "border-on-surface-variant",
     subjectColor: "bg-surface-container-highest text-on-surface-variant",
@@ -54,7 +56,7 @@ const courses = [
     id: 6, subject: "Writing & Communication", icon: "✏️",
     title: "Creative Writing Stars",
     desc: "Write clearly, think creatively — story writing, essays, and journaling.",
-    tutor: "Ms. Sunita Rao", price: 199, rating: 4.7, reviews: 267,
+    tutor: "Ms. Sunita Rao", price: 199, priceUSD: 12, rating: 4.7, reviews: 267,
     duration: "30 min/session", ageGroup: "Ages 6–12",
     borderColor: "border-teal-400",
     subjectColor: "bg-teal-50 text-teal-700",
@@ -63,7 +65,7 @@ const courses = [
     id: 7, subject: "Science", icon: "🔬",
     title: "Science Explorers",
     desc: "Discover, experiment & wonder — biology, physics, and chemistry made fun.",
-    tutor: "Dr. Meera Patel", price: 229, rating: 4.8, reviews: 198,
+    tutor: "Dr. Meera Patel", price: 229, priceUSD: 15, rating: 4.8, reviews: 198,
     duration: "45 min/session", ageGroup: "Ages 8–15",
     borderColor: "border-green-400",
     subjectColor: "bg-green-50 text-green-700",
@@ -72,7 +74,7 @@ const courses = [
     id: 8, subject: "Life Skills", icon: "🌟",
     title: "Future-Ready Life Skills",
     desc: "Leadership, mindset & real-world readiness — skills for life beyond school.",
-    tutor: "Mr. Rohan Gupta", price: 199, rating: 4.7, reviews: 189,
+    tutor: "Mr. Rohan Gupta", price: 199, priceUSD: 12, rating: 4.7, reviews: 189,
     duration: "30 min/session", ageGroup: "Ages 6–15",
     borderColor: "border-secondary-fixed-dim",
     subjectColor: "bg-secondary-container/20 text-secondary",
@@ -82,6 +84,23 @@ const courses = [
 const categories = ["All", "Phonics & Reading", "English Grammar", "Mathematics", "Public Speaking", "Coding", "Science", "Writing & Communication", "Life Skills"];
 
 export default function FeaturedCourses() {
+  const [isIndia, setIsIndia] = useState<boolean | null>(null);
+  const { showPricing }       = usePricingVisibility();
+
+  useEffect(() => {
+    fetch("/api/geo")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setIsIndia(d?.isIndia ?? true))
+      .catch(() => setIsIndia(true));
+  }, []);
+
+  // Render the price badge based on geo + visibility setting
+  const priceLabel = (course: typeof courses[0]) => {
+    if (!showPricing) return "Contact for pricing";
+    if (isIndia === null) return "…/mo";
+    return isIndia ? `₹${course.price}/mo` : `$${course.priceUSD}/mo`;
+  };
+
   return (
     <section className="py-24 bg-surface-container-low">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16">
@@ -132,7 +151,9 @@ export default function FeaturedCourses() {
                   <span className="badge bg-white text-on-surface-variant font-semibold text-xs shadow-sm">{course.ageGroup}</span>
                 </div>
                 <div className="absolute bottom-3 left-3">
-                  <span className="badge bg-primary text-on-primary font-bold text-xs">₹{course.price}/mo</span>
+                  <span className={`badge font-bold text-xs ${showPricing ? "bg-primary text-on-primary" : "bg-white/90 text-gray-700"}`}>
+                    {priceLabel(course)}
+                  </span>
                 </div>
               </div>
 

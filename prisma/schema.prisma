@@ -87,7 +87,8 @@ model Course {
   id              String   @id @default(cuid())
   name            String   @unique
   description     String   @default("")
-  price           Int      @default(199)
+  price           Int      @default(199)      // INR price (India)
+  priceUSD        Int      @default(15)       // USD price (International — NOT a conversion)
   durationValue   Int      @default(1)        // e.g. 3
   durationUnit    String   @default("months") // "days" | "weeks" | "months"
   sessionsPerWeek Int      @default(1)

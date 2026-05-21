@@ -18,10 +18,10 @@ type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"anal
 // ── Types ────────────────────────────────────────────────────────────────────
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
 interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; needsAdmin?:boolean; declinedTutors?:string; createdAt:string; }
-interface DBCourse  { id:string; name:string; description:string; price:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; }
+interface DBCourse  { id:string; name:string; description:string; price:number; priceUSD:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; }
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
-interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; }
+interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; showPricing:string; }
 interface DBResource  { id:string; title:string; type:string; subject:string; size:string; icon:string; url:string; status:string; }
 interface DBVideo    { id:string; title:string; subject:string; duration:string; thumbnail:string; videoUrl:string; views:number; status:string; }
 interface DBRecording { id:string; title:string; description:string; subject:string; studentName:string; tutorName:string; videoUrl:string; duration:string; fileSize:string; uploadedBy:string; uploadedByRole:string; visibility:string; createdAt:string; }
@@ -43,7 +43,7 @@ export default function AdminDashboard() {
   const [courses,   setCourses]   = useState<DBCourse[]>([]);
   const [tickets,   setTickets]   = useState<DBTicket[]>([]);
   const [analytics, setAnalytics] = useState<Analytics|null>(null);
-  const [dbSettings,setDbSettings]= useState<Settings>({ siteName:"", contactEmail:"", phone:"", zoomEnabled:"true", emailNotifications:"true", autoApprove:"false", maintenanceMode:"false" });
+  const [dbSettings,setDbSettings]= useState<Settings>({ siteName:"", contactEmail:"", phone:"", zoomEnabled:"true", emailNotifications:"true", autoApprove:"false", maintenanceMode:"false", showPricing:"true" });
   const [resources,    setResources]    = useState<DBResource[]>([]);
   const [videos,       setVideos]       = useState<DBVideo[]>([]);
   const [recordings,   setRecordings]   = useState<DBRecording[]>([]);
@@ -73,7 +73,7 @@ export default function AdminDashboard() {
   const [replyOpen,      setReplyOpen]      = useState<string|null>(null);
   const [replyText,      setReplyText]      = useState("");
   const [settingsSaved,  setSettingsSaved]  = useState(false);
-  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", price:"199", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" });
+  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" });
   const [addingCourse,   setAddingCourse]   = useState(false);
   // Content management
   const [contentTab,     setContentTab]     = useState<"resources"|"videos"|"recordings">("resources");
@@ -333,9 +333,9 @@ export default function AdminDashboard() {
   const handleAddCourse = async () => {
     if (!newCourse.name.trim()) return;
     setLoad("addCourse", true);
-    const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:newCourse.name, description:newCourse.description, price:parseInt(newCourse.price)||199, durationValue:parseInt(newCourse.durationValue)||1, durationUnit:newCourse.durationUnit||"months", sessionsPerWeek:parseInt(newCourse.sessionsPerWeek)||1 }) });
+    const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:newCourse.name, description:newCourse.description, price:parseInt(newCourse.price)||199, priceUSD:parseInt(newCourse.priceUSD)||15, durationValue:parseInt(newCourse.durationValue)||1, durationUnit:newCourse.durationUnit||"months", sessionsPerWeek:parseInt(newCourse.sessionsPerWeek)||1 }) });
     const data = await res.json();
-    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", price:"199", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" }); setAddingCourse(false); }
+    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" }); setAddingCourse(false); }
     setLoad("addCourse", false);
   };
 
@@ -382,7 +382,7 @@ export default function AdminDashboard() {
     if (!editCourse) return;
     setLoad("editCourse", true);
     const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description, price:editCourse.price, durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit, sessionsPerWeek:editCourse.sessionsPerWeek }) });
+      body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description, price:editCourse.price, priceUSD:editCourse.priceUSD, durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit, sessionsPerWeek:editCourse.sessionsPerWeek }) });
     const data = await res.json();
     if (data.course) { setCourses(c=>c.map(x=>x.id===editCourse.id?data.course:x)); setEditCourse(null); }
     setLoad("editCourse", false);
@@ -635,10 +635,17 @@ export default function AdminDashboard() {
                 <textarea value={editCourse.description} onChange={e=>setEditCourse(p=>p?{...p,description:e.target.value}:null)} rows={3}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"/>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Price (₹/month)</label>
-                <input type="number" value={editCourse.price} onChange={e=>setEditCourse(p=>p?{...p,price:parseInt(e.target.value)||0}:null)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Price ₹ (India / INR)</label>
+                  <input type="number" value={editCourse.price} onChange={e=>setEditCourse(p=>p?{...p,price:parseInt(e.target.value)||0}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Price $ (International / USD)</label>
+                  <input type="number" value={editCourse.priceUSD ?? 15} onChange={e=>setEditCourse(p=>p?{...p,priceUSD:parseInt(e.target.value)||0}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Course Duration</label>
@@ -1180,8 +1187,12 @@ export default function AdminDashboard() {
                         <input value={newCourse.description} onChange={e=>setNewCourse(p=>({...p,description:e.target.value}))} placeholder="Short description" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-56"/>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price (₹/mo)</label>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price ₹ (India)</label>
                         <input type="number" value={newCourse.price} onChange={e=>setNewCourse(p=>({...p,price:e.target.value}))} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-24"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price $ (International)</label>
+                        <input type="number" value={newCourse.priceUSD} onChange={e=>setNewCourse(p=>({...p,priceUSD:e.target.value}))} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-24"/>
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Duration</label>
@@ -1215,7 +1226,11 @@ export default function AdminDashboard() {
                             </div>
                           </td>
                           <td className="px-5 py-4 text-gray-500 text-xs max-w-[200px] truncate">{c.description || "—"}</td>
-                          <td className="px-5 py-4 font-semibold text-gray-900">₹{c.price}</td>
+                          <td className="px-5 py-4 font-semibold text-gray-900">
+                            <span className="text-green-700">₹{c.price}</span>
+                            <span className="text-gray-400 mx-1">/</span>
+                            <span className="text-blue-700">${c.priceUSD ?? 15}</span>
+                          </td>
                           <td className="px-5 py-4">
                             <button onClick={()=>handleCourseToggle(c.id,c.status)}
                               className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all ${c.status==="active"?"bg-green-100 text-green-700 hover:bg-green-200":"bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
@@ -1999,6 +2014,51 @@ export default function AdminDashboard() {
                   <CheckCircle size={16}/> Settings saved to database successfully!
                 </div>
               )}
+
+              {/* ══ PRICING VISIBILITY — top of page, impossible to miss ══ */}
+              <div className={`rounded-2xl border-2 shadow-sm overflow-hidden transition-all ${
+                dbSettings.showPricing === "true" ? "border-green-300" : "border-red-300"
+              }`}>
+                {/* Header bar */}
+                <div className={`px-5 py-3 flex items-center gap-2 ${
+                  dbSettings.showPricing === "true" ? "bg-green-500" : "bg-red-500"
+                }`}>
+                  <DollarSign size={16} className="text-white shrink-0"/>
+                  <p className="text-white font-bold text-sm flex-1">Pricing Visibility</p>
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                    dbSettings.showPricing === "true" ? "bg-white text-green-700" : "bg-white text-red-700"
+                  }`}>
+                    {dbSettings.showPricing === "true" ? "ON" : "OFF"}
+                  </span>
+                </div>
+                {/* Body */}
+                <div className={`px-5 py-4 flex items-center justify-between gap-4 ${
+                  dbSettings.showPricing === "true" ? "bg-green-50" : "bg-red-50"
+                }`}>
+                  <p className={`text-sm ${dbSettings.showPricing==="true" ? "text-green-800" : "text-red-800"}`}>
+                    {dbSettings.showPricing === "true"
+                      ? "✅ Course prices are currently visible to all visitors (₹ for India, $ for international)."
+                      : "🚫 Prices are hidden site-wide. Visitors see ‘Contact for pricing’ on all pages."}
+                  </p>
+                  <button
+                    onClick={()=>setDbSettings(p=>({...p,showPricing:p.showPricing==="true"?"false":"true"}))}
+                    className={`relative w-14 h-7 rounded-full transition-all shrink-0 ${
+                      dbSettings.showPricing==="true" ? "bg-green-500" : "bg-red-400"
+                    }`}>
+                    <span className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all ${
+                      dbSettings.showPricing==="true" ? "left-8" : "left-1"
+                    }`}/>
+                  </button>
+                </div>
+                <div className={`px-5 py-2.5 text-xs font-medium border-t ${
+                  dbSettings.showPricing === "true"
+                    ? "bg-green-100 border-green-200 text-green-700"
+                    : "bg-red-100 border-red-200 text-red-700"
+                }`}>
+                  Toggle then click <strong>Save Settings</strong> below to apply.
+                </div>
+              </div>
+
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                 <h2 className="font-bold text-gray-900 mb-5 flex items-center gap-2"><Settings size={17} className="text-blue-600"/> General</h2>
                 <div className="space-y-4">

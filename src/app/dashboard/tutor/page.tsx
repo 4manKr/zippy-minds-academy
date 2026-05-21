@@ -123,6 +123,7 @@ export default function TutorDashboard() {
 
   // Monthly availability
   const [monthlyAvail, setMonthlyAvail]   = useState<Array<{id:string;monthYear:string;slots:string;isLocked:boolean}>>([]);
+  const [protectedSlots, setProtectedSlots] = useState<Record<string, string[]>>({});
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
@@ -183,7 +184,18 @@ export default function TutorDashboard() {
       if (sessData?.sessions)        setSessions(sessData.sessions);
       if (matData?.materials)        setMaterials(matData.materials);
       if (recData?.recordings)       setRecordings(recData.recordings);
-      if (availData?.availabilities) setMonthlyAvail(availData.availabilities);
+      if (availData?.availabilities) {
+        setMonthlyAvail(availData.availabilities);
+        // Pre-populate form with current month if a record exists
+        const curMonth = (() => {
+          const d = new Date();
+          return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+        })();
+        const existing = (availData.availabilities as Array<{monthYear:string;slots:string}>)
+          .find(a => a.monthYear === curMonth);
+        if (existing) setMonthAvailForm(JSON.parse(existing.slots) as Record<string, string[]>);
+      }
+      if (availData?.protectedSlots)  setProtectedSlots(availData.protectedSlots);
     }).catch(() => router.push("/auth/login"))
       .finally(() => setLoading(false));
   }, [router]);
@@ -300,6 +312,8 @@ export default function TutorDashboard() {
   };
 
   const toggleMonthSlot = (day: string, slot: string) => {
+    // Protected slots (active bookings/sessions) cannot be removed
+    if ((protectedSlots[day] ?? []).includes(slot)) return;
     setMonthAvailForm(prev => {
       const daySlots = prev[day] ?? [];
       const has = daySlots.includes(slot);
@@ -331,7 +345,12 @@ export default function TutorDashboard() {
         }
         return [data.availability, ...prev];
       });
-      setMonthAvailMsg({ type:"ok", text:"Availability submitted and locked for " + formatMonthYear(selectedMonth) + "." });
+      setMonthAvailMsg({ type:"ok", text:"Availability saved for " + formatMonthYear(selectedMonth) + "." });
+    } else if (res.status === 409 && data.conflicts) {
+      setMonthAvailMsg({
+        type: "err",
+        text: `Cannot remove slots with active sessions: ${(data.conflicts as string[]).join(", ")}. Keep those slots enabled.`,
+      });
     } else {
       setMonthAvailMsg({ type:"err", text: data.error ?? "Failed to save." });
     }
@@ -1666,8 +1685,8 @@ export default function TutorDashboard() {
             <div>
               <h2 className="font-display text-2xl font-extrabold text-on-surface">Monthly Availability</h2>
               <p className="text-sm text-on-surface-variant mt-1">
-                Set your available time slots for a specific month. Once submitted, your availability is locked.
-                Only the admin can make changes.
+                Set your available time slots for a specific month. You can update your availability at any time —
+                slots that have active bookings or scheduled sessions are protected and cannot be removed.
               </p>
             </div>
 
@@ -1695,164 +1714,132 @@ export default function TutorDashboard() {
               </select>
             </div>
 
-            {/* Locked view */}
-            {monthlyAvail.find(a => a.monthYear === selectedMonth && a.isLocked) ? (() => {
-              const record = monthlyAvail.find(a => a.monthYear === selectedMonth)!;
-              const slots = JSON.parse(record.slots) as Record<string, string[]>;
-              return (
-                <>
-                  <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4 flex items-start gap-3">
-                    <Lock size={16} className="text-blue-600 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-blue-800">Availability Locked</p>
-                      <p className="text-sm text-blue-700 mt-0.5">
-                        Your availability for <strong>{formatMonthYear(selectedMonth)}</strong> is locked.
-                        Only the admin can make changes.
-                      </p>
-                    </div>
-                  </div>
+            {/* Protected-slots legend (only show if there are any) */}
+            {Object.keys(protectedSlots).length > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-2xl px-5 py-4 flex items-start gap-3">
+                <Lock size={16} className="text-orange-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-orange-800">Some slots are protected</p>
+                  <p className="text-sm text-orange-700 mt-0.5">
+                    Slots marked with <Lock size={11} className="inline text-orange-600 mx-0.5" /> have active
+                    bookings or scheduled sessions and cannot be removed. All other slots can be freely changed.
+                  </p>
+                </div>
+              </div>
+            )}
 
-                  <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
-                    <p className="text-sm font-semibold text-on-surface mb-4">
-                      Your schedule for {formatMonthYear(selectedMonth)}
-                    </p>
-                    <div className="space-y-3">
-                      {ALL_DAYS.filter(d => (slots[d] ?? []).length > 0).map(day => (
-                        <div key={day} className="flex items-center gap-3">
-                          <span className="text-xs font-bold text-on-surface-variant w-8">{day}</span>
-                          <div className="flex flex-wrap gap-2">
-                            {(slots[day] ?? []).map(slot => (
-                              <span key={slot} className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                                <CheckCircle size={11} /> {slot}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                      {ALL_DAYS.every(d => (slots[d] ?? []).length === 0) && (
-                        <p className="text-sm text-on-surface-variant">No slots set.</p>
+            {/* Always-editable availability form */}
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+              <p className="text-sm font-semibold text-on-surface mb-1">
+                {monthlyAvail.find(a => a.monthYear === selectedMonth)
+                  ? `Edit availability for ${formatMonthYear(selectedMonth)}`
+                  : `Set availability for ${formatMonthYear(selectedMonth)}`}
+              </p>
+              <p className="text-xs text-on-surface-variant mb-5">
+                Select at least one time slot. Slots with a 🔒 icon are locked due to existing bookings.
+              </p>
+
+              {/* Day tabs */}
+              <div className="flex gap-2 flex-wrap mb-5">
+                {ALL_DAYS.map(day => {
+                  const count = (monthAvailForm[day] ?? []).length;
+                  const hasProtected = (protectedSlots[day] ?? []).length > 0;
+                  return (
+                    <button key={day} onClick={() => setMonthAvailDay(day)}
+                      className={`px-4 py-2 rounded-xl text-sm font-bold transition-all relative ${
+                        monthAvailDay === day
+                          ? "bg-primary text-on-primary shadow-sm"
+                          : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                      }`}>
+                      {day}
+                      {hasProtected && <span className="ml-1 text-orange-500 text-[10px]">🔒</span>}
+                      {count > 0 && (
+                        <span className="ml-1.5 bg-green-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">{count}</span>
                       )}
-                    </div>
-                  </div>
+                    </button>
+                  );
+                })}
+              </div>
 
-                  <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-5 flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold text-on-surface">Need to change your availability?</p>
-                      <p className="text-xs text-on-surface-variant mt-0.5">Contact admin to request an availability change for this month.</p>
-                    </div>
-                    <a
-                      href="https://wa.me/919311483555"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary shrink-0 text-sm"
-                    >
-                      Contact Admin
-                    </a>
-                  </div>
-                </>
-              );
-            })() : (
-              /* New / unlocked form */
-              <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant shadow-card p-6">
+              {/* Time slot grid */}
+              <div className="mb-6">
                 <p className="text-sm font-semibold text-on-surface mb-1">
-                  Set availability for {formatMonthYear(selectedMonth)}
+                  {monthAvailDay} — select available time slots
                 </p>
-                <p className="text-xs text-on-surface-variant mb-5">
-                  Select at least one time slot. After submitting, your availability will be locked.
-                </p>
-
-                {/* Day tabs */}
-                <div className="flex gap-2 flex-wrap mb-5">
-                  {ALL_DAYS.map(day => {
-                    const count = (monthAvailForm[day] ?? []).length;
+                <p className="text-xs text-on-surface-variant mb-4">Click to toggle. Green = available. 🔒 = locked (active booking).</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {ALL_AVAIL_SLOTS.map(slot => {
+                    const on        = (monthAvailForm[monthAvailDay] ?? []).includes(slot);
+                    const isProtected = (protectedSlots[monthAvailDay] ?? []).includes(slot);
                     return (
-                      <button key={day} onClick={() => setMonthAvailDay(day)}
-                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all relative ${
-                          monthAvailDay === day
-                            ? "bg-primary text-on-primary shadow-sm"
-                            : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                      <button key={slot}
+                        onClick={() => toggleMonthSlot(monthAvailDay, slot)}
+                        disabled={isProtected}
+                        title={isProtected ? "This slot has an active session and cannot be removed" : undefined}
+                        className={`p-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 border-2 ${
+                          isProtected
+                            ? "bg-orange-50 border-orange-300 text-orange-700 cursor-not-allowed"
+                            : on
+                              ? "bg-green-50 border-green-400 text-green-700 hover:bg-green-100"
+                              : "bg-surface-container border-outline-variant text-on-surface-variant hover:border-primary/40 hover:bg-primary/5"
                         }`}>
-                        {day}
-                        {count > 0 && (
-                          <span className="ml-1.5 bg-green-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">{count}</span>
-                        )}
+                        {isProtected ? <Lock size={13} className="text-orange-500 shrink-0" /> : <Clock size={13} />}
+                        {slot}
+                        {isProtected && <Lock size={11} className="text-orange-400 shrink-0" />}
+                        {!isProtected && on && <CheckCircle size={13} className="text-green-500 shrink-0" />}
                       </button>
                     );
                   })}
                 </div>
-
-                {/* Time slot grid */}
-                <div className="mb-6">
-                  <p className="text-sm font-semibold text-on-surface mb-1">
-                    {monthAvailDay} — select available time slots
-                  </p>
-                  <p className="text-xs text-on-surface-variant mb-4">Click to toggle. Green = available for bookings.</p>
-                  <div className="grid grid-cols-3 gap-3">
-                    {ALL_AVAIL_SLOTS.map(slot => {
-                      const on = (monthAvailForm[monthAvailDay] ?? []).includes(slot);
-                      return (
-                        <button key={slot} onClick={() => toggleMonthSlot(monthAvailDay, slot)}
-                          className={`p-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 border-2 ${
-                            on
-                              ? "bg-green-50 border-green-400 text-green-700"
-                              : "bg-surface-container border-outline-variant text-on-surface-variant hover:border-primary/40 hover:bg-primary/5"
-                          }`}>
-                          <Clock size={13} />
-                          {slot}
-                          {on && <CheckCircle size={13} className="text-green-500 shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Weekly summary */}
-                <div className="bg-surface-container rounded-xl p-4 mb-5">
-                  <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-3">Summary</p>
-                  <div className="grid grid-cols-7 gap-1.5">
-                    {ALL_DAYS.map(day => {
-                      const count = (monthAvailForm[day] ?? []).length;
-                      return (
-                        <div key={day} className="text-center">
-                          <p className="text-[10px] font-bold text-on-surface-variant mb-1">{day}</p>
-                          <div className={`h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${
-                            count > 0 ? "bg-green-100 text-green-700" : "bg-surface-container-high text-on-surface-variant/40"
-                          }`}>
-                            {count > 0 ? count : "—"}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-on-surface-variant mt-2">
-                    Total: <span className="font-bold text-on-surface">{Object.values(monthAvailForm).reduce((a, v) => a + (v?.length ?? 0), 0)}</span> slots selected
-                  </p>
-                </div>
-
-                {monthAvailMsg && (
-                  <p className={`text-sm font-semibold flex items-center gap-2 mb-4 ${monthAvailMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
-                    {monthAvailMsg.type === "ok" ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
-                    {monthAvailMsg.text}
-                  </p>
-                )}
-
-                <button onClick={handleMonthAvailSubmit} disabled={monthAvailSaving}
-                  className="btn-primary w-full sm:w-auto disabled:opacity-60">
-                  {monthAvailSaving
-                    ? "Submitting…"
-                    : <><Save size={15} /> Submit Availability for {formatMonthYear(selectedMonth)}</>
-                  }
-                </button>
               </div>
-            )}
+
+              {/* Weekly summary */}
+              <div className="bg-surface-container rounded-xl p-4 mb-5">
+                <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-3">Summary</p>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {ALL_DAYS.map(day => {
+                    const count = (monthAvailForm[day] ?? []).length;
+                    return (
+                      <div key={day} className="text-center">
+                        <p className="text-[10px] font-bold text-on-surface-variant mb-1">{day}</p>
+                        <div className={`h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-all ${
+                          count > 0 ? "bg-green-100 text-green-700" : "bg-surface-container-high text-on-surface-variant/40"
+                        }`}>
+                          {count > 0 ? count : "—"}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-on-surface-variant mt-2">
+                  Total: <span className="font-bold text-on-surface">{Object.values(monthAvailForm).reduce((a, v) => a + (v?.length ?? 0), 0)}</span> slots selected
+                </p>
+              </div>
+
+              {monthAvailMsg && (
+                <p className={`text-sm font-semibold flex items-center gap-2 mb-4 ${monthAvailMsg.type === "ok" ? "text-green-600" : "text-red-600"}`}>
+                  {monthAvailMsg.type === "ok" ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+                  {monthAvailMsg.text}
+                </p>
+              )}
+
+              <button onClick={handleMonthAvailSubmit} disabled={monthAvailSaving}
+                className="btn-primary w-full sm:w-auto disabled:opacity-60">
+                {monthAvailSaving
+                  ? "Saving…"
+                  : <><Save size={15} /> Save Availability for {formatMonthYear(selectedMonth)}</>
+                }
+              </button>
+            </div>
 
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
               <CalendarDays size={18} className="text-amber-600 mt-0.5 shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-amber-800">How it works</p>
                 <p className="text-sm text-amber-700 mt-0.5">
-                  Once you submit availability for a month, it is locked. If parents have confirmed sessions
-                  with you, any admin change requires parent approval before it can be applied.
+                  You can freely edit your availability at any time. Slots that already have confirmed bookings
+                  or scheduled sessions are protected — they stay locked to avoid disrupting students.
+                  To remove a protected slot, please contact admin.
                 </p>
               </div>
             </div>

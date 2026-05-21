@@ -4,9 +4,10 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  CheckCircle, Phone, MessageSquare, IndianRupee,
-  Sparkles, BookOpen, ArrowRight, Star, CreditCard,
+  CheckCircle, Phone, MessageSquare, IndianRupee, DollarSign,
+  Sparkles, BookOpen, ArrowRight, Star, CreditCard, HelpCircle,
 } from "lucide-react";
+import { usePricingVisibility } from "@/hooks/usePricingVisibility";
 
 const WHATSAPP_NUMBER = "919311483555";
 const SUPPORT_EMAIL   = "zippymindsacademy@gmail.com";
@@ -55,6 +56,7 @@ interface Course {
   name: string;
   description: string;
   price: number;
+  priceUSD: number;
   status: string;
   durationValue?: number;
   durationUnit?: string;
@@ -66,12 +68,17 @@ function EnrollInner() {
 
   const [courses, setCourses]   = useState<Course[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [isIndia, setIsIndia]   = useState<boolean | null>(null);
+  const { showPricing }         = usePricingVisibility();
 
   useEffect(() => {
-    fetch("/api/courses")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.courses) setCourses(d.courses); })
-      .catch(() => {})
+    Promise.all([
+      fetch("/api/courses").then(r => r.ok ? r.json() : null),
+      fetch("/api/geo").then(r => r.ok ? r.json() : null),
+    ]).then(([courseData, geoData]) => {
+      if (courseData?.courses) setCourses(courseData.courses);
+      setIsIndia(geoData?.isIndia ?? true);
+    }).catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -168,16 +175,42 @@ function EnrollInner() {
 
                   {/* Price + CTA */}
                   <div className="p-5 flex flex-col flex-1">
-                    <div className="flex items-end gap-1 mb-1">
-                      <IndianRupee size={20} className="text-primary mb-0.5" />
-                      <span className="font-display text-3xl font-extrabold text-primary">{course.price}</span>
-                    </div>
-                    <p className="text-xs text-on-surface-variant mb-4 flex items-center gap-1">
-                      <BookOpen size={11} /> {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
-                    </p>
+                    {showPricing ? (
+                      <>
+                        <div className="flex items-end gap-1 mb-1">
+                          {isIndia !== false
+                            ? <IndianRupee size={20} className="text-primary mb-0.5" />
+                            : <DollarSign size={20} className="text-primary mb-0.5" />
+                          }
+                          <span className="font-display text-3xl font-extrabold text-primary">
+                            {isIndia !== false ? course.price : (course.priceUSD ?? 15)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-on-surface-variant mb-1 flex items-center gap-1">
+                          <BookOpen size={11} /> {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
+                        </p>
+                        {isIndia === false && (
+                          <p className="text-[10px] text-on-surface-variant/60 mb-3">USD · International pricing</p>
+                        )}
+                        {isIndia === true && (
+                          <p className="text-[10px] text-on-surface-variant/60 mb-3">INR · India pricing</p>
+                        )}
+                        {isIndia === null && <div className="h-3 mb-3" />}
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <HelpCircle size={16} className="text-on-surface-variant" />
+                          <span className="text-sm font-semibold text-on-surface-variant">Contact for pricing</span>
+                        </div>
+                        <p className="text-xs text-on-surface-variant mb-4 flex items-center gap-1">
+                          <BookOpen size={11} /> {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
+                        </p>
+                      </>
+                    )}
 
                     <div className="mt-auto space-y-2">
-                      <Link href={`/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&dv=${course.durationValue??1}&du=${course.durationUnit??"months"}`}
+                      <Link href={`/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&priceUSD=${course.priceUSD ?? 15}&dv=${course.durationValue??1}&du=${course.durationUnit??"months"}`}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-white text-sm transition-all hover:opacity-90 active:scale-95 bg-primary">
                         <CreditCard size={16} />
                         Pick Slot &amp; Subscribe
