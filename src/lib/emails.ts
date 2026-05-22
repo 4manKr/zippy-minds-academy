@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 // ─── sender addresses (one per purpose) ──────────────────────────────────────
 const DOMAIN = process.env.EMAIL_DOMAIN ?? "zippymindsacademy.com";
 
-const FROM_OTP      = `Zippy Minds Academy <otp@${DOMAIN}>`;       // login/OTP codes
+const FROM_OTP      = `Zippy Minds Verification <otp@${DOMAIN}>`;  // login/OTP codes
 const FROM_BOOKINGS = `Zippy Minds Bookings <bookings@${DOMAIN}>`; // parent booking & session emails
 const FROM_TUTORS   = `Zippy Minds Tutors <tutors@${DOMAIN}>`;     // all emails to tutors
 const FROM_ADMIN    = `Zippy Minds Admin <admin@${DOMAIN}>`;       // internal admin alerts
