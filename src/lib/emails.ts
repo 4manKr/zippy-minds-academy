@@ -13,6 +13,9 @@ const FROM_OTP      = `Zippy Minds Academy <otp@${DOMAIN}>`;       // login/OTP 
 const FROM_BOOKINGS = `Zippy Minds Bookings <bookings@${DOMAIN}>`; // parent booking & session emails
 const FROM_TUTORS   = `Zippy Minds Tutors <tutors@${DOMAIN}>`;     // all emails to tutors
 const FROM_ADMIN    = `Zippy Minds Admin <admin@${DOMAIN}>`;       // internal admin alerts
+const FROM_SUPPORT  = `Zippy Minds Support <support@${DOMAIN}>`;   // contact form & support tickets
+
+export { FROM_SUPPORT, DOMAIN }; // exported so other routes can use them
 
 const DEFAULT_ADMIN_EMAIL = "zippymindsacademy@gmail.com";
 const DEFAULT_PHONE       = "+91 93114 83555";

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { FROM_SUPPORT, DOMAIN } from "@/lib/emails";
 
 const DEFAULT_ADMIN_EMAIL = "zippymindsacademy@gmail.com";
 
@@ -22,7 +23,7 @@ async function notifyAdmin(name: string, email: string, subject: string, message
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
     await resend.emails.send({
-      from: process.env.FROM_EMAIL ?? "Zippy Minds Academy <noreply@zippymindsacademy.com>",
+      from: FROM_SUPPORT,
       to: adminEmail,
       subject: `📩 New Contact Message: ${subject || "General Enquiry"}`,
       html: `
@@ -41,7 +42,7 @@ async function notifyAdmin(name: string, email: string, subject: string, message
           </div>
           <a href="mailto:${email}?subject=Re: ${encodeURIComponent(subject || "Your enquiry")}" style="display:inline-block;background:#005da8;color:#fff;font-weight:700;padding:12px 24px;border-radius:10px;text-decoration:none;font-size:14px;">Reply to ${name}</a>
           <hr style="border:none;border-top:1px solid #dde3ee;margin:24px 0;" />
-          <p style="color:#aaa;font-size:12px;text-align:center;">© ${new Date().getFullYear()} Zippy Minds Academy · Admin Notification</p>
+          <p style="color:#aaa;font-size:12px;text-align:center;">© ${new Date().getFullYear()} Zippy Minds Academy · support@${DOMAIN}</p>
         </div>
       `,
     });
