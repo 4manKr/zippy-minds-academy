@@ -79,7 +79,7 @@ export default function HeroSection() {
           </div>
 
           {/* ── Right — hero image ── */}
-          <div className="hidden lg:flex items-center justify-center py-4 -mt-8">
+          <div className="hidden lg:flex items-center justify-center py-0 -mt-16">
             <div className="relative w-full max-w-[480px]">
 
               {/* Magenta backing card — furthest back */}
@@ -89,7 +89,7 @@ export default function HeroSection() {
               <div className="absolute inset-0 translate-x-4 translate-y-4 bg-[#F5C518] rounded-[2rem] z-[1]" />
 
               {/* Main image card */}
-              <div className="relative z-10 rounded-[2rem] overflow-hidden border-[5px] border-[#F5C518] shadow-2xl aspect-[4/3]">
+              <div className="relative z-10 rounded-[2rem] overflow-hidden border-[5px] border-[#2563EB] shadow-2xl aspect-[4/3]">
                 <Image
                   src="/hero-student.jpg"
                   alt="Happy student learning online"
