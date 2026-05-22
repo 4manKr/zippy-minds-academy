@@ -3,6 +3,7 @@ import { getIronSession } from "iron-session";
 import { sessionOptions, type SessionData } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import MaintenancePage from "@/app/maintenance/page";
+import { unstable_noStore as noStore } from "next/cache";
 
 /**
  * Server component — wraps every page.
@@ -14,6 +15,7 @@ export default async function MaintenanceGate({
 }: {
   children: React.ReactNode;
 }) {
+  noStore(); // never cache — always read fresh from DB
   try {
     // Read maintenance setting directly from DB
     const setting = await prisma.platformSetting.findUnique({

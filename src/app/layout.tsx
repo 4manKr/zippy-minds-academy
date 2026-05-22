@@ -4,6 +4,9 @@ import SiteLayout from "@/components/layout/SiteLayout";
 import { Toaster } from "sonner";
 import MaintenanceGate from "@/components/MaintenanceGate";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: {
     default: "Zippy Minds Academy — 1-to-1 Online Tutoring Worldwide",
