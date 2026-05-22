@@ -129,6 +129,10 @@ function BookDemoInner() {
   const [authUser, setAuthUser]       = useState<{ id: string; email: string; name: string; role: string } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
+  // Subjects from DB (admin-managed courses); falls back to static list if empty
+  const [dbSubjects, setDbSubjects] = useState<string[]>([]);
+  const [subjectsLoaded, setSubjectsLoaded] = useState(false);
+
   // Live DB tutors: subject → merged availability
   const [dbTutorBySubject, setDbTutorBySubject] = useState<Record<string, DbTutor>>({});
 
@@ -144,8 +148,7 @@ function BookDemoInner() {
   // Read ?subject= from URL (set when coming from the Courses page)
   const searchParams = useSearchParams();
   const preSubject = useMemo(() => {
-    const s = searchParams.get("subject") ?? "";
-    return SUBJECTS.includes(s) ? s : "";
+    return searchParams.get("subject") ?? "";
   }, [searchParams]);
 
   const [form, setForm] = useState({
@@ -175,6 +178,19 @@ function BookDemoInner() {
       })
       .catch(() => setAuthUser(null))
       .finally(() => setAuthChecked(true));
+  }, []);
+
+  // Fetch active subjects from DB (admin-managed courses)
+  useEffect(() => {
+    fetch("/api/courses")
+      .then((r) => r.ok ? r.json() : { subjects: [] })
+      .then((data) => {
+        if (Array.isArray(data.subjects) && data.subjects.length > 0) {
+          setDbSubjects(data.subjects);
+        }
+      })
+      .catch(() => {/* silently fall back to static SUBJECTS */})
+      .finally(() => setSubjectsLoaded(true));
   }, []);
 
   // Fetch approved tutors from DB on mount (includes availability per subject)
@@ -257,6 +273,9 @@ function BookDemoInner() {
     }
     return tutorPool[subject] ?? DEFAULT_TUTOR;
   }
+
+  // Use DB subjects when loaded; fall back to static list
+  const activeSubjects = subjectsLoaded && dbSubjects.length > 0 ? dbSubjects : SUBJECTS;
 
   const selectedDateEntry   = calendarDates[form.selectedDateIdx];
   const selectedDateLabel   = selectedDateEntry?.fullDate ?? "";
@@ -666,8 +685,15 @@ function BookDemoInner() {
                   <p className="text-xs text-on-surface-variant mb-4">
                     Select the subject and we&apos;ll assign the best available tutor automatically.
                   </p>
+                  {!subjectsLoaded ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="h-16 rounded-2xl bg-surface-container animate-pulse" />
+                      ))}
+                    </div>
+                  ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
-                    {SUBJECTS.map((s) => {
+                    {activeSubjects.map((s) => {
                       const hasTutor = !!(dbTutorBySubject[s] || tutorPool[s]);
                       return (
                         <button key={s} onClick={() => setForm({ ...form, subject: s })}
@@ -682,6 +708,7 @@ function BookDemoInner() {
                       );
                     })}
                   </div>
+                  )}
                 </>
               )}
 
