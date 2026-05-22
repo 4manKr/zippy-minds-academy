@@ -2,12 +2,6 @@ import Link from "next/link";
 import { Target, Heart, Globe, Shield, ArrowRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
-const team = [
-  { name: "Arpit Sharma", role: "Co-Founder & CEO",        initials: "AS", gradient: "from-primary to-primary-container" },
-  { name: "Priya Menon",  role: "Head of Education",       initials: "PM", gradient: "from-tertiary to-tertiary-container" },
-  { name: "Rohan Joshi",  role: "CTO",                     initials: "RJ", gradient: "from-secondary to-secondary-fixed-dim" },
-  { name: "Kavya Nair",   role: "Head of Tutor Success",   initials: "KN", gradient: "from-green-500 to-emerald-600" },
-];
 
 const values = [
   { icon: Target, title: "Mission-Driven",      description: "Every decision we make is focused on improving learning outcomes for students worldwide.", bg: "bg-primary/5",              icon_color: "text-primary" },
@@ -126,26 +120,6 @@ export default async function AboutPage() {
         </div>
       </section>
 
-      {/* Team */}
-      <section className="py-20 bg-surface-container-lowest">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <span className="badge-blue mb-4 inline-block">Our Team</span>
-            <h2 className="font-display text-4xl font-bold text-on-surface">Meet the people behind Zippy Minds</h2>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {team.map((member) => (
-              <div key={member.name} className="text-center group">
-                <div className={`w-24 h-24 mx-auto rounded-2xl bg-gradient-to-br ${member.gradient} flex items-center justify-center text-white text-2xl font-bold font-display mb-4 group-hover:scale-105 transition-transform shadow-card`}>
-                  {member.initials}
-                </div>
-                <p className="font-bold text-on-surface">{member.name}</p>
-                <p className="text-sm text-on-surface-variant">{member.role}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
