@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zippy Minds Academy — Complete User Guide</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f8ff; color: #1a1a2e; line-height: 1.7; }
+
+  /* ── Cover ── */
+  .cover {
+    background: linear-gradient(135deg, #005da8, #2d5be3);
+    color: #fff;
+    padding: 80px 40px;
+    text-align: center;
+  }
+  .cover img { width: 90px; border-radius: 20px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+  .cover h1 { font-size: 42px; font-weight: 900; letter-spacing: -1px; margin-bottom: 12px; }
+  .cover p { font-size: 18px; opacity: 0.85; max-width: 600px; margin: 0 auto 32px; }
+  .cover-badges { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
+  .badge { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 50px; padding: 8px 20px; font-size: 13px; font-weight: 700; }
+  .version { margin-top: 32px; font-size: 12px; opacity: 0.6; }
+
+  /* ── Layout ── */
+  .container { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ── TOC ── */
+  .toc { background: #fff; border-radius: 20px; padding: 36px; margin-bottom: 40px; box-shadow: 0 2px 16px rgba(0,0,0,0.07); border: 1px solid #e0eaf5; }
+  .toc h2 { font-size: 20px; color: #005da8; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .toc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .toc-card { background: #f4f8ff; border-radius: 12px; padding: 16px; border: 1px solid #dce8f5; }
+  .toc-card h4 { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .toc-card a { display: block; font-size: 13px; color: #005da8; text-decoration: none; padding: 3px 0; border-bottom: 1px solid #eef2f9; }
+  .toc-card a:last-child { border-bottom: none; }
+  .toc-card a:hover { color: #2d5be3; }
+
+  /* ── Sections ── */
+  .section { background: #fff; border-radius: 20px; padding: 40px; margin-bottom: 32px; box-shadow: 0 2px 16px rgba(0,0,0,0.07); border: 1px solid #e0eaf5; }
+  .section-header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid #f0f4ff; }
+  .section-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; }
+  .icon-blue { background: #e8f0fe; }
+  .icon-green { background: #e6f9f0; }
+  .icon-purple { background: #f3e8ff; }
+  .icon-orange { background: #fff3e0; }
+  .icon-red { background: #ffeaea; }
+  .section-title h2 { font-size: 24px; font-weight: 800; color: #0d1b2e; }
+  .section-title p { font-size: 14px; color: #6b7a99; margin-top: 4px; }
+
+  h3 { font-size: 17px; font-weight: 700; color: #005da8; margin: 28px 0 12px; display: flex; align-items: center; gap: 8px; }
+  h3::before { content: ''; display: inline-block; width: 4px; height: 18px; background: #005da8; border-radius: 2px; }
+  h4 { font-size: 14px; font-weight: 700; color: #334155; margin: 16px 0 8px; }
+  p { font-size: 14px; color: #4a5568; margin-bottom: 10px; }
+
+  /* ── Steps ── */
+  .steps { counter-reset: step; }
+  .step { display: flex; gap: 16px; margin-bottom: 16px; align-items: flex-start; }
+  .step-num { counter-increment: step; content: counter(step); width: 32px; height: 32px; border-radius: 50%; background: #005da8; color: #fff; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .step-content { flex: 1; }
+  .step-content strong { font-size: 14px; color: #0d1b2e; display: block; margin-bottom: 4px; }
+  .step-content p { margin: 0; font-size: 13px; }
+
+  /* ── Feature grid ── */
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 16px 0; }
+  .feature-card { background: #f8faff; border: 1px solid #dce8f5; border-radius: 12px; padding: 16px; }
+  .feature-card .emoji { font-size: 24px; margin-bottom: 8px; display: block; }
+  .feature-card strong { font-size: 13px; font-weight: 700; color: #0d1b2e; display: block; margin-bottom: 4px; }
+  .feature-card span { font-size: 12px; color: #6b7a99; line-height: 1.5; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px; }
+  th { background: #005da8; color: #fff; padding: 10px 14px; text-align: left; font-weight: 700; }
+  th:first-child { border-radius: 8px 0 0 0; }
+  th:last-child { border-radius: 0 8px 0 0; }
+  td { padding: 10px 14px; border-bottom: 1px solid #eef2f9; color: #334155; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8faff; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Callouts ── */
+  .callout { border-radius: 12px; padding: 14px 18px; margin: 16px 0; font-size: 13px; display: flex; gap: 12px; align-items: flex-start; }
+  .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .callout-content strong { display: block; margin-bottom: 3px; }
+  .callout-blue { background: #e8f0fe; border-left: 4px solid #005da8; }
+  .callout-green { background: #e6f9f0; border-left: 4px solid #16a34a; }
+  .callout-yellow { background: #fff8e6; border-left: 4px solid #d97706; }
+  .callout-red { background: #ffeaea; border-left: 4px solid #dc2626; }
+
+  /* ── List ── */
+  ul.guide-list { padding-left: 0; list-style: none; margin: 10px 0; }
+  ul.guide-list li { font-size: 13px; color: #4a5568; padding: 6px 0 6px 24px; position: relative; border-bottom: 1px solid #f0f4ff; }
+  ul.guide-list li:last-child { border-bottom: none; }
+  ul.guide-list li::before { content: '✓'; position: absolute; left: 0; color: #16a34a; font-weight: 700; }
+
+  /* ── Role pill ── */
+  .role-pill { display: inline-block; padding: 3px 12px; border-radius: 50px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-left: 8px; vertical-align: middle; }
+  .pill-admin { background: #ffeaea; color: #dc2626; }
+  .pill-parent { background: #e8f0fe; color: #1d4ed8; }
+  .pill-tutor { background: #f3e8ff; color: #7c3aed; }
+
+  /* ── Email table ── */
+  .email-row td:first-child { font-weight: 600; white-space: nowrap; }
+  .from-badge { background: #e8f0fe; color: #1d4ed8; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-family: monospace; white-space: nowrap; }
+
+  /* ── URL pill ── */
+  .url { background: #1e293b; color: #7dd3fc; font-family: monospace; font-size: 12px; padding: 3px 10px; border-radius: 6px; display: inline-block; }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: linear-gradient(90deg, #005da8, transparent); margin: 24px 0; opacity: 0.2; }
+
+  /* ── Footer ── */
+  .footer { text-align: center; padding: 40px 20px; color: #9ba3b5; font-size: 13px; }
+  .footer strong { color: #005da8; }
+
+  /* ── Print ── */
+  @media print {
+    body { background: #fff; }
+    .container { padding: 20px; }
+    .section { break-inside: avoid; box-shadow: none; border: 1px solid #ddd; }
+    .cover { background: #005da8 !important; -webkit-print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     COVER
+═══════════════════════════════════════════════ -->
+<div class="cover">
+  <img src="/zippy-logo.jpeg" alt="Zippy Minds Academy" onerror="this.style.display='none'" />
+  <h1>Zippy Minds Academy</h1>
+  <p>Complete Platform User Guide — Admin · Parent · Tutor</p>
+  <div class="cover-badges">
+    <span class="badge">🔐 Admin Guide</span>
+    <span class="badge">👨‍👩‍👧 Parent Guide</span>
+    <span class="badge">👩‍🏫 Tutor Guide</span>
+    <span class="badge">📧 Email Reference</span>
+    <span class="badge">🔧 System Reference</span>
+  </div>
+  <p class="version">Version 1.0 · zippymindsacademy.com · Confidential</p>
+</div>
+
+<div class="container">
+
+<!-- ═══════════════════════════════════════════════
+     TABLE OF CONTENTS
+═══════════════════════════════════════════════ -->
+<div class="toc">
+  <h2>📋 Table of Contents</h2>
+  <div class="toc-grid">
+    <div class="toc-card">
+      <h4 style="color:#dc2626;">🔐 Admin</h4>
+      <a href="#admin-login">Login & Access</a>
+      <a href="#admin-overview">Dashboard Overview</a>
+      <a href="#admin-users">User Management</a>
+      <a href="#admin-tutors">Tutor Management</a>
+      <a href="#admin-sessions">Sessions & Bookings</a>
+      <a href="#admin-payments">Payments & Enrollments</a>
+      <a href="#admin-content">Content Management</a>
+      <a href="#admin-support">Support Tickets</a>
+      <a href="#admin-availability">Availability</a>
+      <a href="#admin-settings">Platform Settings</a>
+    </div>
+    <div class="toc-card">
+      <h4 style="color:#1d4ed8;">👨‍👩‍👧 Parent</h4>
+      <a href="#parent-signup">Signup & Login</a>
+      <a href="#parent-book">Book Free Demo</a>
+      <a href="#parent-dashboard">Dashboard Overview</a>
+      <a href="#parent-schedule">My Schedule</a>
+      <a href="#parent-learning">Learning Center</a>
+      <a href="#parent-payments">Payments</a>
+      <a href="#parent-support">Support</a>
+    </div>
+    <div class="toc-card">
+      <h4 style="color:#7c3aed;">👩‍🏫 Tutor</h4>
+      <a href="#tutor-login">Login</a>
+      <a href="#tutor-dashboard">Dashboard Overview</a>
+      <a href="#tutor-sessions">Sessions</a>
+      <a href="#tutor-availability">Availability</a>
+      <a href="#tutor-materials">Materials & Recordings</a>
+      <a href="#tutor-earnings">Earnings</a>
+      <a href="#tutor-profile">Profile</a>
+    </div>
+    <div class="toc-card">
+      <h4 style="color:#16a34a;">📌 Reference</h4>
+      <a href="#public-pages">Public Pages</a>
+      <a href="#email-system">Email System</a>
+      <a href="#auth-flow">Auth Flow</a>
+      <a href="#booking-flow">Booking Flow</a>
+      <a href="#tips">Tips & FAQ</a>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 1 — ADMIN
+═══════════════════════════════════════════════ -->
+<div class="section" id="admin-login">
+  <div class="section-header">
+    <div class="section-icon icon-red">🔐</div>
+    <div class="section-title">
+      <h2>Admin Guide</h2>
+      <p>Full platform control — users, sessions, content, settings</p>
+    </div>
+  </div>
+
+  <h3 id="admin-login">Logging In</h3>
+  <p>Admin login uses <strong>3-factor authentication</strong> for security.</p>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Go to Admin Login</strong><p>Navigate to <span class="url">/auth/admin-login</span> — this page is not shown in the public navigation.</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Enter Email & Password</strong><p>Use your admin email and password set during account creation.</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Enter Admin Secret Key</strong><p>Enter the secret key stored in your Vercel environment variables (<code>ADMIN_SECRET_KEY</code>). This is a one-time setup key — keep it safe.</p></div></div>
+  </div>
+
+  <div class="callout callout-red">
+    <div class="callout-icon">⚠️</div>
+    <div class="callout-content"><strong>Never share your Admin Secret Key.</strong> If compromised, change it immediately in Vercel → Environment Variables → Redeploy.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 id="admin-overview">Dashboard Overview</h3>
+  <div class="feature-grid">
+    <div class="feature-card"><span class="emoji">📊</span><strong>Analytics</strong><span>Monthly sessions & revenue trends, top subjects, user counts</span></div>
+    <div class="feature-card"><span class="emoji">👥</span><strong>Users</strong><span>View, search, and manage all parents & tutors</span></div>
+    <div class="feature-card"><span class="emoji">👩‍🏫</span><strong>Tutors</strong><span>Approve/reject tutors, set priority, manage profiles</span></div>
+    <div class="feature-card"><span class="emoji">📅</span><strong>Sessions</strong><span>All demo bookings — confirm, cancel, reassign tutors</span></div>
+    <div class="feature-card"><span class="emoji">💳</span><strong>Payments</strong><span>Transaction history, enrollments, extend subscriptions</span></div>
+    <div class="feature-card"><span class="emoji">📚</span><strong>Content</strong><span>Resources, videos, session recordings management</span></div>
+    <div class="feature-card"><span class="emoji">🎓</span><strong>Courses</strong><span>Add/edit/delete course plans with pricing</span></div>
+    <div class="feature-card"><span class="emoji">🎫</span><strong>Support</strong><span>View & reply to parent support tickets</span></div>
+    <div class="feature-card"><span class="emoji">🗓️</span><strong>Availability</strong><span>Manage tutor monthly availability & change requests</span></div>
+    <div class="feature-card"><span class="emoji">⚙️</span><strong>Settings</strong><span>Platform config, maintenance mode, feature toggles</span></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 id="admin-users">User Management</h3>
+  <p>Go to <strong>Admin Dashboard → Users tab</strong></p>
+  <table>
+    <tr><th>Action</th><th>How To</th></tr>
+    <tr><td>View all users</td><td>Search bar + filter by role (All / Parent / Tutor)</td></tr>
+    <tr><td>View user details</td><td>Click the user row — shows name, email, phone, role, joined date</td></tr>
+    <tr><td>Delete a user</td><td>Click the ⋯ menu → Delete. This is permanent.</td></tr>
+    <tr><td>Reset free demo</td><td>Click ⋯ → Reset Free Demo — allows parent to book again</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <h3 id="admin-tutors">Tutor Management</h3>
+  <p>Go to <strong>Admin Dashboard → Tutors tab</strong></p>
+
+  <h4>Adding a New Tutor</h4>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Click "Add Tutor"</strong><p>Fill in: Full Name, Email, Phone, Password, Subjects (select from list)</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Set Approval Status</strong><p>Set to APPROVED if ready, or PENDING for review. Tutors with PENDING status cannot log in.</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Share credentials</strong><p>Send the tutor their email and password — they log in at <span class="url">/auth/tutor-login</span></p></div></div>
+  </div>
+
+  <h4>Tutor Priority System</h4>
+  <p>Go to <strong>Tutors → Priority tab</strong>. Set a numeric priority for each tutor:</p>
+  <ul class="guide-list">
+    <li>Lower number = higher priority (e.g., priority 1 gets assigned first)</li>
+    <li>When a parent books a demo, the system picks the tutor with the lowest priority number who is available for that slot</li>
+    <li>If no tutor is available, the booking is flagged as "Needs Admin" — you must manually assign</li>
+  </ul>
+
+  <h4>Approving / Rejecting Tutors</h4>
+  <table>
+    <tr><th>Status</th><th>Meaning</th><th>Action</th></tr>
+    <tr><td>PENDING</td><td>Newly registered, not yet verified</td><td>Review → Approve or Reject</td></tr>
+    <tr><td>APPROVED</td><td>Active tutor, can log in and accept sessions</td><td>Can be reverted to PENDING</td></tr>
+    <tr><td>REJECTED</td><td>Not allowed on platform</td><td>Can be re-approved</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <h3 id="admin-sessions">Sessions & Bookings</h3>
+  <p>Go to <strong>Admin Dashboard → Sessions tab</strong></p>
+  <table>
+    <tr><th>Action</th><th>How To</th><th>What Happens</th></tr>
+    <tr><td>Confirm session</td><td>Click Confirm button</td><td>Zoom link generated, parent & tutor notified by email</td></tr>
+    <tr><td>Cancel session</td><td>Click Cancel button</td><td>Parent notified by email, slot freed up</td></tr>
+    <tr><td>Reassign tutor</td><td>Click "Needs Admin" sessions → Reassign</td><td>New tutor assigned, Zoom link regenerated</td></tr>
+    <tr><td>Filter sessions</td><td>Use status tabs: All / Pending / Confirmed / Cancelled</td><td>—</td></tr>
+    <tr><td>Search</td><td>Search by parent name, student name, or subject</td><td>—</td></tr>
+  </table>
+
+  <div class="callout callout-yellow">
+    <div class="callout-icon">💡</div>
+    <div class="callout-content"><strong>Needs Admin bookings</strong> appear when all available tutors declined a session request. You must manually assign a tutor for these.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 id="admin-payments">Payments & Enrollments</h3>
+  <p>Go to <strong>Admin Dashboard → Payments tab</strong></p>
+  <ul class="guide-list">
+    <li>View all transactions: parent name, amount, currency (INR/USD), gateway (PayPal/Razorpay), status (Pending/Paid/Failed)</li>
+    <li>Switch to <strong>Enrollments tab</strong> to see active monthly subscriptions</li>
+    <li>Click <strong>Extend Enrollment</strong> to add extra days to a student's subscription</li>
+    <li>View the full session schedule for any enrollment</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h3 id="admin-content">Content Management</h3>
+  <p>Go to <strong>Admin Dashboard → Content tab</strong></p>
+
+  <h4>Resources (PDFs, Documents, Links)</h4>
+  <ul class="guide-list">
+    <li>Click "Add Resource" → enter Title, Type (PDF/Image/Link), Subject, URL</li>
+    <li>Toggle Active/Inactive to show or hide from parents</li>
+    <li>Edit or delete any resource at any time</li>
+  </ul>
+
+  <h4>Video Lessons</h4>
+  <ul class="guide-list">
+    <li>Click "Add Video" → enter Title, Subject, YouTube/Video URL, Duration, Thumbnail emoji</li>
+    <li>Toggle Active/Inactive to control visibility</li>
+    <li>Videos appear in the Parent Learning Center</li>
+  </ul>
+
+  <h4>Courses</h4>
+  <ul class="guide-list">
+    <li>Add courses with: Name, Description, INR Price, USD Price, Duration, Sessions per week</li>
+    <li>Set status to Active (visible on courses page) or Inactive (hidden)</li>
+    <li>Prices shown based on user's location (India = INR, others = USD)</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h3 id="admin-support">Support Tickets</h3>
+  <p>Go to <strong>Admin Dashboard → Support tab</strong></p>
+  <ul class="guide-list">
+    <li>View all tickets sorted by date — filter by Status (Open/Closed) and Priority (Low/Medium/High)</li>
+    <li>Click a ticket to see full message history</li>
+    <li>Type a reply and click "Send Reply" — parent gets an email from support@zippymindsacademy.com</li>
+    <li>Click "Close Ticket" once resolved — ticket moves to Closed tab</li>
+    <li>You can re-open a closed ticket at any time</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h3 id="admin-availability">Availability Management</h3>
+  <p>Go to <strong>Admin Dashboard → Availability tab</strong></p>
+
+  <h4>Viewing Tutor Availability</h4>
+  <ul class="guide-list">
+    <li>Select a tutor and month to see their available time slots</li>
+    <li>Locked slots = already booked sessions (cannot be changed)</li>
+    <li>Unlocked slots = free time that can be modified</li>
+  </ul>
+
+  <h4>Creating a Change Request</h4>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Select Tutor & Month</strong><p>Pick the tutor whose availability needs to change</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Set Proposed Slots</strong><p>Select the new time slots for each day</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Add Reason</strong><p>Explain why the change is needed (sent to parents)</p></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-content"><strong>Send Request</strong><p>All parents with sessions in that period receive an approval email. When all approve, you can apply the change.</p></div></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 id="admin-settings">Platform Settings</h3>
+  <p>Go to <strong>Admin Dashboard → Settings tab</strong></p>
+  <table>
+    <tr><th>Setting</th><th>What It Does</th></tr>
+    <tr><td>Site Name</td><td>Displayed across the platform</td></tr>
+    <tr><td>Contact Email</td><td>Public contact email shown in footer & emails</td></tr>
+    <tr><td>Phone Number</td><td>Support phone shown on site and in emails</td></tr>
+    <tr><td>Zoom Enabled</td><td>Toggle Zoom link generation ON/OFF</td></tr>
+    <tr><td>Email Notifications</td><td>Toggle all transactional emails ON/OFF</td></tr>
+    <tr><td>Auto-Approve Tutors</td><td>New tutors skip PENDING and go straight to APPROVED</td></tr>
+    <tr><td>Maintenance Mode</td><td>Shows maintenance page to all non-admin visitors immediately</td></tr>
+    <tr><td>Show Pricing</td><td>Show or hide prices on the public courses page</td></tr>
+  </table>
+
+  <div class="callout callout-blue">
+    <div class="callout-icon">ℹ️</div>
+    <div class="callout-content"><strong>Maintenance Mode</strong> takes effect immediately site-wide. You (as admin) can still access everything. All other visitors see the maintenance page until you turn it off.</div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 2 — PARENT
+═══════════════════════════════════════════════ -->
+<div class="section" id="parent-signup">
+  <div class="section-header">
+    <div class="section-icon icon-blue">👨‍👩‍👧</div>
+    <div class="section-title">
+      <h2>Parent Guide</h2>
+      <p>Book demos, track sessions, access learning materials</p>
+    </div>
+  </div>
+
+  <h3>Getting Started — Signup & Login</h3>
+
+  <h4>Option A — Sign up with Google (Recommended)</h4>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Go to Sign Up</strong><p>Visit <span class="url">/auth/signup</span></p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Click "Sign up with Google"</strong><p>You'll be redirected to Google to choose your account</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Done!</strong><p>Your account is created instantly. New users land on the Book Demo page automatically.</p></div></div>
+  </div>
+
+  <h4>Option B — Sign up with Email</h4>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Go to Sign Up</strong><p>Visit <span class="url">/auth/signup</span></p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Fill in your details</strong><p>Full name, email address, phone (optional), password (min 8 characters)</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Verify your email</strong><p>A 6-digit code is sent to your inbox from <strong>verify@zippymindsacademy.com</strong>. Enter it on the next screen.</p></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-content"><strong>Account created!</strong><p>You're logged in and redirected to the dashboard or demo booking page.</p></div></div>
+  </div>
+
+  <h4>Logging In (Returning Users)</h4>
+  <ul class="guide-list">
+    <li>Visit <span class="url">/auth/login</span></li>
+    <li>Enter your email → click <strong>"Get Code"</strong> → check email for 6-digit code → enter it</li>
+    <li>Or click <strong>"Continue with Google"</strong> for instant one-click login</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h3 id="parent-book">Booking a Free Demo Session</h3>
+  <p>Every new parent gets <strong>one free 30-minute demo session</strong>. Here's how to book it:</p>
+
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Go to Book Demo</strong><p>Click "Book Free Demo" from the homepage, navbar, or your dashboard. You must be logged in.</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Enter Student Details</strong><p>Child's name, age, grade, and timezone (auto-detected from your browser)</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Choose Subject</strong><p>Select from: Phonics & Reading, English Grammar, Mathematics, or Public Speaking</p></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-content"><strong>Pick Date & Time</strong><p>Available slots shown for the next 21 days. Grey slots are already booked. Pick any green slot.</p></div></div>
+    <div class="step"><div class="step-num">5</div><div class="step-content"><strong>Review & Confirm</strong><p>Check all details, add optional notes for the tutor, then click Confirm.</p></div></div>
+  </div>
+
+  <div class="callout callout-green">
+    <div class="callout-icon">✅</div>
+    <div class="callout-content"><strong>After booking:</strong> You'll get a confirmation email from bookings@zippymindsacademy.com. The tutor reviews and confirms, then you get a second email with your Zoom link.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 id="parent-dashboard">Dashboard Overview</h3>
+  <p>Your dashboard at <span class="url">/dashboard/parent</span> shows:</p>
+  <div class="feature-grid">
+    <div class="feature-card"><span class="emoji">📊</span><strong>Stats</strong><span>Total sessions, confirmed sessions, day streak, active subjects</span></div>
+    <div class="feature-card"><span class="emoji">📅</span><strong>Next Session</strong><span>Your upcoming session with Zoom join button</span></div>
+    <div class="feature-card"><span class="emoji">🏆</span><strong>Achievements</strong><span>Milestones earned: First Session, Quick Learner, Star Student, On Fire, Subject Master, Explorer</span></div>
+    <div class="feature-card"><span class="emoji">📈</span><strong>Progress</strong><span>Subject-wise progress breakdown</span></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 id="parent-schedule">My Schedule</h3>
+  <p>Go to <strong>Dashboard → Schedule tab</strong></p>
+  <table>
+    <tr><th>Tab</th><th>Shows</th></tr>
+    <tr><td>Upcoming</td><td>All future sessions (Pending + Confirmed)</td></tr>
+    <tr><td>Confirmed</td><td>Sessions with Zoom links ready</td></tr>
+    <tr><td>Cancelled</td><td>Past cancelled sessions</td></tr>
+  </table>
+
+  <h4>Joining a Session</h4>
+  <ul class="guide-list">
+    <li>Once confirmed, a blue "Join Zoom" button appears on your session card</li>
+    <li>Click it at your session time to enter the Zoom meeting</li>
+    <li>You also get a reminder email 30 minutes before from bookings@zippymindsacademy.com</li>
+  </ul>
+
+  <h4>Cancelling a Session</h4>
+  <ul class="guide-list">
+    <li>Click the Cancel button on your session card</li>
+    <li>Cancellations must be done at least 24 hours before the session</li>
+    <li>A cancellation confirmation email will be sent to you</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h3 id="parent-learning">Learning Center</h3>
+  <p>Go to <strong>Dashboard → Learning Center tab</strong></p>
+  <table>
+    <tr><th>Section</th><th>What's Inside</th></tr>
+    <tr><td>Resources</td><td>PDFs, worksheets, and links uploaded by admin — filterable by subject</td></tr>
+    <tr><td>Video Lessons</td><td>Pre-recorded lesson videos — searchable by subject and title</td></tr>
+    <tr><td>Tutor Materials</td><td>Files your tutor shared specifically for your child</td></tr>
+    <tr><td>Session Recordings</td><td>Recordings from past sessions — labeled by student, tutor, and subject</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <h3 id="parent-payments">Payments</h3>
+  <p>Go to <strong>Dashboard → Payments tab</strong></p>
+  <ul class="guide-list">
+    <li>View full payment history: amount, currency, date, status (Paid/Pending/Failed)</li>
+    <li>See all active course enrollments under the Enrollments tab</li>
+    <li>Track remaining sessions in each enrollment</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h3 id="parent-support">Getting Help — Support</h3>
+  <p>Go to <strong>Dashboard → Support tab</strong></p>
+
+  <h4>Creating a Support Ticket</h4>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Click "New Ticket"</strong><p>Fill in: Subject, Message, Priority (Low / Medium / High)</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Submit</strong><p>Your ticket is sent to the admin team immediately</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Receive reply</strong><p>When admin replies, you get an email from support@zippymindsacademy.com with their response</p></div></div>
+  </div>
+
+  <div class="callout callout-blue">
+    <div class="callout-icon">💬</div>
+    <div class="callout-content"><strong>Other ways to reach us:</strong> WhatsApp button in the footer, contact form at <span class="url">/contact</span>, or email us directly at the address shown in the footer.</div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 3 — TUTOR
+═══════════════════════════════════════════════ -->
+<div class="section" id="tutor-login">
+  <div class="section-header">
+    <div class="section-icon icon-purple">👩‍🏫</div>
+    <div class="section-title">
+      <h2>Tutor Guide</h2>
+      <p>Manage sessions, availability, materials and earnings</p>
+    </div>
+  </div>
+
+  <h3>Logging In</h3>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Go to Tutor Login</strong><p>Visit <span class="url">/auth/tutor-login</span> — different from the parent login page</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Enter Email & Password</strong><p>Use the credentials provided by your admin when your account was created</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Check Approval Status</strong><p>If you see "Pending Approval", your admin hasn't approved your account yet. Contact your academy admin.</p></div></div>
+  </div>
+
+  <div class="callout callout-yellow">
+    <div class="callout-icon">🔑</div>
+    <div class="callout-content"><strong>Forgot your password?</strong> Contact your admin — they can reset it from the Admin Dashboard → Tutors → Edit Tutor.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 id="tutor-dashboard">Dashboard Overview</h3>
+  <p>Your dashboard at <span class="url">/dashboard/tutor</span> shows:</p>
+  <div class="feature-grid">
+    <div class="feature-card"><span class="emoji">📊</span><strong>Stats</strong><span>Total sessions, confirmed, estimated earnings, student count</span></div>
+    <div class="feature-card"><span class="emoji">📅</span><strong>Next Session</strong><span>Your next upcoming session with Zoom host link</span></div>
+    <div class="feature-card"><span class="emoji">💰</span><strong>Earnings Chart</strong><span>Last 6 months of earnings visualized</span></div>
+    <div class="feature-card"><span class="emoji">📚</span><strong>Subjects</strong><span>Breakdown of your sessions by subject</span></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 id="tutor-sessions">Managing Sessions</h3>
+  <p>Go to <strong>Dashboard → Sessions tab</strong></p>
+
+  <h4>Session Tabs</h4>
+  <table>
+    <tr><th>Tab</th><th>Shows</th></tr>
+    <tr><td>Requests</td><td>New demo requests waiting for your Accept or Reject</td></tr>
+    <tr><td>Upcoming</td><td>Confirmed sessions scheduled for the future</td></tr>
+    <tr><td>Enrolled</td><td>Students on monthly subscriptions you're teaching</td></tr>
+    <tr><td>All</td><td>Complete session history</td></tr>
+    <tr><td>Cancelled</td><td>Cancelled sessions</td></tr>
+  </table>
+
+  <h4>Accepting or Rejecting a Demo Request</h4>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Go to Requests tab</strong><p>New requests show student name, subject, grade, date, time, and parent info</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Review the request</strong><p>Check you're available at the requested time</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Click Accept or Decline</strong><p>If accepted: Zoom link is generated, parent is notified. If declined: admin is notified and assigns another tutor.</p></div></div>
+  </div>
+
+  <div class="callout callout-yellow">
+    <div class="callout-icon">⏰</div>
+    <div class="callout-content"><strong>Respond quickly!</strong> Parents are waiting for confirmation. Try to accept or reject within a few hours of receiving the request email.</div>
+  </div>
+
+  <h4>Starting a Session</h4>
+  <ul class="guide-list">
+    <li>Go to the Upcoming tab and find your session</li>
+    <li>Click the green <strong>"Start Zoom Meeting"</strong> button (your host link)</li>
+    <li>This link is different from the parent's join link — only you have the host link</li>
+    <li>You'll get a reminder email 30 minutes before at your registered email</li>
+  </ul>
+
+  <h4>Adding Session Notes</h4>
+  <ul class="guide-list">
+    <li>Click on any session card to expand it</li>
+    <li>Type your notes in the Notes field (what was covered, homework, next steps)</li>
+    <li>Click Save — notes are visible to the admin</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h3 id="tutor-availability">Setting Your Availability</h3>
+  <p>Go to <strong>Dashboard → Availability tab</strong></p>
+  <p>You manage availability per <strong>month</strong> to help the admin assign you to the right slots.</p>
+
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Select a Month</strong><p>Use the 3-month picker to select the month you want to set availability for</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Select Time Slots</strong><p>For each day (Mon–Sun), tick the time slots when you're available. Slots run 9:00 AM to 7:00 PM.</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Save Availability</strong><p>Click Save. The admin can now see your availability and assign sessions to your free slots.</p></div></div>
+  </div>
+
+  <div class="callout callout-red">
+    <div class="callout-icon">🔒</div>
+    <div class="callout-content"><strong>Locked slots</strong> (shown in grey) are already booked — you cannot remove these. To change a booked slot, contact your admin who will initiate a change request.</div>
+  </div>
+
+  <h4>Responding to Availability Change Requests</h4>
+  <p>If the admin needs to change your availability for an already-booked slot:</p>
+  <ul class="guide-list">
+    <li>Affected parents receive an approval email automatically</li>
+    <li>Once all parents approve, the admin applies the change</li>
+    <li>You receive a notification when the change is applied</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h3 id="tutor-materials">Materials & Recordings</h3>
+  <p>Go to <strong>Dashboard → Materials tab</strong></p>
+
+  <h4>Uploading Study Materials</h4>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Click "Upload Material"</strong><p>Select file type: PDF, Image, Document, or Other</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Fill in details</strong><p>Title, Subject, Student Name (leave blank to share with all your students), Notes</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Upload file</strong><p>File is stored securely. Parents can download it from their Learning Center.</p></div></div>
+  </div>
+
+  <h4>Uploading Session Recordings</h4>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-content"><strong>Go to Recordings tab</strong><p>Click "Add Recording"</p></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-content"><strong>Fill in details</strong><p>Title, Subject, Student Name, Duration, paste Zoom/YouTube/video URL</p></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-content"><strong>Set Visibility</strong><p>"Individual" = only that student's parent sees it. "All" = all your students' parents see it.</p></div></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 id="tutor-earnings">Earnings</h3>
+  <p>Go to <strong>Dashboard → Earnings tab</strong></p>
+  <ul class="guide-list">
+    <li>See monthly earnings for the last 6 months in a chart</li>
+    <li>Earnings are calculated from confirmed + completed sessions</li>
+    <li>Each row shows: student, subject, date, session amount</li>
+    <li>Contact admin for payment processing and payout details</li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h3 id="tutor-profile">Updating Your Profile</h3>
+  <p>Go to <strong>Dashboard → Profile tab</strong></p>
+  <ul class="guide-list">
+    <li>Update your full name and phone number</li>
+    <li>Add or remove subjects you teach (e.g. Mathematics, Phonics, Grammar, Public Speaking)</li>
+    <li>Your approval status is shown here — contact admin if it shows "Pending"</li>
+    <li>Changes take effect immediately</li>
+  </ul>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 4 — PUBLIC PAGES
+═══════════════════════════════════════════════ -->
+<div class="section" id="public-pages">
+  <div class="section-header">
+    <div class="section-icon icon-green">🌐</div>
+    <div class="section-title">
+      <h2>Public Pages</h2>
+      <p>Pages accessible to all visitors without login</p>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Page</th><th>URL</th><th>Purpose</th></tr>
+    <tr><td>Homepage</td><td><span class="url">/</span></td><td>Landing page with hero, programs, how it works, reviews</td></tr>
+    <tr><td>Courses</td><td><span class="url">/courses</span></td><td>All subjects with pricing (INR/USD), duration, sessions/week</td></tr>
+    <tr><td>Book Free Demo</td><td><span class="url">/book-demo</span></td><td>4-step wizard to book a free 30-min demo (login required)</td></tr>
+    <tr><td>About Us</td><td><span class="url">/about</span></td><td>Academy story, stats, values</td></tr>
+    <tr><td>Contact</td><td><span class="url">/contact</span></td><td>Contact form, email, phone, WhatsApp</td></tr>
+    <tr><td>FAQ</td><td><span class="url">/faq</span></td><td>Frequently asked questions by category</td></tr>
+    <tr><td>Privacy Policy</td><td><span class="url">/privacy</span></td><td>Data privacy information</td></tr>
+    <tr><td>Terms & Conditions</td><td><span class="url">/terms</span></td><td>Platform terms of use</td></tr>
+    <tr><td>Refund Policy</td><td><span class="url">/refund</span></td><td>Refund terms and conditions</td></tr>
+  </table>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 5 — EMAIL SYSTEM
+═══════════════════════════════════════════════ -->
+<div class="section" id="email-system">
+  <div class="section-header">
+    <div class="section-icon icon-orange">📧</div>
+    <div class="section-title">
+      <h2>Email System Reference</h2>
+      <p>Every email, when it's sent, and who receives it</p>
+    </div>
+  </div>
+
+  <h3>Sender Addresses</h3>
+  <table>
+    <tr><th>Address</th><th>Used For</th></tr>
+    <tr><td><span class="from-badge">verify@zippymindsacademy.com</span></td><td>Login OTP & email verification codes</td></tr>
+    <tr><td><span class="from-badge">bookings@zippymindsacademy.com</span></td><td>Demo booking confirmations, session updates, reminders (to parents)</td></tr>
+    <tr><td><span class="from-badge">tutors@zippymindsacademy.com</span></td><td>All emails sent to tutors (requests, confirmations, enrollments, reminders)</td></tr>
+    <tr><td><span class="from-badge">admin@zippymindsacademy.com</span></td><td>Internal admin alerts (new bookings, new users, availability changes)</td></tr>
+    <tr><td><span class="from-badge">support@zippymindsacademy.com</span></td><td>Contact form replies, support ticket responses</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <h3>Email Triggers</h3>
+  <table class="email-row">
+    <tr><th>Trigger Event</th><th>Sent To</th><th>From</th><th>Subject Line</th></tr>
+    <tr><td>Login OTP requested</td><td>Parent / Tutor</td><td><span class="from-badge">verify@</span></td><td>Your Zippy Minds login code: XXXXXX</td></tr>
+    <tr><td>New user signs up</td><td>Admin</td><td><span class="from-badge">admin@</span></td><td>🎉 New Parent/Tutor — Name (email)</td></tr>
+    <tr><td>Demo session booked</td><td>Parent</td><td><span class="from-badge">bookings@</span></td><td>✅ Demo Booked — Subject on Date</td></tr>
+    <tr><td>Demo request assigned to tutor</td><td>Tutor</td><td><span class="from-badge">tutors@</span></td><td>📋 New Demo Request — Subject for Child on Date</td></tr>
+    <tr><td>New demo booking alert</td><td>Admin</td><td><span class="from-badge">admin@</span></td><td>📥 New Demo Booking — Subject for Child on Date</td></tr>
+    <tr><td>Session confirmed by tutor</td><td>Parent</td><td><span class="from-badge">bookings@</span></td><td>🎊 Confirmed! Subject Demo on Date with Tutor</td></tr>
+    <tr><td>Session confirmed (with Zoom)</td><td>Tutor</td><td><span class="from-badge">tutors@</span></td><td>🎊 Confirmed — Subject with Child on Date</td></tr>
+    <tr><td>Session cancelled</td><td>Parent</td><td><span class="from-badge">bookings@</span></td><td>Session Cancelled — Subject on Date</td></tr>
+    <tr><td>30-min before reminder</td><td>Parent + Tutor</td><td><span class="from-badge">bookings@ / tutors@</span></td><td>⏰ Reminder: Subject session in 30 mins</td></tr>
+    <tr><td>Day-of reminder</td><td>Parent</td><td><span class="from-badge">bookings@</span></td><td>📅 Session Today — Subject at Time</td></tr>
+    <tr><td>Subscription / enrollment created</td><td>Parent</td><td><span class="from-badge">bookings@</span></td><td>✅ Sessions Booked — Course (Child)</td></tr>
+    <tr><td>Tutor enrollment assigned</td><td>Tutor</td><td><span class="from-badge">tutors@</span></td><td>🎓 New Enrollment — Subject for Child (Mon–Fri)</td></tr>
+    <tr><td>Availability change request</td><td>Parents affected</td><td><span class="from-badge">bookings@</span></td><td>Action Required: Tutor's Availability Change</td></tr>
+    <tr><td>Availability change applied</td><td>Parent</td><td><span class="from-badge">bookings@</span></td><td>Tutor Schedule Updated — Tutor for Month</td></tr>
+    <tr><td>Parent approves/rejects availability</td><td>Admin</td><td><span class="from-badge">admin@</span></td><td>Parent APPROVED/REJECTED — Tutor Availability Change</td></tr>
+    <tr><td>Contact form submitted</td><td>Admin</td><td><span class="from-badge">support@</span></td><td>📩 New Contact Message: Subject</td></tr>
+    <tr><td>Support ticket reply</td><td>Parent</td><td><span class="from-badge">support@</span></td><td>Reply to your support ticket</td></tr>
+  </table>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════
+     SECTION 6 — AUTH & BOOKING FLOWS
+═══════════════════════════════════════════════ -->
+<div class="section" id="auth-flow">
+  <div class="section-header">
+    <div class="section-icon icon-blue">🔄</div>
+    <div class="section-title">
+      <h2>System Flows Reference</h2>
+      <p>Step-by-step technical flows for auth and bookings</p>
+    </div>
+  </div>
+
+  <h3>Auth Flow Summary</h3>
+  <table>
+    <tr><th>Role</th><th>Login URL</th><th>Method</th><th>Redirects To</th></tr>
+    <tr><td><span class="role-pill pill-parent">Parent</span></td><td><span class="url">/auth/login</span></td><td>Email OTP or Google OAuth</td><td>/dashboard/parent</td></tr>
+    <tr><td><span class="role-pill pill-tutor">Tutor</span></td><td><span class="url">/auth/tutor-login</span></td><td>Email + Password</td><td>/dashboard/tutor</td></tr>
+    <tr><td><span class="role-pill pill-admin">Admin</span></td><td><span class="url">/auth/admin-login</span></td><td>Email + Password + Secret Key</td><td>/dashboard/admin</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <h3 id="booking-flow">Demo Booking Flow</h3>
+  <table>
+    <tr><th>Step</th><th>Action</th><th>System Does</th></tr>
+    <tr><td>1</td><td>Parent fills booking form</td><td>Checks for duplicate bookings</td></tr>
+    <tr><td>2</td><td>Parent selects date & time</td><td>Shows available slots based on tutor availability</td></tr>
+    <tr><td>3</td><td>Parent confirms booking</td><td>Creates booking, assigns best-priority available tutor</td></tr>
+    <tr><td>4</td><td>Booking created</td><td>Emails parent (booked) + tutor (new request) + admin (alert)</td></tr>
+    <tr><td>5</td><td>Tutor accepts</td><td>Generates Zoom link, emails parent (confirmed + Zoom) + tutor (confirmed)</td></tr>
+    <tr><td>6</td><td>30 min before session</td><td>Cron job sends reminder email to parent + tutor</td></tr>
+    <tr><td>7</td><td>Day of session</td><td>Morning reminder email sent to parent</td></tr>
+  </table>
+
+  <div class="divider"></div>
+
+  <h3 id="tips">Tips & Common Questions</h3>
+
+  <h4>For Parents</h4>
+  <ul class="guide-list">
+    <li>Use Google login for the fastest experience — no codes to remember</li>
+    <li>Check your spam folder if you don't receive OTP codes within 2 minutes</li>
+    <li>The Zoom link appears on your session card once the tutor confirms — check your dashboard</li>
+    <li>Book your demo at least 24–48 hours in advance for best tutor availability</li>
+    <li>Your timezone is auto-detected — double check it before confirming</li>
+  </ul>
+
+  <h4>For Tutors</h4>
+  <ul class="guide-list">
+    <li>Set your monthly availability before the start of each month so you receive demo requests</li>
+    <li>Accept or decline demo requests as quickly as possible — parents are waiting</li>
+    <li>Your Zoom host link (Start Meeting) is different from the parent's join link — use only your link</li>
+    <li>Upload session materials after each class to help students revise</li>
+    <li>Contact admin if you need to cancel a confirmed session — don't just not show up</li>
+  </ul>
+
+  <h4>For Admins</h4>
+  <ul class="guide-list">
+    <li>Check "Needs Admin" sessions daily — these need manual tutor assignment</li>
+    <li>Approve new tutor applications promptly — pending tutors cannot receive sessions</li>
+    <li>Use Maintenance Mode before making major changes — disables site for non-admins immediately</li>
+    <li>Settings changes (email, phone) take effect site-wide immediately — no redeploy needed</li>
+    <li>The priority system auto-assigns tutors — keep priorities updated to manage tutor workload</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     FOOTER
+═══════════════════════════════════════════════ -->
+<div class="footer">
+  <p>© 2025 <strong>Zippy Minds Academy</strong> · All rights reserved · Confidential Internal Document</p>
+  <p style="margin-top:8px;">🌐 zippymindsacademy.com &nbsp;·&nbsp; 📧 support@zippymindsacademy.com</p>
+  <p style="margin-top:8px; font-size:11px; opacity:0.6;">This document is for internal use only. Do not distribute outside the organisation.</p>
+</div>
+
+</div><!-- end .container -->
+
+<!-- Print button -->
+<div style="position:fixed;bottom:24px;right:24px;z-index:999;">
+  <button onclick="window.print()" style="background:#005da8;color:#fff;border:none;border-radius:12px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,93,168,0.4);">🖨️ Print / Save PDF</button>
+</div>
+
+</body>
+</html>
