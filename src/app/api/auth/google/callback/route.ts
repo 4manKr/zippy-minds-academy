@@ -11,11 +11,10 @@ interface GoogleTokenResponse {
 }
 
 interface GoogleUserInfo {
-  sub:            string;  // Google user ID
-  email:          string;
-  name:           string;
-  picture?:       string;
-  email_verified: boolean | string;  // Google sometimes returns string "true"
+  sub:     string;  // Google user ID
+  email:   string;
+  name:    string;
+  picture?: string;
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://zippymindsacademy.com";
@@ -67,9 +66,8 @@ export async function GET(req: NextRequest) {
     });
     const profile: GoogleUserInfo = await profileRes.json();
 
-    const emailVerified = profile.email_verified === true || profile.email_verified === "true";
-    if (!profile.email || !emailVerified) {
-      return NextResponse.redirect(`${BASE_URL}/auth/login?error=google_unverified`);
+    if (!profile.email) {
+      return NextResponse.redirect(`${BASE_URL}/auth/login?error=google_failed`);
     }
 
     // 3. Find or create user in DB
