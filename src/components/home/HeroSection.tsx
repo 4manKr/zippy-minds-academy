@@ -1,16 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CheckCircle, MessageCircle, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle, MessageCircle, Sparkles, Video } from "lucide-react";
 import DemoCTA from "@/components/DemoCTA";
 import { useSiteSettings } from "@/context/SiteSettingsContext";
-
-const floatingCards = [
-  { emoji: "🔤", label: "Phonics" },
-  { emoji: "📐", label: "Mathematics" },
-  { emoji: "🎤", label: "Public Speaking" },
-  { emoji: "✍️", label: "Grammar" },
-];
 
 export default function HeroSection() {
   const { whatsappNumber } = useSiteSettings();
@@ -84,31 +78,53 @@ export default function HeroSection() {
             </div>
           </div>
 
-          {/* ── Right — subject cards grid ── */}
-          <div className="hidden lg:grid grid-cols-2 gap-5 py-8">
-            {[
-              { emoji: "🔤", subject: "Phonics & Reading",        color: "from-pink-500 to-rose-600",     age: "Ages 3–8",   highlight: "Build fluent readers" },
-              { emoji: "📐", subject: "Mathematics",              color: "from-purple-500 to-indigo-600", age: "Ages 5–14",  highlight: "Logical thinkers" },
-              { emoji: "🎤", subject: "Public Speaking",          color: "from-orange-500 to-yellow-500", age: "Ages 6–14",  highlight: "Confident speakers" },
-              { emoji: "✍️", subject: "English Grammar",          color: "from-blue-500 to-cyan-500",     age: "Ages 4–14",  highlight: "Strong communicators" },
-            ].map((card, i) => (
-              <div key={card.subject}
-                className={`relative rounded-3xl overflow-hidden shadow-xl border-2 border-white group hover:-translate-y-1 transition-all duration-300 ${i === 1 ? "mt-8" : i === 3 ? "mt-8" : ""}`}>
-                <div className={`bg-gradient-to-br ${card.color} p-6`}>
-                  <span className="text-4xl block mb-2">{card.emoji}</span>
-                  <p className="font-display font-extrabold text-white text-lg leading-tight">{card.subject}</p>
-                  <p className="text-white/80 text-xs mt-1">{card.age}</p>
-                </div>
-                <div className="bg-white px-5 py-3">
-                  <p className="text-sm font-semibold text-on-surface-variant">{card.highlight}</p>
+          {/* ── Right — hero image ── */}
+          <div className="hidden lg:flex items-center justify-center py-8">
+            <div className="relative w-full max-w-[480px]">
+
+              {/* Yellow backing card */}
+              <div className="absolute -bottom-6 -right-6 w-full h-full bg-secondary-container/30 rounded-[2rem] -z-10" />
+
+              {/* Main image card */}
+              <div className="relative aspect-[4/5] rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white">
+                <Image
+                  src="/hero-student.jpg"
+                  alt="Happy student learning online"
+                  fill
+                  className="object-cover object-top"
+                  priority
+                />
+              </div>
+
+              {/* Floating stats badge — top left */}
+              <div className="absolute -top-5 -left-8 bg-white rounded-2xl px-4 py-3 shadow-xl border border-outline-variant flex items-center gap-3 z-10">
+                <span className="text-2xl">🌍</span>
+                <div>
+                  <p className="font-extrabold text-on-surface text-sm leading-tight">5,000+ Kids</p>
+                  <p className="text-xs text-on-surface-variant font-medium">Learning Worldwide</p>
                 </div>
               </div>
-            ))}
 
-            {/* Floating badge */}
-            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 hidden lg:flex items-center gap-2 bg-white rounded-2xl px-5 py-3 shadow-xl border border-outline-variant z-10 whitespace-nowrap">
-              <span className="text-lg">🌍</span>
-              <span className="font-bold text-on-surface text-sm">Trusted by families in 50+ countries</span>
+              {/* Floating rating badge — top right */}
+              <div className="absolute -top-5 -right-8 bg-white rounded-2xl px-4 py-3 shadow-xl border border-outline-variant z-10">
+                <p className="font-extrabold text-on-surface text-sm">⭐ 4.9 / 5</p>
+                <p className="text-xs text-on-surface-variant font-medium">Parent Rating</p>
+              </div>
+
+              {/* Live session card — bottom */}
+              <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 bg-white rounded-2xl px-5 py-3 shadow-xl border border-outline-variant flex items-center gap-3 z-10 whitespace-nowrap">
+                <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shrink-0">
+                  <Video size={16} className="text-white" />
+                </div>
+                <div>
+                  <p className="font-bold text-on-surface text-sm leading-tight">Live 1-on-1 Session</p>
+                  <p className="text-xs text-on-surface-variant font-medium flex items-center gap-1.5">
+                    Expert tutor · Active Now
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+                  </p>
+                </div>
+              </div>
+
             </div>
           </div>
 
