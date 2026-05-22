@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle, ChevronRight, User, BookOpen, Calendar,
-  Clock, Globe, ArrowRight, Sparkles, Zap, Video, Mail, LogIn,
+  Clock, Globe, ArrowRight, Sparkles, Zap, Video, Mail, LogIn, Phone,
 } from "lucide-react";
 import { SUBJECTS, GRADES, TIMEZONES } from "@/lib/utils";
 
@@ -155,6 +155,7 @@ function BookDemoInner() {
     selectedDateIdx: 0,
     selectedSlot: null as number | null,
     notes: "",
+    whatsappNumber: "",
   });
 
   // Check auth + auto-fill email/name for logged-in users
@@ -373,6 +374,7 @@ function BookDemoInner() {
           tutorName: assignedTutor.name, tutorInitials: assignedTutor.initials,
           date: selectedDateLabel, timeSlot: selectedSlotLabel,
           notes: form.notes, monthlyPrice: 0,
+          whatsappNumber: form.whatsappNumber,
         }),
       });
       const data = await res.json();
@@ -604,6 +606,25 @@ function BookDemoInner() {
                   <select value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} className="input-field">
                     {TIMEZONES.map((tz) => <option key={tz.value} value={tz.value}>{tz.label}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-on-surface mb-1.5 flex items-center gap-1.5">
+                    <Phone size={15} className="text-primary" /> WhatsApp Number
+                    <span className="text-on-surface-variant font-normal text-xs">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-lg select-none">💬</span>
+                    <input
+                      type="tel"
+                      placeholder="e.g. +91 98765 43210"
+                      value={form.whatsappNumber}
+                      onChange={(e) => setForm({ ...form, whatsappNumber: e.target.value })}
+                      className="input-field pl-10"
+                    />
+                  </div>
+                  <p className="text-xs text-on-surface-variant mt-1">
+                    We'll send session reminders &amp; updates on WhatsApp
+                  </p>
                 </div>
               </div>
             </div>
@@ -872,6 +893,7 @@ function BookDemoInner() {
                 {[
                   { label: "Parent",       value: form.parentName || "Not provided" },
                   { label: "Email",        value: form.parentEmail },
+                  ...(form.whatsappNumber ? [{ label: "WhatsApp", value: form.whatsappNumber }] : []),
                   { label: "Student",      value: form.childName || "Not provided" },
                   { label: "Grade",        value: form.grade || "Not selected" },
                   { label: "Subject",      value: form.subject || "Not selected" },

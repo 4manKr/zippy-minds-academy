@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const {
       childName, childAge, grade, timezone, subject,
       tutorName, tutorInitials, date, timeSlot,
-      notes, monthlyPrice, parentName, parentEmail, otp,
+      notes, monthlyPrice, parentName, parentEmail, otp, whatsappNumber,
     } = body;
 
     if (!childName || !subject || !date || !timeSlot) {
@@ -80,8 +80,9 @@ export async function POST(req: NextRequest) {
         tutorInitials: assignedInitials,
         date,
         timeSlot,
-        notes:         notes         || "",
-        monthlyPrice:  monthlyPrice  || 0,
+        notes:           notes           || "",
+        whatsappNumber:  whatsappNumber  || "",
+        monthlyPrice:    monthlyPrice    || 0,
         status:        "PENDING",
       },
     });
