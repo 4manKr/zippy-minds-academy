@@ -15,7 +15,7 @@ interface GoogleUserInfo {
   email:          string;
   name:           string;
   picture?:       string;
-  email_verified: boolean;
+  email_verified: boolean | string;  // Google sometimes returns string "true"
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://zippymindsacademy.com";
@@ -67,7 +67,8 @@ export async function GET(req: NextRequest) {
     });
     const profile: GoogleUserInfo = await profileRes.json();
 
-    if (!profile.email || !profile.email_verified) {
+    const emailVerified = profile.email_verified === true || profile.email_verified === "true";
+    if (!profile.email || !emailVerified) {
       return NextResponse.redirect(`${BASE_URL}/auth/login?error=google_unverified`);
     }
 
