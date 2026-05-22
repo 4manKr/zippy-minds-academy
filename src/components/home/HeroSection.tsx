@@ -79,11 +79,14 @@ export default function HeroSection() {
           </div>
 
           {/* ── Right — hero image ── */}
-          <div className="hidden lg:flex items-center justify-center py-10">
+          <div className="hidden lg:flex items-center justify-center py-4 -mt-8">
             <div className="relative w-full max-w-[480px]">
 
-              {/* Yellow backing card — matches screenshot */}
+              {/* Yellow backing card */}
               <div className="absolute inset-0 translate-x-4 translate-y-4 bg-[#F5C518] rounded-[2rem] z-0" />
+
+              {/* Magenta outer border ring */}
+              <div className="absolute -inset-[6px] rounded-[2.4rem] border-[5px] border-[#E91E8C] z-20 pointer-events-none" />
 
               {/* Main image card */}
               <div className="relative z-10 rounded-[2rem] overflow-hidden border-[5px] border-[#F5C518] shadow-2xl aspect-[4/3]">
