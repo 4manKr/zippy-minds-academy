@@ -82,11 +82,11 @@ export default function HeroSection() {
           <div className="hidden lg:flex items-center justify-center py-4 -mt-8">
             <div className="relative w-full max-w-[480px]">
 
-              {/* Yellow backing card */}
-              <div className="absolute inset-0 translate-x-4 translate-y-4 bg-[#F5C518] rounded-[2rem] z-0" />
+              {/* Magenta backing card — furthest back */}
+              <div className="absolute inset-0 translate-x-8 translate-y-8 bg-[#E91E8C] rounded-[2rem] z-0" />
 
-              {/* Magenta outer border ring */}
-              <div className="absolute -inset-[6px] rounded-[2.4rem] border-[5px] border-[#E91E8C] z-20 pointer-events-none" />
+              {/* Yellow backing card — sits between magenta and image */}
+              <div className="absolute inset-0 translate-x-4 translate-y-4 bg-[#F5C518] rounded-[2rem] z-[1]" />
 
               {/* Main image card */}
               <div className="relative z-10 rounded-[2rem] overflow-hidden border-[5px] border-[#F5C518] shadow-2xl aspect-[4/3]">
@@ -113,26 +113,6 @@ export default function HeroSection() {
                     <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
                     <span className="text-xs font-extrabold text-red-500 tracking-wide">REC</span>
                   </div>
-                </div>
-              </div>
-
-              {/* Floating stats badge — top left */}
-              <div className="absolute -top-5 -left-6 z-20 bg-white rounded-2xl px-4 py-2.5 shadow-xl border border-outline-variant flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
-                  <span className="text-base">🌍</span>
-                </div>
-                <div>
-                  <p className="font-extrabold text-on-surface text-sm leading-tight">5,000+ Kids</p>
-                  <p className="text-xs text-on-surface-variant font-medium">Learning Worldwide</p>
-                </div>
-              </div>
-
-              {/* Floating rating badge — top right */}
-              <div className="absolute -top-5 -right-6 z-20 bg-white rounded-2xl px-4 py-2.5 shadow-xl border border-outline-variant flex items-center gap-2">
-                <span className="text-yellow-400 text-lg">⭐</span>
-                <div>
-                  <p className="font-extrabold text-on-surface text-sm leading-tight">4.9 / 5</p>
-                  <p className="text-xs text-on-surface-variant font-medium">Parent Rating</p>
                 </div>
               </div>
 
