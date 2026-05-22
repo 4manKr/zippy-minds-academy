@@ -715,7 +715,7 @@ function BookDemoInner() {
                 Showing times in <span className="font-medium text-on-surface">{tzLabel}</span>
                 {hasDbTutor && tutorHasAnyAvail && (
                   <> · <span className="text-primary font-medium">
-                    {assignedTutor.name}&apos;s declared slots only
+                    Available slots only
                   </span></>
                 )}
                 {hasDbTutor && !tutorHasAnyAvail && (
@@ -758,7 +758,7 @@ function BookDemoInner() {
                   return (
                     <button key={d.fullDate}
                       onClick={() => setForm({ ...form, selectedDateIdx: i, selectedSlot: null })}
-                      title={dimDay ? `${assignedTutor.name} has no declared slots on ${d.dayShort}s — all times shown as fallback` : ""}
+                      title={dimDay ? `No declared slots on ${d.dayShort}s — all times shown as fallback` : ""}
                       className={`relative flex flex-col items-center p-3 rounded-2xl min-w-[60px] transition-all ${
                         form.selectedDateIdx === i
                           ? "bg-primary text-on-primary shadow-sm"
@@ -784,7 +784,7 @@ function BookDemoInner() {
                   <span className="text-lg shrink-0">⚠️</span>
                   <div>
                     <p className="text-sm font-semibold text-amber-800">
-                      {assignedTutor.name} hasn&apos;t set their schedule yet
+                      Tutor schedule not yet declared
                     </p>
                     <p className="text-xs text-amber-700 mt-0.5">
                       All time slots are shown for now. Pick your preferred slot and your tutor will confirm the session.
@@ -799,7 +799,7 @@ function BookDemoInner() {
                   <p className="font-semibold text-on-surface">
                     {timeSlots.some(s => s.isPast && !s.available)
                       ? "All slots for today have passed"
-                      : `${assignedTutor.name} is not available on ${selectedDateEntry?.dayShort}s`}
+                      : `No available slots on ${selectedDateEntry?.dayShort}s`}
                   </p>
                   <p className="text-sm text-on-surface-variant mt-1">
                     {timeSlots.some(s => s.isPast)
@@ -847,15 +847,15 @@ function BookDemoInner() {
                       : "Dimmed slots have already passed · Times shown in your local timezone"}
                   </p>
 
-                  {/* Preview tutor card — shown when a slot is selected */}
-                  {previewTutor && form.selectedSlot && (
+                  {/* Slot selected indicator — tutor identity revealed only after booking */}
+                  {form.selectedSlot && (
                     <div className="mt-4 flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-2xl px-4 py-3">
                       <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/40 to-primary flex items-center justify-center text-white text-sm font-bold shrink-0">
-                        {previewTutor.initials}
+                        <Sparkles size={18} />
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-primary uppercase tracking-wide">Your assigned tutor</p>
-                        <p className="font-bold text-on-surface">{previewTutor.name}</p>
+                        <p className="text-xs font-semibold text-primary uppercase tracking-wide">Slot selected</p>
+                        <p className="font-bold text-on-surface">Your tutor will be revealed after booking</p>
                       </div>
                       <CheckCircle size={18} className="text-primary ml-auto shrink-0" />
                     </div>
