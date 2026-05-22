@@ -27,7 +27,7 @@ async function sendEmail(to: string, code: string): Promise<void> {
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   await resend.emails.send({
-    from: `Zippy Minds Verification <otp@${process.env.EMAIL_DOMAIN ?? "zippymindsacademy.com"}>`,
+    from: `Zippy Minds Academy <verify@${process.env.EMAIL_DOMAIN ?? "zippymindsacademy.com"}>`,
     to,
     subject: `Your Zippy Minds login code: ${code}`,
     html: `
