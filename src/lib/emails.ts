@@ -6,7 +6,14 @@
 
 import { prisma } from "@/lib/prisma";
 
-const FROM_EMAIL         = process.env.FROM_EMAIL ?? "Zippy Minds Academy <noreply@zippymindsacademy.com>";
+// ─── sender addresses (one per purpose) ──────────────────────────────────────
+const DOMAIN = process.env.EMAIL_DOMAIN ?? "zippymindsacademy.com";
+
+const FROM_OTP      = `Zippy Minds Academy <otp@${DOMAIN}>`;       // login/OTP codes
+const FROM_BOOKINGS = `Zippy Minds Bookings <bookings@${DOMAIN}>`; // parent booking & session emails
+const FROM_TUTORS   = `Zippy Minds Tutors <tutors@${DOMAIN}>`;     // all emails to tutors
+const FROM_ADMIN    = `Zippy Minds Admin <admin@${DOMAIN}>`;       // internal admin alerts
+
 const DEFAULT_ADMIN_EMAIL = "zippymindsacademy@gmail.com";
 const DEFAULT_PHONE       = "+91 93114 83555";
 const DEFAULT_WA_NUMBER   = "919311483555";
@@ -99,15 +106,15 @@ function chip(emoji: string, text: string, bg = "#e8f0fe", color = "#1a56db") {
 
 // ─── async sender ─────────────────────────────────────────────────────────────
 
-async function send(to: string, subject: string, html: string) {
+async function send(to: string, subject: string, html: string, from = FROM_BOOKINGS) {
   if (!process.env.RESEND_API_KEY) {
-    console.log(`📧 [Email — no RESEND_API_KEY] To: ${to} | Subject: ${subject}`);
+    console.log(`📧 [Email — no RESEND_API_KEY] From: ${from} | To: ${to} | Subject: ${subject}`);
     return;
   }
   try {
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    await resend.emails.send({ from, to, subject, html });
   } catch (err) {
     console.error("Email send error:", err);
   }
@@ -174,11 +181,7 @@ export async function sendDemoBookedEmail(booking: {
     </p>
   `, adminEmail);
 
-  await send(
-    booking.parentEmail,
-    `✅ Demo Booked — ${booking.subject} on ${booking.date}`,
-    html,
-  );
+  await send(booking.parentEmail, `✅ Demo Booked — ${booking.subject} on ${booking.date}`, html, FROM_BOOKINGS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -262,11 +265,7 @@ export async function sendSessionConfirmedEmail(booking: {
     </p>
   `, adminEmail);
 
-  await send(
-    booking.parentEmail,
-    `🎊 Confirmed! ${booking.subject} Demo on ${booking.date} with ${booking.tutorName}`,
-    html,
-  );
+  await send(booking.parentEmail, `🎊 Confirmed! ${booking.subject} Demo on ${booking.date} with ${booking.tutorName}`, html, FROM_BOOKINGS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -311,11 +310,7 @@ export async function sendSessionCancelledEmail(booking: {
     </p>
   `, adminEmail);
 
-  await send(
-    booking.parentEmail,
-    `Session Cancelled — ${booking.subject} on ${booking.date}`,
-    html,
-  );
+  await send(booking.parentEmail, `Session Cancelled — ${booking.subject} on ${booking.date}`, html, FROM_BOOKINGS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -357,11 +352,7 @@ export async function sendAdminNewBookingAlert(booking: {
     ${btnPrimary("Open Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
   `, adminEmail);
 
-  await send(
-    adminEmail,
-    `📥 New Demo Booking — ${booking.subject} for ${booking.childName} on ${booking.date}`,
-    html,
-  );
+  await send(adminEmail, `📥 New Demo Booking — ${booking.subject} for ${booking.childName} on ${booking.date}`, html, FROM_ADMIN);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -441,11 +432,7 @@ export async function sendAvailabilityChangeRequestEmail(params: {
     </p>
   `, adminEmail);
 
-  await send(
-    parentEmail,
-    `Action Required: ${tutorName}'s Availability Change for ${monthLabel(monthYear)}`,
-    html,
-  );
+  await send(parentEmail, `Action Required: ${tutorName}'s Availability Change for ${monthLabel(monthYear)}`, html, FROM_BOOKINGS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -478,7 +465,7 @@ export async function sendAvailabilityAdminAlert(params: {
     ${btnPrimary("View in Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
   `, adminEmail);
 
-  await send(adminEmail, `Availability Change Request — ${tutorName} (${monthLabel(monthYear)})`, html);
+  await send(adminEmail, `Availability Change Request — ${tutorName} (${monthLabel(monthYear)})`, html, FROM_ADMIN);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -514,7 +501,7 @@ export async function sendAvailabilityAppliedEmail(params: {
     </p>
   `, adminEmail);
 
-  await send(parentEmail, `Tutor Schedule Updated — ${tutorName} for ${monthLabel(monthYear)}`, html);
+  await send(parentEmail, `Tutor Schedule Updated — ${tutorName} for ${monthLabel(monthYear)}`, html, FROM_BOOKINGS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -555,11 +542,7 @@ export async function sendParentResponseAlertToAdmin(params: {
     ${btnPrimary("Open Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
   `, adminEmail);
 
-  await send(
-    adminEmail,
-    `Parent ${actionLabel} — ${tutorName} Availability Change`,
-    html,
-  );
+  await send(adminEmail, `Parent ${actionLabel} — ${tutorName} Availability Change`, html, FROM_ADMIN);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -599,7 +582,7 @@ export async function sendAdminNewUserAlert(user: {
     ${btnPrimary("Open Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
   `, adminEmail);
 
-  await send(adminEmail, `🎉 New ${roleLabel} — ${user.name} (${user.email})`, html);
+  await send(adminEmail, `🎉 New ${roleLabel} — ${user.name} (${user.email})`, html, FROM_ADMIN);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -644,7 +627,7 @@ export async function sendTutorNewRequestEmail(params: {
     ${btnPrimary("Go to Tutor Dashboard →", `${BASE_URL}/dashboard/tutor`)}
   `);
 
-  await send(tutorEmail, `📋 New Demo Request — ${subject} for ${childName} on ${date}`, html);
+  await send(tutorEmail, `📋 New Demo Request — ${subject} for ${childName} on ${date}`, html, FROM_TUTORS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -694,7 +677,7 @@ export async function sendTutorSessionConfirmedEmail(params: {
     ${btnPrimary("Open Tutor Dashboard →", `${BASE_URL}/dashboard/tutor`)}
   `);
 
-  await send(tutorEmail, `🎊 Confirmed — ${subject} with ${childName} on ${date}`, html);
+  await send(tutorEmail, `🎊 Confirmed — ${subject} with ${childName} on ${date}`, html, FROM_TUTORS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -743,7 +726,8 @@ export async function sendSessionReminderEmail(params: {
     ${btnPrimary("Open Dashboard →", `${BASE_URL}/${role === "tutor" ? "dashboard/tutor" : "dashboard/parent"}`)}
   `);
 
-  await send(to, `⏰ Reminder: ${subject} session in 30 mins — ${timeSlot}`, html);
+  const reminderFrom = params.role === "tutor" ? FROM_TUTORS : FROM_BOOKINGS;
+  await send(to, `⏰ Reminder: ${subject} session in 30 mins — ${timeSlot}`, html, reminderFrom);
 }
 
 
@@ -795,7 +779,7 @@ export async function sendSubscriptionConfirmedEmail(data: {
     ${btnPrimary("View Dashboard →", `${BASE_URL}/dashboard/parent`)}
   `);
 
-  await send(parentEmail, `✅ Sessions Booked — ${courseName} (${childName})`, html);
+  await send(parentEmail, `✅ Sessions Booked — ${courseName} (${childName})`, html, FROM_BOOKINGS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -825,7 +809,7 @@ export async function sendDailySessionReminderEmail(data: {
     ${zoomLink ? btnPrimary("Join Session Now →", zoomLink) : ""}
   `);
 
-  await send(to, `📅 Session Today — ${subject} at ${timeSlot}`, html);
+  await send(to, `📅 Session Today — ${subject} at ${timeSlot}`, html, FROM_BOOKINGS);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -872,5 +856,5 @@ export async function sendTutorEnrollmentAssignedEmail(params: {
     ${btnPrimary("View Your Sessions →", `${BASE_URL}/dashboard/tutor`)}
   `);
 
-  await send(tutorEmail, `🎓 New Enrollment — ${subject} for ${childName} (Mon–Fri at ${timeSlot})`, html);
+  await send(tutorEmail, `🎓 New Enrollment — ${subject} for ${childName} (Mon–Fri at ${timeSlot})`, html, FROM_TUTORS);
 }
