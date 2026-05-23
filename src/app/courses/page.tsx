@@ -102,11 +102,16 @@ interface Course {
   id: string;
   name: string;
   description: string;
+  ageRange: string;
+  teacherName: string;
+  showTeacher: boolean;
+  rating: number;
   price: number;
   priceUSD: number;
   status: string;
   durationValue?: number;
   durationUnit?: string;
+  subject?: { id: string; name: string } | null;
 }
 
 export default function CoursesPage() {
@@ -120,7 +125,7 @@ export default function CoursesPage() {
 
   useEffect(() => {
     fetch("/api/courses")
-      .then(r => r.ok ? r.json() : null)
+      .then(r => r.ok ? r.json() : { courses: [], subjects: [] })
       .then(d => { if (d?.courses) setCourses(d.courses); })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -136,15 +141,18 @@ export default function CoursesPage() {
       .catch(() => setIsIndia(true));
   }, []);
 
-  const categories = ["All", ...courses.map(c => c.name)];
+  // Category pills = unique subject names from linked subjects, or course names as fallback
+  const categories = ["All", ...Array.from(new Set(
+    courses.map(c => c.subject?.name ?? c.name)
+  ))];
 
   const filtered = courses.filter((c) => {
     const meta = COURSE_META[c.name] ?? DEFAULT_META;
     const matchSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      meta.tagline.toLowerCase().includes(search.toLowerCase()) ||
+      (c.description || meta.tagline).toLowerCase().includes(search.toLowerCase()) ||
       meta.tags.some(t => t.toLowerCase().includes(search.toLowerCase()));
-    const matchCat = category === "All" || c.name === category;
+    const matchCat = category === "All" || (c.subject?.name ?? c.name) === category;
     return matchSearch && matchCat;
   });
 
@@ -269,8 +277,14 @@ export default function CoursesPage() {
         {!loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filtered.map((course) => {
-              const meta   = COURSE_META[course.name] ?? DEFAULT_META;
-              const colors = SUBJECT_COLORS[course.name] ?? SUBJECT_COLORS["Science"];
+              const meta        = COURSE_META[course.name] ?? DEFAULT_META;
+              const subjectName = course.subject?.name ?? course.name;
+              const colors      = SUBJECT_COLORS[subjectName] ?? SUBJECT_COLORS[course.name] ?? SUBJECT_COLORS["Science"];
+              // Prefer DB values; fall back to hardcoded meta
+              const displayAge     = course.ageRange     || meta.ageGroup;
+              const displayRating  = course.rating > 0   ? course.rating  : meta.rating;
+              const displayTeacher = course.showTeacher && course.teacherName ? course.teacherName : null;
+              const displayTagline = course.description  || meta.tagline;
               return (
                 <div
                   key={course.id}
@@ -281,25 +295,33 @@ export default function CoursesPage() {
                     <span className="text-6xl group-hover:scale-110 transition-transform duration-500">
                       {colors.icon}
                     </span>
-                    <div className="absolute top-3 right-3">
-                      <span className="badge bg-white/90 text-on-surface font-semibold text-xs">{meta.ageGroup}</span>
-                    </div>
+                    {displayAge && (
+                      <div className="absolute top-3 right-3">
+                        <span className="badge bg-white/90 text-on-surface font-semibold text-xs">{displayAge}</span>
+                      </div>
+                    )}
+                    {course.subject && (
+                      <div className="absolute top-3 left-3">
+                        <span className={`badge text-xs ${colors.bg} ${colors.text} opacity-90`}>{course.subject.name}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Content */}
                   <div className="p-5 flex flex-col flex-1">
-                    <span className={`badge text-xs mb-2 inline-block ${colors.bg} ${colors.text}`}>
-                      {course.name}
-                    </span>
                     <h3 className="font-display font-bold text-on-surface text-base mb-1 leading-snug">
                       {course.name}
                     </h3>
                     <p className="text-xs text-on-surface-variant mb-3 leading-snug">
-                      {course.description || meta.tagline}
+                      {displayTagline}
                     </p>
-                    <p className="text-xs text-on-surface-variant mb-3">
-                      by <span className="font-medium text-on-surface">{meta.tutor}</span>
-                    </p>
+
+                    {/* Teacher — only shown if admin enabled it */}
+                    {displayTeacher && (
+                      <p className="text-xs text-on-surface-variant mb-3">
+                        by <span className="font-medium text-on-surface">{displayTeacher}</span>
+                      </p>
+                    )}
 
                     <div className="flex flex-wrap gap-1 mb-3">
                       {meta.tags.map((tag) => (
@@ -310,12 +332,12 @@ export default function CoursesPage() {
                     <div className="flex items-center justify-between text-xs text-on-surface-variant mb-3 pt-3 border-t border-outline-variant/30">
                       <div className="flex items-center gap-1">
                         <Star size={11} fill="#fdd000" stroke="#fdd000" />
-                        <span className="font-bold text-on-surface">{meta.rating}</span>
+                        <span className="font-bold text-on-surface">{displayRating}</span>
                         <span>({meta.reviews})</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <BookOpen size={11} />
-                        {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
+                        {course.durationValue ?? 1} {course.durationUnit ?? "months"}
                       </div>
                     </div>
 
@@ -336,7 +358,7 @@ export default function CoursesPage() {
                       )}
                     </div>
 
-                    <DemoCTA subject={course.name}
+                    <DemoCTA subject={subjectName}
                       className="w-full btn-yellow justify-center text-xs py-2.5 mt-auto flex items-center gap-1.5" />
                   </div>
                 </div>
