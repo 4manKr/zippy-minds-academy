@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Star, Filter, IndianRupee, DollarSign, BookOpen, Sparkles, CheckCircle, ArrowRight } from "lucide-react";
+import { Search, Star, Filter, IndianRupee, DollarSign, BookOpen, Sparkles, CheckCircle, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 import { SUBJECT_COLORS } from "@/lib/utils";
 import DemoCTA from "@/components/DemoCTA";
 import CustomCourseModal from "@/components/CustomCourseModal";
@@ -103,17 +103,26 @@ interface Course {
   id: string;
   name: string;
   description: string;
+  thumbnail: string;
   ageRange: string;
   teacherName: string;
   showTeacher: boolean;
   rating: number;
   price: number;
   priceUSD: number;
+  sortOrder: number;
   status: string;
   durationValue?: number;
   durationUnit?: string;
-  subject?: { id: string; name: string } | null;
+  subject?: { id: string; name: string; color: string } | null;
 }
+
+/** Strip HTML tags and return plain text */
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+const READ_MORE_THRESHOLD = 120; // chars of plain text before we truncate
 
 export default function CoursesPage() {
   const [courses, setCourses]         = useState<Course[]>([]);
@@ -123,6 +132,7 @@ export default function CoursesPage() {
   const [stats,   setStats]           = useState({ parents: 0, tutors: 0, sessions: 0, courses: 0 });
   const [isIndia,  setIsIndia]        = useState<boolean | null>(null);
   const [customOpen, setCustomOpen]   = useState(false);
+  const [expanded, setExpanded]       = useState<Set<string>>(new Set());
   const { showPricing }               = usePricingVisibility();
 
   useEffect(() => {
@@ -143,6 +153,14 @@ export default function CoursesPage() {
       .catch(() => setIsIndia(true));
   }, []);
 
+  const toggleExpanded = (id: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   // Category pills = unique subject names from linked subjects, or course names as fallback
   const categories = ["All", ...Array.from(new Set(
     courses.map(c => c.subject?.name ?? c.name)
@@ -150,17 +168,16 @@ export default function CoursesPage() {
 
   const filtered = courses.filter((c) => {
     const meta = COURSE_META[c.name] ?? DEFAULT_META;
+    const plainDesc = stripHtml(c.description);
     const matchSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      (c.description || meta.tagline).toLowerCase().includes(search.toLowerCase()) ||
+      (plainDesc || meta.tagline).toLowerCase().includes(search.toLowerCase()) ||
       meta.tags.some(t => t.toLowerCase().includes(search.toLowerCase()));
     const matchCat = category === "All" || (c.subject?.name ?? c.name) === category;
     return matchSearch && matchCat;
   });
 
-  // Only show live DB counts once they exceed the minimum marketing thresholds,
-  // so small real counts (e.g. 4 tutors during early launch) never replace
-  // the published marketing numbers.
+  // Only show live DB counts once they exceed the minimum marketing thresholds
   const heroStats = [
     { value: stats.courses >= 8    ? `${stats.courses}+` : "8+",    label: "Subjects"      },
     { value: stats.tutors  >= 500  ? `${stats.tutors}+`  : "500+",  label: "Expert Tutors" },
@@ -255,61 +272,6 @@ export default function CoursesPage() {
         </div>
       </div>
 
-      {/* ── Custom Course Feature Section ── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16 pt-10 pb-2">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-700 p-0.5 shadow-2xl">
-          <div className="bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-700 rounded-[22px] px-6 sm:px-10 py-8 flex flex-col md:flex-row items-center gap-8">
-
-            {/* Left: icon cluster */}
-            <div className="shrink-0 w-24 h-24 rounded-3xl bg-white/15 flex items-center justify-center relative">
-              <span className="text-5xl">🎨</span>
-              <span className="absolute -top-2 -right-2 w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center text-base">✨</span>
-            </div>
-
-            {/* Middle: copy */}
-            <div className="flex-1 text-center md:text-left">
-              <span className="inline-flex items-center gap-1.5 bg-white/15 border border-white/25 text-white text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
-                <Sparkles size={11} className="text-yellow-300" /> Exclusive · Tailored Just For You
-              </span>
-              <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white leading-tight mb-2">
-                Can't find the perfect course?<br className="hidden sm:block" />
-                <span className="text-yellow-300"> Build a Custom One.</span>
-              </h2>
-              <p className="text-white/80 text-sm leading-relaxed max-w-xl mb-4">
-                Every child learns differently. Share your child's interests, schedule, and learning goals — our experts will design a personalised curriculum from scratch, just for them.
-              </p>
-              <div className="flex flex-wrap gap-x-5 gap-y-1.5 justify-center md:justify-start text-white/90 text-xs font-medium mb-1">
-                {[
-                  "Pick any subject mix",
-                  "Choose your schedule",
-                  "Set your own pace",
-                  "1-on-1 dedicated tutor",
-                ].map(f => (
-                  <span key={f} className="flex items-center gap-1.5">
-                    <CheckCircle size={13} className="text-green-300 shrink-0" /> {f}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Right: CTA */}
-            <div className="shrink-0 flex flex-col items-center gap-3">
-              <button
-                onClick={() => setCustomOpen(true)}
-                className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-extrabold text-sm px-6 py-3.5 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all whitespace-nowrap"
-              >
-                <Sparkles size={16} />
-                Design My Course
-                <ArrowRight size={16} />
-              </button>
-              <p className="text-white/60 text-[11px] text-center">
-                Free consultation · No commitment
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16 py-12">
         {/* Results count */}
         <div className="flex items-center justify-between mb-6">
@@ -341,37 +303,110 @@ export default function CoursesPage() {
               const displayAge     = course.ageRange     || meta.ageGroup;
               const displayRating  = course.rating > 0   ? course.rating  : meta.rating;
               const displayTeacher = course.showTeacher && course.teacherName ? course.teacherName : null;
-              const displayTagline = course.description  || meta.tagline;
+              // Description handling
+              const rawDesc    = course.description?.trim() || "";
+              const plainDesc  = rawDesc ? stripHtml(rawDesc) : "";
+              const hasHtml    = rawDesc.length > 0;
+              const isLong     = plainDesc.length > READ_MORE_THRESHOLD;
+              const isExp      = expanded.has(course.id);
+              const shortDesc  = isLong ? plainDesc.slice(0, READ_MORE_THRESHOLD) + "…" : plainDesc;
+              const displayTagline = hasHtml ? (isExp ? "" : shortDesc) || meta.tagline : meta.tagline;
+              // Accent color from DB subject color, or fallback
+              const accentColor = course.subject?.color || null;
+
               return (
                 <div
                   key={course.id}
                   className="group bg-surface-container-lowest rounded-3xl overflow-hidden shadow-card border border-outline-variant flex flex-col"
+                  style={accentColor ? { borderTopColor: accentColor, borderTopWidth: 3 } : {}}
                 >
                   {/* Thumbnail */}
-                  <div className={`h-40 bg-gradient-to-br ${colors.gradient} flex items-center justify-center relative`}>
-                    <span className="text-6xl group-hover:scale-110 transition-transform duration-500">
-                      {colors.icon}
-                    </span>
-                    {displayAge && (
-                      <div className="absolute top-3 right-3">
-                        <span className="badge bg-white/90 text-on-surface font-semibold text-xs">{displayAge}</span>
-                      </div>
-                    )}
-                    {course.subject && (
-                      <div className="absolute top-3 left-3">
-                        <span className={`badge text-xs ${colors.bg} ${colors.text} opacity-90`}>{course.subject.name}</span>
-                      </div>
-                    )}
-                  </div>
+                  {course.thumbnail ? (
+                    <div className="h-40 overflow-hidden relative">
+                      <img
+                        src={course.thumbnail}
+                        alt={course.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      {displayAge && (
+                        <div className="absolute top-3 right-3">
+                          <span className="badge bg-white/90 text-on-surface font-semibold text-xs">{displayAge}</span>
+                        </div>
+                      )}
+                      {course.subject && (
+                        <div className="absolute top-3 left-3">
+                          <span
+                            className="badge text-xs text-white font-semibold"
+                            style={accentColor ? { background: accentColor } : {}}
+                          >
+                            {course.subject.name}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div
+                      className={`h-40 flex items-center justify-center relative`}
+                      style={accentColor
+                        ? { background: `linear-gradient(135deg, ${accentColor}cc 0%, ${accentColor} 100%)` }
+                        : undefined}
+                    >
+                      {!accentColor && (
+                        <div className={`absolute inset-0 bg-gradient-to-br ${colors.gradient}`} />
+                      )}
+                      <span className="text-6xl group-hover:scale-110 transition-transform duration-500 relative z-10">
+                        {colors.icon}
+                      </span>
+                      {displayAge && (
+                        <div className="absolute top-3 right-3 z-10">
+                          <span className="badge bg-white/90 text-on-surface font-semibold text-xs">{displayAge}</span>
+                        </div>
+                      )}
+                      {course.subject && (
+                        <div className="absolute top-3 left-3 z-10">
+                          <span className={`badge text-xs ${accentColor ? "text-white" : `${colors.bg} ${colors.text}`} opacity-90`}
+                            style={accentColor ? { background: "rgba(0,0,0,0.25)" } : {}}>
+                            {course.subject.name}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Content */}
                   <div className="p-5 flex flex-col flex-1">
                     <h3 className="font-display font-bold text-on-surface text-base mb-1 leading-snug">
                       {course.name}
                     </h3>
-                    <p className="text-xs text-on-surface-variant mb-3 leading-snug">
-                      {displayTagline}
-                    </p>
+
+                    {/* Description with Read More */}
+                    {hasHtml ? (
+                      <div className="mb-3">
+                        {isExp ? (
+                          <div
+                            className="text-xs text-on-surface-variant leading-relaxed
+                              [&_strong]:font-bold [&_em]:italic [&_u]:underline
+                              [&_h3]:font-bold [&_h3]:text-sm [&_h3]:text-on-surface [&_h3]:mt-1 [&_h3]:mb-0.5
+                              [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:my-1
+                              [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:my-1
+                              [&_li]:my-0.5 [&_hr]:border-outline-variant [&_hr]:my-1"
+                            dangerouslySetInnerHTML={{ __html: rawDesc }}
+                          />
+                        ) : (
+                          <p className="text-xs text-on-surface-variant leading-snug">{shortDesc || meta.tagline}</p>
+                        )}
+                        {isLong && (
+                          <button
+                            onClick={() => toggleExpanded(course.id)}
+                            className="flex items-center gap-0.5 text-[11px] font-semibold text-primary hover:underline mt-1"
+                          >
+                            {isExp ? <><ChevronUp size={12}/> Read Less</> : <><ChevronDown size={12}/> Read More</>}
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-on-surface-variant mb-3 leading-snug">{displayTagline}</p>
+                    )}
 
                     {/* Teacher — only shown if admin enabled it */}
                     {displayTeacher && (
@@ -439,6 +474,63 @@ export default function CoursesPage() {
               >
                 <Sparkles size={15} /> Build a Custom Course
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Custom Course Feature Section (after all courses) ── */}
+        {!loading && (
+          <div className="mt-14">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-700 p-0.5 shadow-2xl">
+              <div className="bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-700 rounded-[22px] px-6 sm:px-10 py-8 flex flex-col md:flex-row items-center gap-8">
+
+                {/* Left: icon cluster */}
+                <div className="shrink-0 w-24 h-24 rounded-3xl bg-white/15 flex items-center justify-center relative">
+                  <span className="text-5xl">🎨</span>
+                  <span className="absolute -top-2 -right-2 w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center text-base">✨</span>
+                </div>
+
+                {/* Middle: copy */}
+                <div className="flex-1 text-center md:text-left">
+                  <span className="inline-flex items-center gap-1.5 bg-white/15 border border-white/25 text-white text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+                    <Sparkles size={11} className="text-yellow-300" /> Exclusive · Tailored Just For You
+                  </span>
+                  <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white leading-tight mb-2">
+                    Can&apos;t find the perfect course?<br className="hidden sm:block" />
+                    <span className="text-yellow-300"> Build a Custom One.</span>
+                  </h2>
+                  <p className="text-white/80 text-sm leading-relaxed max-w-xl mb-4">
+                    Every child learns differently. Share your child&apos;s interests, schedule, and learning goals — our experts will design a personalised curriculum from scratch, just for them.
+                  </p>
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 justify-center md:justify-start text-white/90 text-xs font-medium mb-1">
+                    {[
+                      "Pick any subject mix",
+                      "Choose your schedule",
+                      "Set your own pace",
+                      "1-on-1 dedicated tutor",
+                    ].map(f => (
+                      <span key={f} className="flex items-center gap-1.5">
+                        <CheckCircle size={13} className="text-green-300 shrink-0" /> {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right: CTA */}
+                <div className="shrink-0 flex flex-col items-center gap-3">
+                  <button
+                    onClick={() => setCustomOpen(true)}
+                    className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-extrabold text-sm px-6 py-3.5 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all whitespace-nowrap"
+                  >
+                    <Sparkles size={16} />
+                    Design My Course
+                    <ArrowRight size={16} />
+                  </button>
+                  <p className="text-white/60 text-[11px] text-center">
+                    Free consultation · No commitment
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}

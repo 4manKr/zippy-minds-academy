@@ -10,16 +10,17 @@ import {
   AlertTriangle, Settings, MessageSquare, Calendar, Bell,
   Trash2, TrendingUp, Send, ToggleLeft, ToggleRight, Plus, Edit2, Zap,
   MapPin, RefreshCw, Save, PlayCircle, FileText, Download,
-  Play, Upload, Link as LinkIcon, User, CalendarDays, Lock, Phone,
+  Play, Upload, Link as LinkIcon, User, CalendarDays, Lock, Phone, Palette, SortAsc,
 } from "lucide-react";
+import RichTextEditor from "@/components/RichTextEditor";
 
 type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content"|"availability"|"leads";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
 interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; needsAdmin?:boolean; declinedTutors?:string; createdAt:string; }
-interface DBSubject { id:string; name:string; ageGroup:string; totalDuration:string; status:string; courses:DBCourse[]; }
-interface DBCourse  { id:string; name:string; description:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; subjectId?:string|null; subject?:{id:string;name:string}|null; }
+interface DBSubject { id:string; name:string; ageGroup:string; totalDuration:string; color:string; status:string; courses:DBCourse[]; }
+interface DBCourse  { id:string; name:string; description:string; thumbnail:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; sortOrder:number; subjectId?:string|null; subject?:{id:string;name:string;color:string}|null; }
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
 interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; showPricing:string; }
@@ -75,10 +76,10 @@ export default function AdminDashboard() {
   const [replyOpen,      setReplyOpen]      = useState<string|null>(null);
   const [replyText,      setReplyText]      = useState("");
   const [settingsSaved,  setSettingsSaved]  = useState(false);
-  const [newSubject,     setNewSubject]     = useState({ name:"", ageGroup:"", totalDuration:"" });
+  const [newSubject,     setNewSubject]     = useState({ name:"", ageGroup:"", totalDuration:"", color:"" });
   const [addingSubject,  setAddingSubject]  = useState(false);
   const [editSubject,    setEditSubject]    = useState<DBSubject|null>(null);
-  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" });
+  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" });
   const [addingCourse,   setAddingCourse]   = useState(false);
   // Content management
   const [contentTab,     setContentTab]     = useState<"resources"|"videos"|"recordings">("resources");
@@ -342,15 +343,15 @@ export default function AdminDashboard() {
   const handleAddSubject = async () => {
     if (!newSubject.name.trim()) return;
     setLoad("addSubject", true);
-    const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", name:newSubject.name, ageGroup:newSubject.ageGroup, totalDuration:newSubject.totalDuration }) });
+    const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", name:newSubject.name, ageGroup:newSubject.ageGroup, totalDuration:newSubject.totalDuration, color:newSubject.color }) });
     const data = await res.json();
-    if (data.subject) { setSubjects(s=>[...s,{...data.subject,courses:[]}]); setNewSubject({ name:"", ageGroup:"", totalDuration:"" }); setAddingSubject(false); }
+    if (data.subject) { setSubjects(s=>[...s,{...data.subject,courses:[]}]); setNewSubject({ name:"", ageGroup:"", totalDuration:"", color:"" }); setAddingSubject(false); }
     setLoad("addSubject", false);
   };
   const handleSaveSubject = async () => {
     if (!editSubject) return;
     setLoad("editSubject", true);
-    const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", subjectId:editSubject.id, name:editSubject.name, ageGroup:editSubject.ageGroup, totalDuration:editSubject.totalDuration }) });
+    const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", subjectId:editSubject.id, name:editSubject.name, ageGroup:editSubject.ageGroup, totalDuration:editSubject.totalDuration, color:editSubject.color }) });
     const data = await res.json();
     if (data.subject) { setSubjects(s=>s.map(x=>x.id===editSubject.id?{...data.subject,courses:x.courses}:x)); setEditSubject(null); }
     else await fetchAll(); // refetch on error to keep UI in sync
@@ -379,16 +380,17 @@ export default function AdminDashboard() {
     if (!newCourse.name.trim()) return;
     setLoad("addCourse", true);
     const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
-      name:newCourse.name, description:newCourse.description,
+      name:newCourse.name, description:newCourse.description, thumbnail:newCourse.thumbnail,
       subjectId:newCourse.subjectId||null, ageRange:newCourse.ageRange,
       teacherName:newCourse.teacherName, showTeacher:newCourse.showTeacher,
       rating:parseFloat(newCourse.rating)||0,
       price:parseInt(newCourse.price)||199, priceUSD:parseInt(newCourse.priceUSD)||15,
       durationValue:parseInt(newCourse.durationValue)||1, durationUnit:newCourse.durationUnit||"months",
       sessionsPerWeek:parseInt(newCourse.sessionsPerWeek)||1,
+      sortOrder:parseInt(newCourse.sortOrder)||0,
     }) });
     const data = await res.json();
-    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" }); setAddingCourse(false); }
+    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" }); setAddingCourse(false); }
     setLoad("addCourse", false);
   };
 
@@ -436,10 +438,12 @@ export default function AdminDashboard() {
     setLoad("editCourse", true);
     const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"},
       body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description,
+        thumbnail:editCourse.thumbnail,
         subjectId:editCourse.subjectId||null, ageRange:editCourse.ageRange,
         teacherName:editCourse.teacherName, showTeacher:editCourse.showTeacher, rating:editCourse.rating,
         price:editCourse.price, priceUSD:editCourse.priceUSD,
-        durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit, sessionsPerWeek:editCourse.sessionsPerWeek }) });
+        durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit,
+        sessionsPerWeek:editCourse.sessionsPerWeek, sortOrder:editCourse.sortOrder }) });
     const data = await res.json();
     if (data.course) { setCourses(c=>c.map(x=>x.id===editCourse.id?data.course:x)); setEditCourse(null); }
     else await fetchAll(); // always refetch to keep UI in sync if update failed
@@ -702,6 +706,17 @@ export default function AdminDashboard() {
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Accent Color</label>
+                <div className="flex items-center gap-3">
+                  <input type="color" value={editSubject.color||"#6366f1"} onChange={e=>setEditSubject(p=>p?{...p,color:e.target.value}:null)}
+                    className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5"/>
+                  <input value={editSubject.color} onChange={e=>setEditSubject(p=>p?{...p,color:e.target.value}:null)}
+                    placeholder="#6366f1" maxLength={9}
+                    className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                  <span className="w-8 h-8 rounded-lg border border-gray-200 shrink-0" style={{background: editSubject.color||"transparent"}}/>
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={()=>setEditSubject(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</button>
@@ -740,9 +755,15 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Thumbnail URL</label>
+                <input value={editCourse.thumbnail??""} onChange={e=>setEditCourse(p=>p?{...p,thumbnail:e.target.value}:null)}
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                {editCourse.thumbnail && <img src={editCourse.thumbnail} alt="preview" className="mt-2 h-20 w-full object-cover rounded-xl border border-gray-100"/>}
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
-                <textarea value={editCourse.description} onChange={e=>setEditCourse(p=>p?{...p,description:e.target.value}:null)} rows={2}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"/>
+                <RichTextEditor value={editCourse.description??""} onChange={html=>setEditCourse(p=>p?{...p,description:html}:null)} minHeight={100}/>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -781,15 +802,23 @@ export default function AdminDashboard() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Duration</label>
-                <div className="flex gap-2">
-                  <input type="number" min="1" value={editCourse.durationValue??1} onChange={e=>setEditCourse(p=>p?{...p,durationValue:parseInt(e.target.value)||1}:null)}
-                    className="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
-                  <select value={editCourse.durationUnit??"months"} onChange={e=>setEditCourse(p=>p?{...p,durationUnit:e.target.value}:null)}
-                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
-                    <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option>
-                  </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Duration</label>
+                  <div className="flex gap-2">
+                    <input type="number" min="1" value={editCourse.durationValue??1} onChange={e=>setEditCourse(p=>p?{...p,durationValue:parseInt(e.target.value)||1}:null)}
+                      className="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                    <select value={editCourse.durationUnit??"months"} onChange={e=>setEditCourse(p=>p?{...p,durationUnit:e.target.value}:null)}
+                      className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                      <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Sort Order</label>
+                  <input type="number" min="0" value={editCourse.sortOrder??0} onChange={e=>setEditCourse(p=>p?{...p,sortOrder:parseInt(e.target.value)||0}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                  <p className="text-[10px] text-gray-400 mt-1">Lower = displayed first</p>
                 </div>
               </div>
             </div>
@@ -1328,6 +1357,15 @@ export default function AdminDashboard() {
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Total Duration</label>
                         <input value={newSubject.totalDuration} onChange={e=>setNewSubject(p=>({...p,totalDuration:e.target.value}))} placeholder="e.g. 12 months" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 w-36"/>
                       </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Accent Color</label>
+                        <div className="flex items-center gap-2">
+                          <input type="color" value={newSubject.color||"#6366f1"} onChange={e=>setNewSubject(p=>({...p,color:e.target.value}))}
+                            className="w-9 h-9 rounded-lg border border-gray-200 cursor-pointer p-0.5"/>
+                          <input value={newSubject.color} onChange={e=>setNewSubject(p=>({...p,color:e.target.value}))} placeholder="#6366f1" maxLength={9}
+                            className="border border-gray-200 rounded-xl px-2 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30 w-28"/>
+                        </div>
+                      </div>
                       <button onClick={handleAddSubject} disabled={loading["addSubject"]} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-1.5">
                         {loading["addSubject"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save</>}
                       </button>
@@ -1438,9 +1476,17 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Description</label>
-                        <input value={newCourse.description} onChange={e=>setNewCourse(p=>({...p,description:e.target.value}))} placeholder="Short description" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Thumbnail URL</label>
+                        <input value={newCourse.thumbnail} onChange={e=>setNewCourse(p=>({...p,thumbnail:e.target.value}))} placeholder="https://…/image.jpg" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                       </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Sort Order</label>
+                        <input type="number" min="0" value={newCourse.sortOrder} onChange={e=>setNewCourse(p=>({...p,sortOrder:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                    </div>
+                    <div className="mb-3">
+                      <label className="text-xs font-medium text-gray-600 mb-1 block">Description</label>
+                      <RichTextEditor value={newCourse.description} onChange={html=>setNewCourse(p=>({...p,description:html}))} minHeight={80} placeholder="Course description (supports bold, bullets, etc.)"/>
                     </div>
                     <div className="flex items-center gap-3">
                       <button onClick={handleAddCourse} disabled={loading["addCourse"]} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5">

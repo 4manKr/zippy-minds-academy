@@ -16,11 +16,11 @@ export async function GET() {
     const [subjects, courses] = await Promise.all([
       prisma.subject.findMany({
         orderBy: { name: "asc" },
-        include: { courses: { orderBy: { name: "asc" } } },
+        include: { courses: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }] } },
       }),
       prisma.course.findMany({
-        orderBy: { name: "asc" },
-        include: { subject: { select: { id: true, name: true } } },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        include: { subject: { select: { id: true, name: true, color: true } } },
       }),
     ]);
 
@@ -38,18 +38,23 @@ export async function POST(req: NextRequest) {
 
     // ── Create Subject ──────────────────────────────────────────────────────
     if (body.type === "subject") {
-      const { name, ageGroup, totalDuration } = body;
+      const { name, ageGroup, totalDuration, color } = body;
       if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
       const subject = await prisma.subject.create({
-        data: { name, ageGroup: ageGroup ?? "", totalDuration: totalDuration ?? "" },
+        data: {
+          name,
+          ageGroup:      ageGroup      ?? "",
+          totalDuration: totalDuration ?? "",
+          color:         color         ?? "",
+        },
       });
       return NextResponse.json({ subject });
     }
 
     // ── Create Course ───────────────────────────────────────────────────────
     const {
-      name, description, subjectId, ageRange, teacherName, showTeacher,
-      rating, price, priceUSD, durationValue, durationUnit, sessionsPerWeek,
+      name, description, thumbnail, subjectId, ageRange, teacherName, showTeacher,
+      rating, price, priceUSD, durationValue, durationUnit, sessionsPerWeek, sortOrder,
     } = body;
     if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
@@ -57,6 +62,7 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         description:     description     ?? "",
+        thumbnail:       thumbnail       ?? "",
         subjectId:       subjectId       || null,
         ageRange:        ageRange        ?? "",
         teacherName:     teacherName     ?? "",
@@ -67,8 +73,9 @@ export async function POST(req: NextRequest) {
         durationValue:   durationValue   ?? 1,
         durationUnit:    durationUnit    ?? "months",
         sessionsPerWeek: sessionsPerWeek ?? 1,
+        sortOrder:       sortOrder       ?? 0,
       },
-      include: { subject: { select: { id: true, name: true } } },
+      include: { subject: { select: { id: true, name: true, color: true } } },
     });
     return NextResponse.json({ course });
   } catch {
@@ -84,25 +91,26 @@ export async function PATCH(req: NextRequest) {
 
     // ── Update Subject ──────────────────────────────────────────────────────
     if (body.type === "subject") {
-      const { subjectId, name, ageGroup, totalDuration, status } = body;
+      const { subjectId, name, ageGroup, totalDuration, color, status } = body;
       const updated = await prisma.subject.update({
         where: { id: subjectId },
         data: {
           ...(name          !== undefined && name && { name }),
           ...(ageGroup      !== undefined && { ageGroup }),
           ...(totalDuration !== undefined && { totalDuration }),
+          ...(color         !== undefined && { color }),
           ...(status        !== undefined && { status }),
         },
-        include: { courses: { orderBy: { name: "asc" } } },
+        include: { courses: { orderBy: [{ sortOrder: "asc" }, { name: "asc" }] } },
       });
       return NextResponse.json({ subject: updated });
     }
 
     // ── Update Course ───────────────────────────────────────────────────────
     const {
-      courseId, name, description, subjectId, ageRange, teacherName,
+      courseId, name, description, thumbnail, subjectId, ageRange, teacherName,
       showTeacher, rating, price, priceUSD, durationValue, durationUnit,
-      sessionsPerWeek, status,
+      sessionsPerWeek, sortOrder, status,
     } = body;
 
     const updated = await prisma.course.update({
@@ -110,6 +118,7 @@ export async function PATCH(req: NextRequest) {
       data: {
         ...(name            !== undefined && name && { name }),
         ...(description     !== undefined && { description }),
+        ...(thumbnail       !== undefined && { thumbnail }),
         ...(subjectId       !== undefined && { subjectId: subjectId || null }),
         ...(ageRange        !== undefined && { ageRange }),
         ...(teacherName     !== undefined && { teacherName }),
@@ -120,9 +129,10 @@ export async function PATCH(req: NextRequest) {
         ...(durationValue   !== undefined && { durationValue }),
         ...(durationUnit    !== undefined && { durationUnit }),
         ...(sessionsPerWeek !== undefined && { sessionsPerWeek }),
+        ...(sortOrder       !== undefined && { sortOrder }),
         ...(status          !== undefined && { status }),
       },
-      include: { subject: { select: { id: true, name: true } } },
+      include: { subject: { select: { id: true, name: true, color: true } } },
     });
     return NextResponse.json({ course: updated });
   } catch {
@@ -137,7 +147,6 @@ export async function DELETE(req: NextRequest) {
     const body = await req.json();
 
     if (body.type === "subject") {
-      // Unlink courses from this subject before deleting
       await prisma.course.updateMany({
         where: { subjectId: body.subjectId },
         data: { subjectId: null },

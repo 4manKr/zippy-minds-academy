@@ -90,6 +90,7 @@ model Subject {
   name          String   @unique
   ageGroup      String   @default("")   // e.g. "6–12 years"
   totalDuration String   @default("")   // e.g. "12 months"
+  color         String   @default("")   // hex color e.g. "#6366f1" for card accent
   status        String   @default("active") // active | inactive
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -101,7 +102,8 @@ model Course {
   id              String   @id @default(cuid())
   subjectId       String?                      // FK → Subject
   name            String   @unique
-  description     String   @default("")
+  description     String   @default("")        // HTML rich text
+  thumbnail       String   @default("")        // image URL for card thumbnail
   ageRange        String   @default("")        // e.g. "6–9 years"
   teacherName     String   @default("")
   showTeacher     Boolean  @default(false)
@@ -111,6 +113,7 @@ model Course {
   durationValue   Int      @default(1)
   durationUnit    String   @default("months")  // days | weeks | months
   sessionsPerWeek Int      @default(1)
+  sortOrder       Int      @default(0)         // lower = shown first
   status          String   @default("active")  // active | inactive
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
