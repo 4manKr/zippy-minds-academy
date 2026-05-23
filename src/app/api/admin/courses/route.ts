@@ -8,68 +8,147 @@ async function requireAdmin() {
   return session;
 }
 
+// GET — return subjects (with their courses) + standalone courses
 export async function GET() {
   try {
     if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const courses = await prisma.course.findMany({ orderBy: { name: "asc" } });
-    return NextResponse.json({ courses });
+
+    const [subjects, courses] = await Promise.all([
+      prisma.subject.findMany({
+        orderBy: { name: "asc" },
+        include: { courses: { orderBy: { name: "asc" } } },
+      }),
+      prisma.course.findMany({
+        orderBy: { name: "asc" },
+        include: { subject: { select: { id: true, name: true } } },
+      }),
+    ]);
+
+    return NextResponse.json({ subjects, courses });
   } catch {
-    return NextResponse.json({ error: "Failed to fetch courses" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { name, description, price, priceUSD, durationValue, durationUnit, sessionsPerWeek } = await req.json();
+
+    const body = await req.json();
+
+    // ── Create Subject ──────────────────────────────────────────────────────
+    if (body.type === "subject") {
+      const { name, ageGroup, totalDuration } = body;
+      if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
+      const subject = await prisma.subject.create({
+        data: { name, ageGroup: ageGroup ?? "", totalDuration: totalDuration ?? "" },
+      });
+      return NextResponse.json({ subject });
+    }
+
+    // ── Create Course ───────────────────────────────────────────────────────
+    const {
+      name, description, subjectId, ageRange, teacherName, showTeacher,
+      rating, price, priceUSD, durationValue, durationUnit, sessionsPerWeek,
+    } = body;
     if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
+
     const course = await prisma.course.create({
       data: {
         name,
         description:     description     ?? "",
+        subjectId:       subjectId       || null,
+        ageRange:        ageRange        ?? "",
+        teacherName:     teacherName     ?? "",
+        showTeacher:     showTeacher     ?? false,
+        rating:          rating          ?? 0,
         price:           price           ?? 199,
         priceUSD:        priceUSD        ?? 15,
         durationValue:   durationValue   ?? 1,
         durationUnit:    durationUnit    ?? "months",
         sessionsPerWeek: sessionsPerWeek ?? 1,
       },
+      include: { subject: { select: { id: true, name: true } } },
     });
     return NextResponse.json({ course });
   } catch {
-    return NextResponse.json({ error: "Failed to create course" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create" }, { status: 500 });
   }
 }
 
 export async function PATCH(req: NextRequest) {
   try {
     if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { courseId, status, name, description, price, priceUSD, durationValue, durationUnit, sessionsPerWeek } = await req.json();
+
+    const body = await req.json();
+
+    // ── Update Subject ──────────────────────────────────────────────────────
+    if (body.type === "subject") {
+      const { subjectId, name, ageGroup, totalDuration, status } = body;
+      const updated = await prisma.subject.update({
+        where: { id: subjectId },
+        data: {
+          ...(name          !== undefined && name && { name }),
+          ...(ageGroup      !== undefined && { ageGroup }),
+          ...(totalDuration !== undefined && { totalDuration }),
+          ...(status        !== undefined && { status }),
+        },
+        include: { courses: { orderBy: { name: "asc" } } },
+      });
+      return NextResponse.json({ subject: updated });
+    }
+
+    // ── Update Course ───────────────────────────────────────────────────────
+    const {
+      courseId, name, description, subjectId, ageRange, teacherName,
+      showTeacher, rating, price, priceUSD, durationValue, durationUnit,
+      sessionsPerWeek, status,
+    } = body;
+
     const updated = await prisma.course.update({
       where: { id: courseId },
       data: {
-        ...(status           !== undefined && { status }),
-        ...(name             !== undefined && name && { name }),
-        ...(description      !== undefined && { description }),
-        ...(price            !== undefined && price && { price }),
-        ...(priceUSD         !== undefined && priceUSD && { priceUSD }),
-        ...(durationValue    !== undefined && { durationValue }),
-        ...(durationUnit     !== undefined && { durationUnit }),
-        ...(sessionsPerWeek  !== undefined && { sessionsPerWeek }),
+        ...(name            !== undefined && name && { name }),
+        ...(description     !== undefined && { description }),
+        ...(subjectId       !== undefined && { subjectId: subjectId || null }),
+        ...(ageRange        !== undefined && { ageRange }),
+        ...(teacherName     !== undefined && { teacherName }),
+        ...(showTeacher     !== undefined && { showTeacher }),
+        ...(rating          !== undefined && { rating }),
+        ...(price           !== undefined && price && { price }),
+        ...(priceUSD        !== undefined && priceUSD && { priceUSD }),
+        ...(durationValue   !== undefined && { durationValue }),
+        ...(durationUnit    !== undefined && { durationUnit }),
+        ...(sessionsPerWeek !== undefined && { sessionsPerWeek }),
+        ...(status          !== undefined && { status }),
       },
+      include: { subject: { select: { id: true, name: true } } },
     });
     return NextResponse.json({ course: updated });
   } catch {
-    return NextResponse.json({ error: "Failed to update course" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update" }, { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     if (!await requireAdmin()) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const { courseId } = await req.json();
-    await prisma.course.delete({ where: { id: courseId } });
+
+    const body = await req.json();
+
+    if (body.type === "subject") {
+      // Unlink courses from this subject before deleting
+      await prisma.course.updateMany({
+        where: { subjectId: body.subjectId },
+        data: { subjectId: null },
+      });
+      await prisma.subject.delete({ where: { id: body.subjectId } });
+      return NextResponse.json({ success: true });
+    }
+
+    await prisma.course.delete({ where: { id: body.courseId } });
     return NextResponse.json({ success: true });
   } catch {
-    return NextResponse.json({ error: "Failed to delete course" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
   }
 }

@@ -84,18 +84,37 @@ model SupportTicket {
   updatedAt DateTime @updatedAt
 }
 
+// Subject = top-level header (e.g. "Mathematics")
+model Subject {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  ageGroup      String   @default("")   // e.g. "6–12 years"
+  totalDuration String   @default("")   // e.g. "12 months"
+  status        String   @default("active") // active | inactive
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  courses       Course[]
+}
+
+// Course = sub-course / plan under a Subject
 model Course {
   id              String   @id @default(cuid())
+  subjectId       String?                      // FK → Subject
   name            String   @unique
   description     String   @default("")
-  price           Int      @default(199)      // INR price (India)
-  priceUSD        Int      @default(15)       // USD price (International — NOT a conversion)
-  durationValue   Int      @default(1)        // e.g. 3
-  durationUnit    String   @default("months") // "days" | "weeks" | "months"
+  ageRange        String   @default("")        // e.g. "6–9 years"
+  teacherName     String   @default("")
+  showTeacher     Boolean  @default(false)
+  rating          Float    @default(0)
+  price           Int      @default(199)       // INR
+  priceUSD        Int      @default(15)        // USD
+  durationValue   Int      @default(1)
+  durationUnit    String   @default("months")  // days | weeks | months
   sessionsPerWeek Int      @default(1)
-  status          String   @default("active") // active | inactive
+  status          String   @default("active")  // active | inactive
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  subject         Subject? @relation(fields: [subjectId], references: [id])
 }
 
 model PlatformSetting {

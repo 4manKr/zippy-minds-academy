@@ -18,7 +18,8 @@ type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"anal
 // ── Types ────────────────────────────────────────────────────────────────────
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
 interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; needsAdmin?:boolean; declinedTutors?:string; createdAt:string; }
-interface DBCourse  { id:string; name:string; description:string; price:number; priceUSD:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; }
+interface DBSubject { id:string; name:string; ageGroup:string; totalDuration:string; status:string; courses:DBCourse[]; }
+interface DBCourse  { id:string; name:string; description:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; subjectId?:string|null; subject?:{id:string;name:string}|null; }
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
 interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; showPricing:string; }
@@ -40,6 +41,7 @@ export default function AdminDashboard() {
   const [users,     setUsers]     = useState<DBUser[]>([]);
   const [sessions,  setSessions]  = useState<DBBooking[]>([]);
   const [tutors,    setTutors]    = useState<DBUser[]>([]);
+  const [subjects,  setSubjects]  = useState<DBSubject[]>([]);
   const [courses,   setCourses]   = useState<DBCourse[]>([]);
   const [tickets,   setTickets]   = useState<DBTicket[]>([]);
   const [analytics, setAnalytics] = useState<Analytics|null>(null);
@@ -73,7 +75,10 @@ export default function AdminDashboard() {
   const [replyOpen,      setReplyOpen]      = useState<string|null>(null);
   const [replyText,      setReplyText]      = useState("");
   const [settingsSaved,  setSettingsSaved]  = useState(false);
-  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" });
+  const [newSubject,     setNewSubject]     = useState({ name:"", ageGroup:"", totalDuration:"" });
+  const [addingSubject,  setAddingSubject]  = useState(false);
+  const [editSubject,    setEditSubject]    = useState<DBSubject|null>(null);
+  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" });
   const [addingCourse,   setAddingCourse]   = useState(false);
   // Content management
   const [contentTab,     setContentTab]     = useState<"resources"|"videos"|"recordings">("resources");
@@ -148,6 +153,7 @@ export default function AdminDashboard() {
     if (u.users)          setUsers(u.users);
     if (s.bookings)       setSessions(s.bookings);
     if (t.tutors)         setTutors(t.tutors);
+    if (c.subjects)       setSubjects(c.subjects);
     if (c.courses)        setCourses(c.courses);
     if (tk.tickets)       setTickets(tk.tickets);
     if (an.monthly)       setAnalytics(an);
@@ -323,7 +329,37 @@ export default function AdminDashboard() {
     setReassignTutor("");
   };
 
-  // ── Course toggle ─────────────────────────────────────────────────────────
+  // ── Subject CRUD ──────────────────────────────────────────────────────────
+  const handleAddSubject = async () => {
+    if (!newSubject.name.trim()) return;
+    setLoad("addSubject", true);
+    const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", name:newSubject.name, ageGroup:newSubject.ageGroup, totalDuration:newSubject.totalDuration }) });
+    const data = await res.json();
+    if (data.subject) { setSubjects(s=>[...s,{...data.subject,courses:[]}]); setNewSubject({ name:"", ageGroup:"", totalDuration:"" }); setAddingSubject(false); }
+    setLoad("addSubject", false);
+  };
+  const handleSaveSubject = async () => {
+    if (!editSubject) return;
+    setLoad("editSubject", true);
+    const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", subjectId:editSubject.id, name:editSubject.name, ageGroup:editSubject.ageGroup, totalDuration:editSubject.totalDuration }) });
+    const data = await res.json();
+    if (data.subject) { setSubjects(s=>s.map(x=>x.id===editSubject.id?{...data.subject,courses:x.courses}:x)); setEditSubject(null); }
+    else await fetchAll(); // refetch on error to keep UI in sync
+    setLoad("editSubject", false);
+  };
+  const handleSubjectToggle = async (subjectId:string, currentStatus:string) => {
+    const status = currentStatus==="active"?"inactive":"active";
+    await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", subjectId, status }) });
+    setSubjects(s=>s.map(x=>x.id===subjectId?{...x,status}:x));
+  };
+  const handleDeleteSubject = async (subjectId:string) => {
+    if (!confirm("Delete this subject? Its courses will become unlinked.")) return;
+    await fetch("/api/admin/courses", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", subjectId }) });
+    setSubjects(s=>s.filter(x=>x.id!==subjectId));
+    setCourses(c=>c.map(x=>x.subjectId===subjectId?{...x,subjectId:null,subject:null}:x));
+  };
+
+  // ── Course CRUD ───────────────────────────────────────────────────────────
   const handleCourseToggle = async (courseId: string, currentStatus: string) => {
     const status = currentStatus==="active" ? "inactive" : "active";
     await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ courseId, status }) });
@@ -333,9 +369,17 @@ export default function AdminDashboard() {
   const handleAddCourse = async () => {
     if (!newCourse.name.trim()) return;
     setLoad("addCourse", true);
-    const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ name:newCourse.name, description:newCourse.description, price:parseInt(newCourse.price)||199, priceUSD:parseInt(newCourse.priceUSD)||15, durationValue:parseInt(newCourse.durationValue)||1, durationUnit:newCourse.durationUnit||"months", sessionsPerWeek:parseInt(newCourse.sessionsPerWeek)||1 }) });
+    const res = await fetch("/api/admin/courses", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+      name:newCourse.name, description:newCourse.description,
+      subjectId:newCourse.subjectId||null, ageRange:newCourse.ageRange,
+      teacherName:newCourse.teacherName, showTeacher:newCourse.showTeacher,
+      rating:parseFloat(newCourse.rating)||0,
+      price:parseInt(newCourse.price)||199, priceUSD:parseInt(newCourse.priceUSD)||15,
+      durationValue:parseInt(newCourse.durationValue)||1, durationUnit:newCourse.durationUnit||"months",
+      sessionsPerWeek:parseInt(newCourse.sessionsPerWeek)||1,
+    }) });
     const data = await res.json();
-    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" }); setAddingCourse(false); }
+    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1" }); setAddingCourse(false); }
     setLoad("addCourse", false);
   };
 
@@ -382,9 +426,14 @@ export default function AdminDashboard() {
     if (!editCourse) return;
     setLoad("editCourse", true);
     const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description, price:editCourse.price, priceUSD:editCourse.priceUSD, durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit, sessionsPerWeek:editCourse.sessionsPerWeek }) });
+      body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description,
+        subjectId:editCourse.subjectId||null, ageRange:editCourse.ageRange,
+        teacherName:editCourse.teacherName, showTeacher:editCourse.showTeacher, rating:editCourse.rating,
+        price:editCourse.price, priceUSD:editCourse.priceUSD,
+        durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit, sessionsPerWeek:editCourse.sessionsPerWeek }) });
     const data = await res.json();
     if (data.course) { setCourses(c=>c.map(x=>x.id===editCourse.id?data.course:x)); setEditCourse(null); }
+    else await fetchAll(); // always refetch to keep UI in sync if update failed
     setLoad("editCourse", false);
   };
 
@@ -615,54 +664,126 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ── Edit Subject Modal ── */}
+      {editSubject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={()=>setEditSubject(null)}/>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2"><BookOpen size={18} className="text-indigo-600"/> Edit Subject</h3>
+              <button onClick={()=>setEditSubject(null)} className="text-gray-400 hover:text-gray-700"><X size={20}/></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Subject Name *</label>
+                <input value={editSubject.name} onChange={e=>setEditSubject(p=>p?{...p,name:e.target.value}:null)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Age Group</label>
+                  <input placeholder="e.g. 6–12 years" value={editSubject.ageGroup} onChange={e=>setEditSubject(p=>p?{...p,ageGroup:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Total Duration</label>
+                  <input placeholder="e.g. 12 months" value={editSubject.totalDuration} onChange={e=>setEditSubject(p=>p?{...p,totalDuration:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={()=>setEditSubject(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</button>
+              <button onClick={handleSaveSubject} disabled={loading["editSubject"]}
+                className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                {loading["editSubject"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Subject</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Edit Course Modal ── */}
       {editCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={()=>setEditCourse(null)}/>
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 z-10 overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2"><BookOpen size={18} className="text-blue-600"/> Edit Course</h3>
+              <h3 className="font-bold text-gray-900 flex items-center gap-2"><BookOpen size={18} className="text-blue-600"/> Edit Course / Plan</h3>
               <button onClick={()=>setEditCourse(null)} className="text-gray-400 hover:text-gray-700"><X size={20}/></button>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Course Name</label>
-                <input value={editCourse.name} onChange={e=>setEditCourse(p=>p?{...p,name:e.target.value}:null)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Course Name *</label>
+                  <input value={editCourse.name} onChange={e=>setEditCourse(p=>p?{...p,name:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Parent Subject</label>
+                  <select value={editCourse.subjectId??""} onChange={e=>setEditCourse(p=>p?{...p,subjectId:e.target.value||null}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                    <option value="">— None —</option>
+                    {subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
-                <textarea value={editCourse.description} onChange={e=>setEditCourse(p=>p?{...p,description:e.target.value}:null)} rows={3}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"/>
+                <textarea value={editCourse.description} onChange={e=>setEditCourse(p=>p?{...p,description:e.target.value}:null)} rows={2}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"/>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Price ₹ (India / INR)</label>
-                  <input type="number" value={editCourse.price} onChange={e=>setEditCourse(p=>p?{...p,price:parseInt(e.target.value)||0}:null)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Age Range</label>
+                  <input placeholder="e.g. 6–9 years" value={editCourse.ageRange??""} onChange={e=>setEditCourse(p=>p?{...p,ageRange:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Price $ (International / USD)</label>
-                  <input type="number" value={editCourse.priceUSD ?? 15} onChange={e=>setEditCourse(p=>p?{...p,priceUSD:parseInt(e.target.value)||0}:null)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Rating (0–5)</label>
+                  <input type="number" min="0" max="5" step="0.1" value={editCourse.rating??0} onChange={e=>setEditCourse(p=>p?{...p,rating:parseFloat(e.target.value)||0}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Faculty / Teacher</label>
+                  <input placeholder="e.g. Ms. Priya Sharma" value={editCourse.teacherName??""} onChange={e=>setEditCourse(p=>p?{...p,teacherName:e.target.value}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                </div>
+                <div className="flex flex-col justify-end">
+                  <label className="flex items-center gap-2 cursor-pointer pb-2.5">
+                    <input type="checkbox" checked={editCourse.showTeacher??false} onChange={e=>setEditCourse(p=>p?{...p,showTeacher:e.target.checked}:null)} className="w-4 h-4 rounded accent-blue-600"/>
+                    <span className="text-sm font-medium text-gray-700">Show teacher on card</span>
+                  </label>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Price ₹ (INR)</label>
+                  <input type="number" value={editCourse.price} onChange={e=>setEditCourse(p=>p?{...p,price:parseInt(e.target.value)||0}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Price $ (USD)</label>
+                  <input type="number" value={editCourse.priceUSD??15} onChange={e=>setEditCourse(p=>p?{...p,priceUSD:parseInt(e.target.value)||0}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Course Duration</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Duration</label>
                 <div className="flex gap-2">
                   <input type="number" min="1" value={editCourse.durationValue??1} onChange={e=>setEditCourse(p=>p?{...p,durationValue:parseInt(e.target.value)||1}:null)}
                     className="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                   <select value={editCourse.durationUnit??"months"} onChange={e=>setEditCourse(p=>p?{...p,durationUnit:e.target.value}:null)}
                     className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
-                    <option value="days">Days</option>
-                    <option value="weeks">Weeks</option>
-                    <option value="months">Months</option>
+                    <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option>
                   </select>
                 </div>
               </div>
             </div>
             <div className="flex gap-3 mt-5">
-              <button onClick={()=>setEditCourse(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={()=>setEditCourse(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</button>
               <button onClick={handleSaveCourse} disabled={loading["editCourse"]}
                 className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2">
                 {loading["editCourse"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Changes</>}
@@ -1165,48 +1286,154 @@ export default function AdminDashboard() {
 
           {/* ══ COURSES ══ */}
           {section==="courses" && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+
+              {/* ─── SECTION 1 : SUBJECTS ─────────────────────────────────── */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                  <h2 className="font-bold text-gray-900">Courses ({courses.length})</h2>
+                  <div>
+                    <h2 className="font-bold text-gray-900">Section 1 — Subjects ({subjects.length})</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Top-level subject headers shown in the booking form picker</p>
+                  </div>
+                  <button onClick={()=>setAddingSubject(a=>!a)} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors">
+                    <Plus size={15}/> Add Subject
+                  </button>
+                </div>
+
+                {/* Add subject form */}
+                {addingSubject && (
+                  <div className="px-6 py-4 border-b border-gray-100 bg-indigo-50/40">
+                    <p className="text-sm font-semibold text-gray-800 mb-3">New Subject</p>
+                    <div className="flex flex-wrap gap-3 items-end">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Subject Name *</label>
+                        <input value={newSubject.name} onChange={e=>setNewSubject(p=>({...p,name:e.target.value}))} placeholder="e.g. Mathematics" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 w-44"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Age Group</label>
+                        <input value={newSubject.ageGroup} onChange={e=>setNewSubject(p=>({...p,ageGroup:e.target.value}))} placeholder="e.g. 6–12 years" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 w-36"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Total Duration</label>
+                        <input value={newSubject.totalDuration} onChange={e=>setNewSubject(p=>({...p,totalDuration:e.target.value}))} placeholder="e.g. 12 months" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 w-36"/>
+                      </div>
+                      <button onClick={handleAddSubject} disabled={loading["addSubject"]} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-1.5">
+                        {loading["addSubject"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save</>}
+                      </button>
+                      <button onClick={()=>setAddingSubject(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-gray-50">{["Subject","Age Group","Total Duration","Courses","Status","Actions"].map(h=><th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {subjects.length===0 && (
+                        <tr><td colSpan={6} className="px-5 py-8 text-center text-gray-400 text-sm">No subjects yet — add your first subject above</td></tr>
+                      )}
+                      {subjects.map(s=>(
+                        <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center"><BookOpen size={16} className="text-indigo-600"/></div>
+                              <span className="font-semibold text-gray-900">{s.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 text-gray-600 text-xs">{s.ageGroup||"—"}</td>
+                          <td className="px-5 py-4 text-gray-600 text-xs">{s.totalDuration||"—"}</td>
+                          <td className="px-5 py-4 text-gray-500 text-xs">{courses.filter(c=>c.subjectId===s.id).length} plan{courses.filter(c=>c.subjectId===s.id).length!==1?"s":""}</td>
+                          <td className="px-5 py-4">
+                            <button onClick={()=>handleSubjectToggle(s.id,s.status)}
+                              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all ${s.status==="active"?"bg-green-100 text-green-700 hover:bg-green-200":"bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                              {s.status==="active"?<ToggleRight size={14}/>:<ToggleLeft size={14}/>}
+                              {s.status==="active"?"Active":"Inactive"}
+                            </button>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-1.5">
+                              <button onClick={()=>setEditSubject(s)} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Edit"><Edit2 size={14}/></button>
+                              <button onClick={()=>handleDeleteSubject(s.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={14}/></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* ─── SECTION 2 : COURSES / PLANS ──────────────────────────── */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <div>
+                    <h2 className="font-bold text-gray-900">Section 2 — Courses / Plans ({courses.length})</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Sub-courses linked to a subject — include teacher, rating, age range</p>
+                  </div>
                   <button onClick={()=>setAddingCourse(a=>!a)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
                     <Plus size={15}/> Add Course
                   </button>
                 </div>
 
+                {/* Add course form */}
                 {addingCourse && (
-                  <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/50">
-                    <p className="text-sm font-semibold text-gray-800 mb-3">New Course</p>
-                    <div className="flex flex-wrap gap-3 items-end">
+                  <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/40">
+                    <p className="text-sm font-semibold text-gray-800 mb-3">New Course / Plan</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-3">
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Name *</label>
-                        <input value={newCourse.name} onChange={e=>setNewCourse(p=>({...p,name:e.target.value}))} placeholder="e.g. Art & Craft" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-44"/>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Course Name *</label>
+                        <input value={newCourse.name} onChange={e=>setNewCourse(p=>({...p,name:e.target.value}))} placeholder="e.g. Math Foundation" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Description</label>
-                        <input value={newCourse.description} onChange={e=>setNewCourse(p=>({...p,description:e.target.value}))} placeholder="Short description" className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-56"/>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Parent Subject</label>
+                        <select value={newCourse.subjectId} onChange={e=>setNewCourse(p=>({...p,subjectId:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                          <option value="">— None —</option>
+                          {subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price ₹ (India)</label>
-                        <input type="number" value={newCourse.price} onChange={e=>setNewCourse(p=>({...p,price:e.target.value}))} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-24"/>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Age Range</label>
+                        <input value={newCourse.ageRange} onChange={e=>setNewCourse(p=>({...p,ageRange:e.target.value}))} placeholder="e.g. 6–9 years" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price $ (International)</label>
-                        <input type="number" value={newCourse.priceUSD} onChange={e=>setNewCourse(p=>({...p,priceUSD:e.target.value}))} className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-24"/>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Rating (0–5)</label>
+                        <input type="number" min="0" max="5" step="0.1" value={newCourse.rating} onChange={e=>setNewCourse(p=>({...p,rating:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Faculty / Teacher</label>
+                        <input value={newCourse.teacherName} onChange={e=>setNewCourse(p=>({...p,teacherName:e.target.value}))} placeholder="e.g. Ms. Priya Sharma" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                      <div className="flex flex-col justify-end pb-1">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={newCourse.showTeacher} onChange={e=>setNewCourse(p=>({...p,showTeacher:e.target.checked}))} className="w-4 h-4 rounded accent-blue-600"/>
+                          <span className="text-xs font-medium text-gray-700">Show teacher on card</span>
+                        </label>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price ₹ (INR)</label>
+                        <input type="number" value={newCourse.price} onChange={e=>setNewCourse(p=>({...p,price:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price $ (USD)</label>
+                        <input type="number" value={newCourse.priceUSD} onChange={e=>setNewCourse(p=>({...p,priceUSD:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Duration</label>
                         <div className="flex gap-1.5">
-                          <input type="number" min="1" value={newCourse.durationValue} onChange={e=>setNewCourse(p=>({...p,durationValue:e.target.value}))} className="border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 w-14"/>
-                          <select value={newCourse.durationUnit} onChange={e=>setNewCourse(p=>({...p,durationUnit:e.target.value}))} className="border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
-                            <option value="days">Days</option>
-                            <option value="weeks">Weeks</option>
-                            <option value="months">Months</option>
+                          <input type="number" min="1" value={newCourse.durationValue} onChange={e=>setNewCourse(p=>({...p,durationValue:e.target.value}))} className="w-14 border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                          <select value={newCourse.durationUnit} onChange={e=>setNewCourse(p=>({...p,durationUnit:e.target.value}))} className="flex-1 border border-gray-200 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+                            <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option>
                           </select>
                         </div>
                       </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Description</label>
+                        <input value={newCourse.description} onChange={e=>setNewCourse(p=>({...p,description:e.target.value}))} placeholder="Short description" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
                       <button onClick={handleAddCourse} disabled={loading["addCourse"]} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 flex items-center gap-1.5">
-                        {loading["addCourse"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save</>}
+                        {loading["addCourse"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Course</>}
                       </button>
                       <button onClick={()=>setAddingCourse(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
                     </div>
@@ -1215,30 +1442,49 @@ export default function AdminDashboard() {
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="bg-gray-50">{["Course","Description","Price/Month","Status","Actions"].map(h=><th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+                    <thead><tr className="bg-gray-50">{["Course / Plan","Subject","Age · Duration","Teacher","Rating","Price","Status","Actions"].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
                     <tbody className="divide-y divide-gray-50">
+                      {courses.length===0 && (
+                        <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400 text-sm">No courses yet — add your first course above</td></tr>
+                      )}
                       {courses.map(c=>(
                         <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-5 py-4">
+                          <td className="px-4 py-4">
                             <div className="flex items-center gap-2.5">
-                              <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center"><BookOpen size={16} className="text-blue-600"/></div>
-                              <span className="font-semibold text-gray-900">{c.name}</span>
+                              <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0"><BookOpen size={14} className="text-blue-600"/></div>
+                              <div>
+                                <p className="font-semibold text-gray-900 text-sm">{c.name}</p>
+                                {c.description && <p className="text-xs text-gray-400 truncate max-w-[160px]">{c.description}</p>}
+                              </div>
                             </div>
                           </td>
-                          <td className="px-5 py-4 text-gray-500 text-xs max-w-[200px] truncate">{c.description || "—"}</td>
-                          <td className="px-5 py-4 font-semibold text-gray-900">
-                            <span className="text-green-700">₹{c.price}</span>
-                            <span className="text-gray-400 mx-1">/</span>
-                            <span className="text-blue-700">${c.priceUSD ?? 15}</span>
+                          <td className="px-4 py-4 text-xs text-gray-500">{c.subject?.name||<span className="text-gray-300">—</span>}</td>
+                          <td className="px-4 py-4 text-xs text-gray-500">
+                            <div>{c.ageRange||"—"}</div>
+                            <div className="text-gray-400">{c.durationValue} {c.durationUnit}</div>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 py-4 text-xs">
+                            {c.teacherName ? (
+                              <div>
+                                <p className="text-gray-700 font-medium">{c.teacherName}</p>
+                                <p className={`text-[10px] mt-0.5 ${c.showTeacher?"text-green-600":"text-gray-400"}`}>{c.showTeacher?"Shown on card":"Hidden"}</p>
+                              </div>
+                            ) : <span className="text-gray-300">—</span>}
+                          </td>
+                          <td className="px-4 py-4 text-xs font-bold text-amber-600">{c.rating>0?`⭐ ${c.rating}`:"—"}</td>
+                          <td className="px-4 py-4 text-xs font-semibold">
+                            <span className="text-green-700">₹{c.price}</span>
+                            <span className="text-gray-300 mx-1">/</span>
+                            <span className="text-blue-700">${c.priceUSD}</span>
+                          </td>
+                          <td className="px-4 py-4">
                             <button onClick={()=>handleCourseToggle(c.id,c.status)}
-                              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all ${c.status==="active"?"bg-green-100 text-green-700 hover:bg-green-200":"bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
-                              {c.status==="active"?<ToggleRight size={14}/>:<ToggleLeft size={14}/>}
+                              className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-full transition-all ${c.status==="active"?"bg-green-100 text-green-700 hover:bg-green-200":"bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                              {c.status==="active"?<ToggleRight size={13}/>:<ToggleLeft size={13}/>}
                               {c.status==="active"?"Active":"Inactive"}
                             </button>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 py-4">
                             <div className="flex items-center gap-1.5">
                               <button onClick={()=>setEditCourse(c)} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Edit"><Edit2 size={14}/></button>
                               <button onClick={()=>handleDeleteCourse(c.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={14}/></button>
@@ -1250,6 +1496,7 @@ export default function AdminDashboard() {
                   </table>
                 </div>
               </div>
+
             </div>
           )}
 
@@ -1546,7 +1793,7 @@ export default function AdminDashboard() {
                       { label:"Total Parents",  value:analytics?.totalParents ?? users.filter(u=>u.role==="PARENT").length },
                       { label:"Total Tutors",   value:analytics?.totalTutors  ?? tutors.length },
                       { label:"Pending Tutors", value:pendingTutors.length },
-                      { label:"Active Courses", value:courses.filter(c=>c.status==="active").length },
+                      { label:"Active Subjects", value:subjects.filter(s=>s.status==="active").length },
                       { label:"Open Tickets",   value:openTickets },
                     ].map(({ label,value })=>(
                       <div key={label} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">

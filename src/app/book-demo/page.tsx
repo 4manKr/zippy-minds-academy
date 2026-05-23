@@ -274,8 +274,8 @@ function BookDemoInner() {
     return tutorPool[subject] ?? DEFAULT_TUTOR;
   }
 
-  // Use DB subjects when loaded; fall back to static list
-  const activeSubjects = subjectsLoaded && dbSubjects.length > 0 ? dbSubjects : SUBJECTS;
+  // Use DB subjects only — no hardcoded fallback
+  const activeSubjects = dbSubjects;
 
   const selectedDateEntry   = calendarDates[form.selectedDateIdx];
   const selectedDateLabel   = selectedDateEntry?.fullDate ?? "";
