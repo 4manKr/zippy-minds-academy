@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { FROM_SUPPORT, DOMAIN } from "@/lib/emails";
+import { isRateLimited, getClientIp } from "@/lib/rateLimit";
+import { sanitize, isValidEmail } from "@/lib/validate";
 
 const DEFAULT_ADMIN_EMAIL = "zippymindsacademy@gmail.com";
 
@@ -52,11 +54,25 @@ async function notifyAdmin(name: string, email: string, subject: string, message
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 5 messages per IP per hour
+  const ip = getClientIp(req);
+  if (isRateLimited({ key: `contact:${ip}`, limit: 5, windowMs: 60 * 60 * 1000 })) {
+    return NextResponse.json({ error: "Too many requests. Please wait before sending another message." }, { status: 429 });
+  }
+
   try {
-    const { name, email, subject, message } = await req.json();
+    const body = await req.json();
+
+    const name    = sanitize(body.name,    100);
+    const email   = sanitize(body.email,   200);
+    const subject = sanitize(body.subject, 200);
+    const message = sanitize(body.message, 2000);
 
     if (!name || !email || !message) {
       return NextResponse.json({ error: "Name, email and message are required" }, { status: 400 });
+    }
+    if (!isValidEmail(email)) {
+      return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 });
     }
 
     const msg = await prisma.contactMessage.create({

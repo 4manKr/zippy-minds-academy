@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://www.zippymindsacademy.com";
 
@@ -30,9 +31,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Please log in to make a payment" }, { status: 401 });
     }
 
-    const { gateway, amount, currency, courseId, courseName } = await req.json();
-    if (!gateway || !amount || !courseName) {
-      return NextResponse.json({ error: "gateway, amount and courseName are required" }, { status: 400 });
+    const { gateway, currency, courseId, courseName } = await req.json();
+    if (!gateway || !courseName) {
+      return NextResponse.json({ error: "gateway and courseName are required" }, { status: 400 });
+    }
+
+    // ── Authoritative price from DB — never trust client-sent amount ──────────
+    let amount: number;
+    if (courseId) {
+      const course = await prisma.course.findUnique({
+        where:  { id: courseId },
+        select: { price: true, priceUSD: true, status: true },
+      });
+      if (!course || course.status !== "active") {
+        return NextResponse.json({ error: "Course not found or inactive" }, { status: 404 });
+      }
+      // INR for Razorpay, USD for PayPal/Stripe
+      amount = (currency ?? "INR") === "INR" ? course.price : (course.priceUSD ?? 15);
+    } else {
+      // Fallback: no courseId provided — use a fixed demo price of 0 (free demo)
+      // Real paid courses MUST pass courseId
+      amount = 0;
     }
 
     // ── Razorpay ──────────────────────────────────────────────────────────────

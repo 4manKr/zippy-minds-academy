@@ -3,28 +3,58 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { sendDemoBookedEmail, sendAdminNewBookingAlert, sendTutorNewRequestEmail } from "@/lib/emails";
 import { findBestTutor } from "@/lib/tutorAssignment";
+import { isRateLimited, getClientIp } from "@/lib/rateLimit";
+import { sanitize, isValidEmail, isValidPhone } from "@/lib/validate";
 
 // POST — create a new demo booking + auto-generate Zoom meeting
 export async function POST(req: NextRequest) {
+  // Rate limit: max 3 booking attempts per IP per hour
+  const ip = getClientIp(req);
+  if (isRateLimited({ key: `booking:${ip}`, limit: 3, windowMs: 60 * 60 * 1000 })) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   try {
     const body = await req.json();
-    const {
-      childName, childAge, grade, timezone, subject,
-      tutorName, tutorInitials, date, timeSlot,
-      notes, monthlyPrice, parentName, parentEmail, otp, whatsappNumber,
-    } = body;
+
+    // Sanitize all string inputs before using them
+    const childName      = sanitize(body.childName, 100);
+    const childAge       = sanitize(body.childAge, 10);
+    const grade          = sanitize(body.grade, 50);
+    const timezone       = sanitize(body.timezone, 60);
+    const subject        = sanitize(body.subject, 100);
+    const tutorName      = sanitize(body.tutorName, 100);
+    const tutorInitials  = sanitize(body.tutorInitials, 10);
+    const date           = sanitize(body.date, 50);
+    const timeSlot       = sanitize(body.timeSlot, 30);
+    const notes          = sanitize(body.notes, 1000);
+    const monthlyPrice   = Number(body.monthlyPrice) || 0;
+    const parentName     = sanitize(body.parentName, 100);
+    const parentEmail    = sanitize(body.parentEmail, 200);
+    const otp            = sanitize(body.otp, 10);
+    const whatsappNumber = sanitize(body.whatsappNumber, 30);
 
     if (!childName || !subject || !date || !timeSlot) {
       return NextResponse.json({ error: "Missing required booking fields" }, { status: 400 });
+    }
+
+    // Validate email if provided
+    if (parentEmail && !isValidEmail(parentEmail)) {
+      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+    }
+
+    // Validate WhatsApp if provided
+    if (whatsappNumber && !isValidPhone(whatsappNumber)) {
+      return NextResponse.json({ error: "Invalid WhatsApp number" }, { status: 400 });
     }
 
     // Get logged-in user if available
     const session = await getSession();
     const userId  = session.isLoggedIn ? session.userId : undefined;
 
-    const resolvedParentName  = parentName  || session.name  || "Guest";
-    const resolvedParentEmail = parentEmail || session.email || "guest@zippy.com";
-    const resolvedTimezone    = timezone    || "Asia/Kolkata";
+    const resolvedParentName  = (parentName  || session.name  || "Guest").slice(0, 100);
+    const resolvedParentEmail = (parentEmail || session.email || "guest@zippy.com").slice(0, 200);
+    const resolvedTimezone    = (timezone    || "Asia/Kolkata").slice(0, 60);
 
     // ── One free demo per email ───────────────────────────────────────────
     const existing = await prisma.booking.findFirst({

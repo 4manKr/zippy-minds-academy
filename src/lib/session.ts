@@ -9,13 +9,20 @@ export interface SessionData {
   isLoggedIn: boolean;
 }
 
+// In production, SESSION_SECRET must be set — refuse to start without it
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret && process.env.NODE_ENV === "production") {
+  throw new Error("SESSION_SECRET env var is not set. Refusing to start in production.");
+}
+
 export const sessionOptions: SessionOptions = {
-  password: process.env.SESSION_SECRET ?? "zippy-minds-super-secret-key-change-in-prod",
+  password:   sessionSecret ?? "zippy-dev-only-32char-not-for-production!!",
   cookieName: "zippy_session",
   cookieOptions: {
-    secure: process.env.NODE_ENV === "production",
+    secure:   process.env.NODE_ENV === "production",
     httpOnly: true,
-    maxAge: 60 * 60 * 24 * 7, // 7 days
+    sameSite: "strict",          // blocks cross-site request forgery
+    maxAge:   60 * 60 * 24 * 7, // 7 days
   },
 };
 

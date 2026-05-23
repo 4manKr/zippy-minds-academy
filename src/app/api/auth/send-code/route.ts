@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isRateLimited, getClientIp } from "@/lib/rateLimit";
+import { isValidEmail } from "@/lib/validate";
 
-// Simple in-memory rate limiter: max 3 requests per email per 10 min
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(email: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(email);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(email, { count: 1, resetAt: now + 10 * 60 * 1000 });
-    return false;
-  }
-  if (entry.count >= 3) return true;
-  entry.count++;
-  return false;
+/**
+ * DB-backed OTP rate limit: count unexpired codes in the last 10 min.
+ * This survives serverless cold starts and works across multiple instances.
+ */
+async function isOtpRateLimited(email: string): Promise<boolean> {
+  const windowStart = new Date(Date.now() - 10 * 60 * 1000);
+  const recent = await prisma.otpCode.count({
+    where: {
+      email,
+      createdAt: { gte: windowStart },
+    },
+  });
+  return recent >= 3; // max 3 OTP requests per 10 min per email
 }
 
 async function sendEmail(to: string, code: string): Promise<void> {
@@ -50,11 +52,21 @@ export async function POST(req: NextRequest) {
   try {
     const { email } = await req.json();
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!email || !isValidEmail(String(email))) {
       return NextResponse.json({ error: "A valid email address is required." }, { status: 400 });
     }
 
-    if (isRateLimited(email)) {
+    // IP-level rate limit (blocks bots hammering with many different emails)
+    const ip = getClientIp(req);
+    if (isRateLimited({ key: `otp-ip:${ip}`, limit: 10, windowMs: 10 * 60 * 1000 })) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait a few minutes before trying again." },
+        { status: 429 }
+      );
+    }
+
+    // Per-email DB-backed rate limit (survives cold starts)
+    if (await isOtpRateLimited(email.trim().toLowerCase())) {
       return NextResponse.json(
         { error: "Too many requests. Please wait a few minutes before trying again." },
         { status: 429 }
