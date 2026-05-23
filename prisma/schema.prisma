@@ -117,6 +117,15 @@ model Course {
   subject         Subject? @relation(fields: [subjectId], references: [id])
 }
 
+// Lead capture — website popup (name + WhatsApp number)
+model Lead {
+  id        String   @id @default(cuid())
+  name      String
+  whatsapp  String
+  page      String   @default("")   // URL path where the popup was shown
+  createdAt DateTime @default(now())
+}
+
 model PlatformSetting {
   id    String @id @default(cuid())
   key   String @unique
