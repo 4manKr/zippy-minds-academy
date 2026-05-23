@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 import { SiteSettingsProvider } from "@/context/SiteSettingsContext";
+import CustomCourseFloatingCTA from "@/components/CustomCourseFloatingCTA";
 
 const DASHBOARD_PREFIXES = ["/dashboard", "/auth"];
 
@@ -17,6 +18,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <SiteSettingsProvider>
+      <CustomCourseFloatingCTA />
       <Navbar />
       <main className="min-h-screen">{children}</main>
       <Footer />

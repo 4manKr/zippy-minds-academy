@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Star, Filter, IndianRupee, DollarSign, BookOpen } from "lucide-react";
+import { Search, Star, Filter, IndianRupee, DollarSign, BookOpen, Sparkles, CheckCircle, ArrowRight } from "lucide-react";
 import { SUBJECT_COLORS } from "@/lib/utils";
 import DemoCTA from "@/components/DemoCTA";
+import CustomCourseModal from "@/components/CustomCourseModal";
 import { usePricingVisibility } from "@/hooks/usePricingVisibility";
 
 // Enrichment metadata for each subject — display fields not stored in DB
@@ -115,13 +116,14 @@ interface Course {
 }
 
 export default function CoursesPage() {
-  const [courses, setCourses]   = useState<Course[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [search,  setSearch]    = useState("");
-  const [category, setCategory] = useState("All");
-  const [stats,   setStats]     = useState({ parents: 0, tutors: 0, sessions: 0, courses: 0 });
-  const [isIndia,  setIsIndia]  = useState<boolean | null>(null);
-  const { showPricing }         = usePricingVisibility();
+  const [courses, setCourses]         = useState<Course[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [search,  setSearch]          = useState("");
+  const [category, setCategory]       = useState("All");
+  const [stats,   setStats]           = useState({ parents: 0, tutors: 0, sessions: 0, courses: 0 });
+  const [isIndia,  setIsIndia]        = useState<boolean | null>(null);
+  const [customOpen, setCustomOpen]   = useState(false);
+  const { showPricing }               = usePricingVisibility();
 
   useEffect(() => {
     fetch("/api/courses")
@@ -253,6 +255,61 @@ export default function CoursesPage() {
         </div>
       </div>
 
+      {/* ── Custom Course Feature Section ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16 pt-10 pb-2">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-700 p-0.5 shadow-2xl">
+          <div className="bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-700 rounded-[22px] px-6 sm:px-10 py-8 flex flex-col md:flex-row items-center gap-8">
+
+            {/* Left: icon cluster */}
+            <div className="shrink-0 w-24 h-24 rounded-3xl bg-white/15 flex items-center justify-center relative">
+              <span className="text-5xl">🎨</span>
+              <span className="absolute -top-2 -right-2 w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center text-base">✨</span>
+            </div>
+
+            {/* Middle: copy */}
+            <div className="flex-1 text-center md:text-left">
+              <span className="inline-flex items-center gap-1.5 bg-white/15 border border-white/25 text-white text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-3">
+                <Sparkles size={11} className="text-yellow-300" /> Exclusive · Tailored Just For You
+              </span>
+              <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white leading-tight mb-2">
+                Can't find the perfect course?<br className="hidden sm:block" />
+                <span className="text-yellow-300"> Build a Custom One.</span>
+              </h2>
+              <p className="text-white/80 text-sm leading-relaxed max-w-xl mb-4">
+                Every child learns differently. Share your child's interests, schedule, and learning goals — our experts will design a personalised curriculum from scratch, just for them.
+              </p>
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5 justify-center md:justify-start text-white/90 text-xs font-medium mb-1">
+                {[
+                  "Pick any subject mix",
+                  "Choose your schedule",
+                  "Set your own pace",
+                  "1-on-1 dedicated tutor",
+                ].map(f => (
+                  <span key={f} className="flex items-center gap-1.5">
+                    <CheckCircle size={13} className="text-green-300 shrink-0" /> {f}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: CTA */}
+            <div className="shrink-0 flex flex-col items-center gap-3">
+              <button
+                onClick={() => setCustomOpen(true)}
+                className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-extrabold text-sm px-6 py-3.5 rounded-2xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all whitespace-nowrap"
+              >
+                <Sparkles size={16} />
+                Design My Course
+                <ArrowRight size={16} />
+              </button>
+              <p className="text-white/60 text-[11px] text-center">
+                Free consultation · No commitment
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16 py-12">
         {/* Results count */}
         <div className="flex items-center justify-between mb-6">
@@ -372,12 +429,23 @@ export default function CoursesPage() {
             <div className="text-6xl mb-4">🔍</div>
             <h3 className="font-display text-xl font-bold text-on-surface mb-2">No courses found</h3>
             <p className="text-on-surface-variant mb-4">Try adjusting your search or filter criteria.</p>
-            {courses.length === 0 && (
-              <Link href="/book-demo" className="btn-primary inline-flex">Book a Free Demo</Link>
-            )}
+            <div className="flex flex-wrap gap-3 justify-center">
+              {courses.length === 0 && (
+                <Link href="/book-demo" className="btn-primary inline-flex">Book a Free Demo</Link>
+              )}
+              <button
+                onClick={() => setCustomOpen(true)}
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-700 text-white font-bold text-sm px-5 py-2.5 rounded-2xl shadow hover:shadow-lg hover:-translate-y-0.5 transition-all"
+              >
+                <Sparkles size={15} /> Build a Custom Course
+              </button>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Custom Course Modal */}
+      <CustomCourseModal open={customOpen} onClose={() => setCustomOpen(false)} />
     </div>
   );
 }
