@@ -10,7 +10,7 @@ export async function GET() {
     // Fetch all approved tutors (include their declared subjects)
     const tutors = await prisma.user.findMany({
       where: { role: "TUTOR", approvalStatus: "APPROVED" },
-      select: { id: true, name: true, email: true, subjects: true, availability: true },
+      select: { id: true, name: true, subjects: true, availability: true }, // email intentionally excluded — public endpoint
       orderBy: { createdAt: "asc" },
     });
 
@@ -134,7 +134,7 @@ export async function GET() {
     const tutorList = tutors.map(t => ({
       id:           t.id,
       name:         t.name,
-      email:        t.email,
+      // email is deliberately NOT included — this is a public endpoint
       initials:     t.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
       subjects:     [...(subjectsByTutor[t.name] ?? [])],
       availability: availabilityByTutor[t.name] ?? {},

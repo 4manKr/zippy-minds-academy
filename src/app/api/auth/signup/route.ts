@@ -37,7 +37,20 @@ export async function POST(req: NextRequest) {
     // ── Create account ────────────────────────────────────────────────────
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+      // Don't reveal that the email is already registered (prevents account enumeration).
+      // Return a neutral success — the OTP was valid so the user clearly owns this email;
+      // silently log them in instead of creating a duplicate.
+      const session = await getSession();
+      session.userId     = existing.id;
+      session.email      = existing.email;
+      session.name       = existing.name;
+      session.role       = existing.role;
+      session.isLoggedIn = true;
+      await session.save();
+      return NextResponse.json({
+        success: true,
+        user: { id: existing.id, name: existing.name, email: existing.email, role: existing.role },
+      });
     }
 
     const hashed = await bcrypt.hash(password, 12);
