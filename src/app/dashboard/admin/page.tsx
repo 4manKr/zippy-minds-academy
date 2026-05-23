@@ -363,7 +363,9 @@ export default function AdminDashboard() {
     setLoad("editSubject", false);
   };
   const handleSubjectToggle = async (subjectId:string, currentStatus:string) => {
-    const status = currentStatus==="active"?"inactive":"active";
+    const goingInactive = currentStatus === "active";
+    if (goingInactive && !confirm("Deactivate this subject? All its courses will stop appearing on the public page.")) return;
+    const status = goingInactive ? "inactive" : "active";
     await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", subjectId, status }) });
     setSubjects(s=>s.map(x=>x.id===subjectId?{...x,status}:x));
   };
@@ -376,7 +378,9 @@ export default function AdminDashboard() {
 
   // ── Course CRUD ───────────────────────────────────────────────────────────
   const handleCourseToggle = async (courseId: string, currentStatus: string) => {
-    const status = currentStatus==="active" ? "inactive" : "active";
+    const goingInactive = currentStatus === "active";
+    if (goingInactive && !confirm("Deactivate this course? It will immediately disappear from the public courses page.")) return;
+    const status = goingInactive ? "inactive" : "active";
     await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ courseId, status }) });
     setCourses(c => c.map(x => x.id===courseId ? {...x,status} : x));
   };
@@ -1571,7 +1575,7 @@ export default function AdminDashboard() {
                               <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center shrink-0"><BookOpen size={14} className="text-blue-600"/></div>
                               <div>
                                 <p className="font-semibold text-gray-900 text-sm">{c.name}</p>
-                                {c.description && <p className="text-xs text-gray-400 truncate max-w-[160px]">{c.description}</p>}
+                                {c.description && <p className="text-xs text-gray-400 truncate max-w-[160px]">{c.description.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim()}</p>}
                               </div>
                             </div>
                           </td>
