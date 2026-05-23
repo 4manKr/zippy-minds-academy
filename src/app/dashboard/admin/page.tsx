@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -114,6 +114,11 @@ export default function AdminDashboard() {
   // Leads (popup enquiries)
   const [leads,       setLeads]       = useState<{id:string;name:string;whatsapp:string;page:string;createdAt:string}[]>([]);
   const [leadsLoaded, setLeadsLoaded] = useState(false);
+
+  // Thumbnail image upload
+  const [thumbUploading, setThumbUploading] = useState<"edit"|"add"|null>(null);
+  const editThumbRef = useRef<HTMLInputElement>(null);
+  const addThumbRef  = useRef<HTMLInputElement>(null);
 
   // Tutor add / edit
   const TUTOR_SUBJECTS = ["Phonics","English Grammar","Mathematics","Public Speaking","Writing & Communication","Coding","Science","Life Skills","Hindi","General Knowledge","Creative Arts","Social Studies"];
@@ -393,6 +398,22 @@ export default function AdminDashboard() {
     if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" }); setAddingCourse(false); }
     setLoad("addCourse", false);
   };
+
+  // ── Thumbnail upload ──────────────────────────────────────────────────────
+  const uploadThumbnail = useCallback(async (file: File, target: "edit"|"add") => {
+    setThumbUploading(target);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res  = await fetch("/api/admin/upload-image", { method:"POST", body:form });
+      const data = await res.json();
+      if (data.url) {
+        if (target === "edit") setEditCourse(p => p ? { ...p, thumbnail: data.url } : null);
+        else                   setNewCourse(p => ({ ...p, thumbnail: data.url }));
+      }
+    } catch { /* ignore */ }
+    setThumbUploading(null);
+  }, []);
 
   // ── Enrollment extend ─────────────────────────────────────────────────────
   const handleExtendEnrollment = async () => {
@@ -755,11 +776,30 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Thumbnail URL</label>
-                <input value={editCourse.thumbnail??""} onChange={e=>setEditCourse(p=>p?{...p,thumbnail:e.target.value}:null)}
-                  placeholder="https://example.com/image.jpg"
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
-                {editCourse.thumbnail && <img src={editCourse.thumbnail} alt="preview" className="mt-2 h-20 w-full object-cover rounded-xl border border-gray-100"/>}
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Thumbnail</label>
+                <div className="flex gap-2">
+                  <input value={editCourse.thumbnail??""} onChange={e=>setEditCourse(p=>p?{...p,thumbnail:e.target.value}:null)}
+                    placeholder="https://example.com/image.jpg"
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                  <button type="button" onClick={()=>editThumbRef.current?.click()} disabled={thumbUploading==="edit"}
+                    className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-blue-200 text-blue-600 text-sm font-semibold hover:bg-blue-50 disabled:opacity-60 shrink-0 transition-colors">
+                    {thumbUploading==="edit"
+                      ? <div className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"/>
+                      : <Upload size={14}/>}
+                    Upload
+                  </button>
+                  <input ref={editThumbRef} type="file" accept="image/*" className="hidden"
+                    onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadThumbnail(f,"edit"); e.target.value=""; }}/>
+                </div>
+                {editCourse.thumbnail && (
+                  <div className="relative mt-2">
+                    <img src={editCourse.thumbnail} alt="preview" className="h-24 w-full object-cover rounded-xl border border-gray-100"/>
+                    <button type="button" onClick={()=>setEditCourse(p=>p?{...p,thumbnail:""}:null)}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors" title="Remove">
+                      <X size={11}/>
+                    </button>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
@@ -1476,8 +1516,28 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Thumbnail URL</label>
-                        <input value={newCourse.thumbnail} onChange={e=>setNewCourse(p=>({...p,thumbnail:e.target.value}))} placeholder="https://…/image.jpg" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Thumbnail</label>
+                        <div className="flex gap-1.5">
+                          <input value={newCourse.thumbnail} onChange={e=>setNewCourse(p=>({...p,thumbnail:e.target.value}))} placeholder="https://…/image.jpg" className="flex-1 min-w-0 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                          <button type="button" onClick={()=>addThumbRef.current?.click()} disabled={thumbUploading==="add"}
+                            className="flex items-center gap-1 px-2.5 py-2 rounded-xl border border-blue-200 text-blue-600 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60 shrink-0 transition-colors">
+                            {thumbUploading==="add"
+                              ? <div className="w-3.5 h-3.5 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"/>
+                              : <Upload size={12}/>}
+                            Upload
+                          </button>
+                          <input ref={addThumbRef} type="file" accept="image/*" className="hidden"
+                            onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadThumbnail(f,"add"); e.target.value=""; }}/>
+                        </div>
+                        {newCourse.thumbnail && (
+                          <div className="relative mt-1.5">
+                            <img src={newCourse.thumbnail} alt="preview" className="h-16 w-full object-cover rounded-lg border border-gray-100"/>
+                            <button type="button" onClick={()=>setNewCourse(p=>({...p,thumbnail:""}))}
+                              className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors">
+                              <X size={9}/>
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Sort Order</label>
