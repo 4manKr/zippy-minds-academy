@@ -8,6 +8,7 @@ import {
   Clock, Globe, ArrowRight, Sparkles, Zap, Video, Mail, LogIn, Phone,
 } from "lucide-react";
 import { SUBJECTS, GRADES, TIMEZONES } from "@/lib/utils";
+import { convertSlotToTz, isSlotPastIST } from "@/lib/timezoneUtils";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -80,16 +81,7 @@ const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTH_FULL  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-// Parse "9:00 AM" / "2:00 PM" → total minutes since midnight
-function parseSlotMinutes(time: string): number {
-  const [timePart, period] = time.split(" ");
-  const [hStr, mStr] = timePart.split(":");
-  let hour = parseInt(hStr, 10);
-  const min  = parseInt(mStr || "0", 10);
-  if (period === "PM" && hour !== 12) hour += 12;
-  if (period === "AM" && hour === 12) hour = 0;
-  return hour * 60 + min;
-}
+// (kept for reference — past-slot check now uses isSlotPastIST from timezoneUtils)
 
 function buildCalendarDates() {
   const today = new Date();
@@ -280,7 +272,16 @@ function BookDemoInner() {
   const selectedDateEntry   = calendarDates[form.selectedDateIdx];
   const selectedDateLabel   = selectedDateEntry?.fullDate ?? "";
   const assignedTutor       = getDisplayTutor(form.subject);
-  const selectedSlotLabel   = ALL_TIME_SLOTS.find((s) => s.id === form.selectedSlot)?.time ?? "Not selected";
+  const selectedSlotIST     = ALL_TIME_SLOTS.find((s) => s.id === form.selectedSlot)?.time ?? "";
+  const selectedSlotLabel   = selectedSlotIST
+    ? (() => {
+        const isoDate = selectedDateEntry?.isoDate ?? new Date().toISOString().slice(0, 10);
+        const converted = convertSlotToTz(selectedSlotIST, isoDate, form.timezone);
+        return form.timezone !== "Asia/Kolkata"
+          ? `${converted} (IST ${selectedSlotIST})`
+          : converted;
+      })()
+    : "Not selected";
 
   // Derive tutor availability map and which days have declared slots
   const tutorAvail: Record<string, string[]> = useMemo(() => {
@@ -318,17 +319,10 @@ function BookDemoInner() {
       daySlots = ALL_TIME_SLOTS.map(s => s.time);
     }
 
-    // For today — filter out slots that have already passed (+ 1 hr buffer)
-    const nowMinutes = dateEntry?.isToday
-      ? (() => {
-          const n = new Date();
-          return n.getHours() * 60 + n.getMinutes() + 60; // 1-hour booking buffer
-        })()
-      : -1; // -1 means no filtering needed
-
     return ALL_TIME_SLOTS.map(s => {
       const tutorHasSlot = daySlots.includes(s.time);
-      const isPast       = nowMinutes >= 0 && parseSlotMinutes(s.time) <= nowMinutes;
+      // Use IST clock to determine past slots — all tutor times are in IST
+      const isPast = dateEntry?.isToday ? isSlotPastIST(s.time) : false;
       return { ...s, available: tutorHasSlot && !isPast, isPast };
     });
   }, [form.subject, form.selectedDateIdx, dbTutorBySubject, calendarDates]);
@@ -841,6 +835,9 @@ function BookDemoInner() {
                       const isSelected   = form.selectedSlot === slot.id;
                       const bookedByName = bookedSlots[slot.time];
                       const isTaken      = !!bookedByName;
+                      const isoDate      = selectedDateEntry?.isoDate ?? new Date().toISOString().slice(0, 10);
+                      const displayTime  = convertSlotToTz(slot.time, isoDate, form.timezone);
+                      const showIst      = form.timezone !== "Asia/Kolkata";
                       return (
                         <button key={slot.id}
                           disabled={!slot.available || isTaken}
@@ -849,7 +846,7 @@ function BookDemoInner() {
                             isTaken       ? `Already booked (${bookedByName})` :
                             slot.isPast   ? "This slot has already passed" :
                             !slot.available ? "Tutor unavailable at this time" : ""}
-                          className={`relative p-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
+                          className={`relative p-3 rounded-xl text-sm font-medium transition-all flex flex-col items-center justify-center gap-0.5 ${
                             isTaken
                               ? "bg-red-50 border border-red-200 text-red-400 cursor-not-allowed"
                               : !slot.available
@@ -858,20 +855,27 @@ function BookDemoInner() {
                               ? "bg-primary text-on-primary shadow-sm ring-2 ring-primary/30"
                               : "bg-surface-container text-on-surface-variant hover:bg-primary/10 hover:text-primary border border-outline-variant"
                           }`}>
-                          <Clock size={13} />
-                          <span>{slot.time}</span>
-                          {isTaken     && <span className="absolute -top-1.5 -right-1 text-[9px] bg-red-400 text-white px-1 rounded-full">Taken</span>}
-                          {isSelected  && <CheckCircle size={13} className="shrink-0" />}
+                          <span className="flex items-center gap-1">
+                            <Clock size={12} />
+                            <span>{displayTime}</span>
+                            {isSelected && <CheckCircle size={12} className="shrink-0" />}
+                          </span>
+                          {showIst && (
+                            <span className={`text-[10px] leading-tight ${isSelected ? "text-on-primary/70" : "text-on-surface-variant/50"}`}>
+                              IST {slot.time}
+                            </span>
+                          )}
+                          {isTaken && <span className="absolute -top-1.5 -right-1 text-[9px] bg-red-400 text-white px-1 rounded-full">Taken</span>}
                         </button>
                       );
                     })}
                   </div>
                   <p className="text-xs text-on-surface-variant/60 mt-4 text-center">
                     {tutorHasAnyAvail
-                      ? `Dimmed = outside tutor's declared hours · Red = already booked · Times in your timezone`
+                      ? `Dimmed = outside tutor's hours · Red = already booked · Times shown in your timezone${form.timezone !== "Asia/Kolkata" ? " (IST for tutors)" : ""}`
                       : hasDbTutor
                       ? `Red = already booked · All other slots subject to tutor confirmation`
-                      : "Dimmed slots have already passed · Times shown in your local timezone"}
+                      : `Dimmed slots have already passed · Times shown in your timezone${form.timezone !== "Asia/Kolkata" ? " (IST for tutors)" : ""}`}
                   </p>
 
                   {/* Slot selected indicator — tutor identity revealed only after booking */}
