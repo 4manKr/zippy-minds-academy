@@ -304,13 +304,13 @@ export default function CoursesPage() {
               const displayRating  = course.rating > 0   ? course.rating  : meta.rating;
               const displayTeacher = course.showTeacher && course.teacherName ? course.teacherName : null;
               // Description handling
-              const rawDesc    = course.description?.trim() || "";
-              const plainDesc  = rawDesc ? stripHtml(rawDesc) : "";
-              const hasHtml    = rawDesc.length > 0;
-              const isLong     = plainDesc.length > READ_MORE_THRESHOLD;
-              const isExp      = expanded.has(course.id);
-              const shortDesc  = isLong ? plainDesc.slice(0, READ_MORE_THRESHOLD) + "…" : plainDesc;
-              const displayTagline = hasHtml ? (isExp ? "" : shortDesc) || meta.tagline : meta.tagline;
+              const rawDesc     = course.description?.trim() || "";
+              const isHtmlDesc  = rawDesc.length > 0 && /<[a-z][\s\S]*>/i.test(rawDesc);
+              const plainDesc   = isHtmlDesc ? stripHtml(rawDesc) : rawDesc; // strip tags if HTML, else use raw
+              const hasContent  = rawDesc.length > 0;
+              const isLong      = plainDesc.length > READ_MORE_THRESHOLD;
+              const isExp       = expanded.has(course.id);
+              const shortDesc   = isLong ? plainDesc.slice(0, READ_MORE_THRESHOLD) + "…" : plainDesc;
               // Accent color from DB subject color, or fallback
               const accentColor = course.subject?.color || null;
 
@@ -380,20 +380,26 @@ export default function CoursesPage() {
                     </h3>
 
                     {/* Description with Read More */}
-                    {hasHtml ? (
+                    {hasContent ? (
                       <div className="mb-3">
                         {isExp ? (
-                          <div
-                            className="text-xs text-on-surface-variant leading-relaxed
-                              [&_strong]:font-bold [&_em]:italic [&_u]:underline
-                              [&_h3]:font-bold [&_h3]:text-sm [&_h3]:text-on-surface [&_h3]:mt-1 [&_h3]:mb-0.5
-                              [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:my-1
-                              [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:my-1
-                              [&_li]:my-0.5 [&_hr]:border-outline-variant [&_hr]:my-1"
-                            dangerouslySetInnerHTML={{ __html: rawDesc }}
-                          />
+                          isHtmlDesc ? (
+                            /* Rich HTML description */
+                            <div
+                              className="text-xs text-on-surface-variant leading-relaxed
+                                [&_strong]:font-bold [&_em]:italic [&_u]:underline
+                                [&_h3]:font-bold [&_h3]:text-sm [&_h3]:text-on-surface [&_h3]:mt-1 [&_h3]:mb-0.5
+                                [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:my-1
+                                [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:my-1
+                                [&_li]:my-0.5 [&_hr]:border-outline-variant [&_hr]:my-1"
+                              dangerouslySetInnerHTML={{ __html: rawDesc }}
+                            />
+                          ) : (
+                            /* Plain text — preserve original line breaks */
+                            <p className="text-xs text-on-surface-variant leading-snug whitespace-pre-line">{rawDesc}</p>
+                          )
                         ) : (
-                          <p className="text-xs text-on-surface-variant leading-snug">{shortDesc || meta.tagline}</p>
+                          <p className="text-xs text-on-surface-variant leading-snug">{shortDesc}</p>
                         )}
                         {isLong && (
                           <button
@@ -405,7 +411,7 @@ export default function CoursesPage() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-xs text-on-surface-variant mb-3 leading-snug">{displayTagline}</p>
+                      <p className="text-xs text-on-surface-variant mb-3 leading-snug">{meta.tagline}</p>
                     )}
 
                     {/* Teacher — only shown if admin enabled it */}

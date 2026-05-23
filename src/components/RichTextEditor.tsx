@@ -21,10 +21,26 @@ export default function RichTextEditor({
   const editorRef = useRef<HTMLDivElement>(null);
   const skipSync  = useRef(false);
 
+  /** Convert a raw value to editor HTML — promotes plain-text \n to <br> */
+  const toEditorHtml = (v: string) => {
+    if (!v) return "";
+    // If it already contains HTML tags, use as-is
+    if (/<[a-z][\s\S]*>/i.test(v)) return v;
+    // Plain text: escape HTML chars then convert newlines → <br>
+    return v
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>");
+  };
+
   // Initialise editor content only on mount
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value ?? "";
+    if (editorRef.current) {
+      const html = toEditorHtml(value ?? "");
+      if (editorRef.current.innerHTML !== html) {
+        editorRef.current.innerHTML = html;
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -32,8 +48,11 @@ export default function RichTextEditor({
   // Sync external value changes (e.g. modal open with different course)
   useEffect(() => {
     if (skipSync.current) { skipSync.current = false; return; }
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value ?? "";
+    if (editorRef.current) {
+      const html = toEditorHtml(value ?? "");
+      if (editorRef.current.innerHTML !== html) {
+        editorRef.current.innerHTML = html;
+      }
     }
   }, [value]);
 

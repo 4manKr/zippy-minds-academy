@@ -96,6 +96,7 @@ export default function AdminDashboard() {
   const [editCourse,    setEditCourse]    = useState<DBCourse|null>(null);
   const [editResource,  setEditResource]  = useState<DBResource|null>(null);
   const [editVideo,     setEditVideo]     = useState<DBVideo|null>(null);
+  const [courseSaveMsg, setCourseSaveMsg] = useState<{type:"ok"|"err";text:string}|null>(null);
 
   const [viewUser, setViewUser] = useState<DBUser|null>(null);
 
@@ -461,17 +462,30 @@ export default function AdminDashboard() {
   const handleSaveCourse = async () => {
     if (!editCourse) return;
     setLoad("editCourse", true);
-    const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description,
-        thumbnail:editCourse.thumbnail,
-        subjectId:editCourse.subjectId||null, ageRange:editCourse.ageRange,
-        teacherName:editCourse.teacherName, showTeacher:editCourse.showTeacher, rating:editCourse.rating,
-        price:editCourse.price, priceUSD:editCourse.priceUSD,
-        durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit,
-        sessionsPerWeek:editCourse.sessionsPerWeek, sortOrder:editCourse.sortOrder }) });
-    const data = await res.json();
-    if (data.course) { setCourses(c=>c.map(x=>x.id===editCourse.id?data.course:x)); setEditCourse(null); }
-    else await fetchAll(); // always refetch to keep UI in sync if update failed
+    setCourseSaveMsg(null);
+    try {
+      const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ courseId:editCourse.id, name:editCourse.name, description:editCourse.description,
+          thumbnail:editCourse.thumbnail,
+          subjectId:editCourse.subjectId||null, ageRange:editCourse.ageRange,
+          teacherName:editCourse.teacherName, showTeacher:editCourse.showTeacher, rating:editCourse.rating,
+          price:editCourse.price, priceUSD:editCourse.priceUSD,
+          durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit,
+          sessionsPerWeek:editCourse.sessionsPerWeek, sortOrder:editCourse.sortOrder }) });
+      const data = await res.json();
+      if (data.course) {
+        setCourses(c=>c.map(x=>x.id===editCourse.id?data.course:x));
+        setEditCourse(null);
+        setCourseSaveMsg({ type:"ok", text:"Course saved successfully!" });
+        setTimeout(()=>setCourseSaveMsg(null), 3500);
+      } else {
+        const errMsg = data.error || "Save failed — please try again.";
+        setCourseSaveMsg({ type:"err", text:errMsg });
+        await fetchAll();
+      }
+    } catch {
+      setCourseSaveMsg({ type:"err", text:"Network error — changes not saved." });
+    }
     setLoad("editCourse", false);
   };
 
@@ -1467,6 +1481,18 @@ export default function AdminDashboard() {
                     <Plus size={15}/> Add Course
                   </button>
                 </div>
+
+                {/* Save notification toast */}
+                {courseSaveMsg && (
+                  <div className={`mx-6 mt-4 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
+                    courseSaveMsg.type==="ok"
+                      ? "bg-green-50 text-green-700 border border-green-200"
+                      : "bg-red-50 text-red-700 border border-red-200"
+                  }`}>
+                    {courseSaveMsg.type==="ok" ? <CheckCircle size={15}/> : <AlertTriangle size={15}/>}
+                    {courseSaveMsg.text}
+                  </div>
+                )}
 
                 {/* Add course form */}
                 {addingCourse && (
