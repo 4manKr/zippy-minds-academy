@@ -9,8 +9,9 @@ import { cn } from "@/lib/utils";
 import DemoCTA from "@/components/DemoCTA";
 
 const navLinks = [
+  { label: "About Us", href: "/about"   },
   { label: "Courses",  href: "/courses" },
-  { label: "About Us", href: "/about" },
+  { label: "Blog",     href: "/blog"    },
   { label: "Contact",  href: "/contact" },
 ];
 

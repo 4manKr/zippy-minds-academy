@@ -120,6 +120,21 @@ model Course {
   subject         Subject? @relation(fields: [subjectId], references: [id])
 }
 
+// Blog posts — written and published by admin
+model Blog {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  content   String   @default("")     // HTML rich text from editor
+  excerpt   String   @default("")     // short summary shown on listing card
+  thumbnail String   @default("")     // cover image URL
+  author    String   @default("")
+  tags      String   @default("[]")   // JSON array of tag strings
+  status    String   @default("draft") // draft | published
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // Lead capture — website popup (name + WhatsApp number)
 model Lead {
   id        String   @id @default(cuid())

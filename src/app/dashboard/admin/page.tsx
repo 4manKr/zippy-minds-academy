@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import RichTextEditor from "@/components/RichTextEditor";
 
-type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content"|"availability"|"leads";
+type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content"|"availability"|"leads"|"blog";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
@@ -116,6 +116,17 @@ export default function AdminDashboard() {
   const [leads,       setLeads]       = useState<{id:string;name:string;whatsapp:string;page:string;createdAt:string}[]>([]);
   const [leadsLoaded, setLeadsLoaded] = useState(false);
 
+  // Blog
+  interface DBBlog { id:string; title:string; slug:string; content:string; excerpt:string; thumbnail:string; author:string; tags:string; status:string; createdAt:string; }
+  const [blogs,        setBlogs]        = useState<DBBlog[]>([]);
+  const [blogsLoaded,  setBlogsLoaded]  = useState(false);
+  const [editBlog,     setEditBlog]     = useState<DBBlog|null>(null);
+  const [addingBlog,   setAddingBlog]   = useState(false);
+  const [blogSaveMsg,  setBlogSaveMsg]  = useState<{type:"ok"|"err";text:string}|null>(null);
+  const [newBlog,      setNewBlog]      = useState({ title:"", slug:"", content:"", excerpt:"", thumbnail:"", author:"", tags:"", status:"draft" });
+  const blogThumbRef   = useRef<HTMLInputElement>(null);
+  const editBlogThumbRef = useRef<HTMLInputElement>(null);
+
   // Thumbnail image upload
   const [thumbUploading, setThumbUploading] = useState<"edit"|"add"|null>(null);
   const editThumbRef = useRef<HTMLInputElement>(null);
@@ -197,6 +208,11 @@ export default function AdminDashboard() {
     if (section === "leads" && !leadsLoaded) {
       fetch("/api/leads").then(r=>r.ok?r.json():{leads:[]}).then(d => {
         if (d.leads) { setLeads(d.leads); setLeadsLoaded(true); }
+      }).catch(()=>{});
+    }
+    if (section === "blog" && !blogsLoaded) {
+      fetch("/api/admin/blog").then(r=>r.ok?r.json():{posts:[]}).then(d => {
+        if (d.posts) { setBlogs(d.posts); setBlogsLoaded(true); }
       }).catch(()=>{});
     }
     if (section === "tutors") {
@@ -404,17 +420,73 @@ export default function AdminDashboard() {
     setLoad("addCourse", false);
   };
 
+  // ── Blog CRUD ─────────────────────────────────────────────────────────────
+  const handleAddBlog = async () => {
+    if (!newBlog.title.trim()) return;
+    setLoad("addBlog", true); setBlogSaveMsg(null);
+    try {
+      const res  = await fetch("/api/admin/blog", { method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ ...newBlog, tags: newBlog.tags.split(",").map(t=>t.trim()).filter(Boolean) }) });
+      const data = await res.json();
+      if (data.post) {
+        setBlogs(b=>[data.post,...b]);
+        setNewBlog({ title:"", slug:"", content:"", excerpt:"", thumbnail:"", author:"", tags:"", status:"draft" });
+        setAddingBlog(false);
+        setBlogSaveMsg({ type:"ok", text:"Blog post created!" });
+        setTimeout(()=>setBlogSaveMsg(null), 3500);
+      } else { setBlogSaveMsg({ type:"err", text: data.error || "Failed to create" }); }
+    } catch { setBlogSaveMsg({ type:"err", text:"Network error" }); }
+    setLoad("addBlog", false);
+  };
+
+  const handleSaveBlog = async () => {
+    if (!editBlog) return;
+    setLoad("editBlog", true); setBlogSaveMsg(null);
+    try {
+      const res  = await fetch("/api/admin/blog", { method:"PATCH", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ id:editBlog.id, title:editBlog.title, slug:editBlog.slug,
+          content:editBlog.content, excerpt:editBlog.excerpt, thumbnail:editBlog.thumbnail,
+          author:editBlog.author, status:editBlog.status,
+          tags: typeof editBlog.tags === "string"
+            ? editBlog.tags.split(",").map(t=>t.trim()).filter(Boolean)
+            : editBlog.tags }) });
+      const data = await res.json();
+      if (data.post) {
+        setBlogs(b=>b.map(x=>x.id===editBlog.id?data.post:x));
+        setEditBlog(null);
+        setBlogSaveMsg({ type:"ok", text:"Blog post saved!" });
+        setTimeout(()=>setBlogSaveMsg(null), 3500);
+      } else { setBlogSaveMsg({ type:"err", text: data.error || "Failed to save" }); }
+    } catch { setBlogSaveMsg({ type:"err", text:"Network error" }); }
+    setLoad("editBlog", false);
+  };
+
+  const handleDeleteBlog = async (id: string) => {
+    if (!confirm("Delete this blog post permanently?")) return;
+    await fetch("/api/admin/blog", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id }) });
+    setBlogs(b=>b.filter(x=>x.id!==id));
+  };
+
+  const handleBlogStatusToggle = async (id: string, current: string) => {
+    const status = current === "published" ? "draft" : "published";
+    const res  = await fetch("/api/admin/blog", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id, status }) });
+    const data = await res.json();
+    if (data.post) setBlogs(b=>b.map(x=>x.id===id?data.post:x));
+  };
+
   // ── Thumbnail upload ──────────────────────────────────────────────────────
-  const uploadThumbnail = useCallback(async (file: File, target: "edit"|"add") => {
-    setThumbUploading(target);
+  const uploadThumbnail = useCallback(async (file: File, target: "edit"|"add"|"editBlog"|"addBlog") => {
+    setThumbUploading(target as "edit"|"add");
     const form = new FormData();
     form.append("file", file);
     try {
       const res  = await fetch("/api/admin/upload-image", { method:"POST", body:form });
       const data = await res.json();
       if (data.url) {
-        if (target === "edit") setEditCourse(p => p ? { ...p, thumbnail: data.url } : null);
-        else                   setNewCourse(p => ({ ...p, thumbnail: data.url }));
+        if      (target === "edit")     setEditCourse(p => p ? { ...p, thumbnail: data.url } : null);
+        else if (target === "add")      setNewCourse(p => ({ ...p, thumbnail: data.url }));
+        else if (target === "editBlog") setEditBlog(p => p ? { ...p, thumbnail: data.url } : null);
+        else if (target === "addBlog")  setNewBlog(p => ({ ...p, thumbnail: data.url }));
       }
     } catch { /* ignore */ }
     setThumbUploading(null);
@@ -635,6 +707,7 @@ export default function AdminDashboard() {
     { id:"settings",      icon:Settings,     label:"Settings"                          },
     { id:"availability",  icon:CalendarDays, label:"Availability"                      },
     { id:"leads",         icon:Phone,        label:"Leads", badge:leads.length||undefined },
+    { id:"blog",          icon:FileText,     label:"Blog Posts"                            },
   ];
 
   const sectionTitle: Record<Section,string> = {
@@ -643,6 +716,7 @@ export default function AdminDashboard() {
     payments:"Payment Transactions", analytics:"Analytics & Insights",
     support:"Support Tickets", settings:"Platform Settings", availability:"Tutor Availability",
     leads:"Lead Enquiries",
+    blog:"Blog Posts",
   };
 
   const isLoading = loading["init"];
@@ -2826,6 +2900,224 @@ export default function AdminDashboard() {
                     </table>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Blog Posts Section ── */}
+          {section==="blog" && (
+            <div className="space-y-5">
+              {/* Header */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <div>
+                    <h2 className="font-bold text-gray-900">Blog Posts ({blogs.length})</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Write and publish articles visible on the public /blog page</p>
+                  </div>
+                  <button onClick={()=>setAddingBlog(a=>!a)} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors">
+                    <Plus size={15}/> New Post
+                  </button>
+                </div>
+
+                {/* Save notification */}
+                {blogSaveMsg && (
+                  <div className={`mx-6 mt-4 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 ${blogSaveMsg.type==="ok"?"bg-green-50 text-green-700 border border-green-200":"bg-red-50 text-red-700 border border-red-200"}`}>
+                    {blogSaveMsg.type==="ok" ? <CheckCircle size={15}/> : <AlertTriangle size={15}/>}
+                    {blogSaveMsg.text}
+                  </div>
+                )}
+
+                {/* Add Blog Form */}
+                {addingBlog && (
+                  <div className="px-6 py-5 border-b border-gray-100 bg-indigo-50/30">
+                    <p className="text-sm font-bold text-gray-800 mb-4">New Blog Post</p>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Title *</label>
+                          <input value={newBlog.title} onChange={e=>setNewBlog(p=>({...p,title:e.target.value,slug:e.target.value.toLowerCase().replace(/[^a-z0-9\s-]/g,"").trim().replace(/\s+/g,"-").slice(0,60)}))}
+                            placeholder="e.g. How Phonics Builds Reading Skills"
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Author</label>
+                          <input value={newBlog.author} onChange={e=>setNewBlog(p=>({...p,author:e.target.value}))} placeholder="e.g. Zippy Minds Team"
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Excerpt (short summary shown on cards)</label>
+                        <textarea value={newBlog.excerpt} onChange={e=>setNewBlog(p=>({...p,excerpt:e.target.value}))} rows={2} placeholder="A short summary of what this article is about…"
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 resize-none"/>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Tags (comma separated)</label>
+                          <input value={newBlog.tags} onChange={e=>setNewBlog(p=>({...p,tags:e.target.value}))} placeholder="e.g. Phonics, Reading, Tips"
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Status</label>
+                          <select value={newBlog.status} onChange={e=>setNewBlog(p=>({...p,status:e.target.value}))}
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+                            <option value="draft">Draft</option>
+                            <option value="published">Published</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Cover Image</label>
+                        <div className="flex gap-2">
+                          <input value={newBlog.thumbnail} onChange={e=>setNewBlog(p=>({...p,thumbnail:e.target.value}))} placeholder="https://…/cover.jpg"
+                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                          <button type="button" onClick={()=>blogThumbRef.current?.click()} disabled={thumbUploading==="add"}
+                            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-semibold hover:bg-indigo-50 disabled:opacity-60 shrink-0 transition-colors">
+                            <Upload size={14}/> Upload
+                          </button>
+                          <input ref={blogThumbRef} type="file" accept="image/*" className="hidden"
+                            onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadThumbnail(f,"addBlog"); e.target.value=""; }}/>
+                        </div>
+                        {newBlog.thumbnail && <img src={newBlog.thumbnail} alt="preview" className="mt-2 h-20 w-full object-cover rounded-xl border border-gray-100"/>}
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Content</label>
+                        <RichTextEditor value={newBlog.content} onChange={html=>setNewBlog(p=>({...p,content:html}))} minHeight={200} placeholder="Write your blog post here…"/>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 mt-4">
+                      <button onClick={handleAddBlog} disabled={loading["addBlog"]} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 flex items-center gap-2">
+                        {loading["addBlog"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Post</>}
+                      </button>
+                      <button onClick={()=>setAddingBlog(false)} className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Blog list table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-gray-50">{["Title","Author","Tags","Status","Created","Actions"].map(h=><th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {blogs.length===0 && (
+                        <tr><td colSpan={6} className="px-5 py-10 text-center text-gray-400 text-sm">No blog posts yet — click "New Post" above to write your first article</td></tr>
+                      )}
+                      {blogs.map(b=>{
+                        const tags:string[] = (()=>{ try{ return JSON.parse(b.tags); } catch{ return []; } })();
+                        return (
+                          <tr key={b.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-2.5">
+                                {b.thumbnail ? <img src={b.thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0 border border-gray-100"/> : <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0"><FileText size={16} className="text-indigo-500"/></div>}
+                                <div>
+                                  <p className="font-semibold text-gray-900 text-sm line-clamp-1">{b.title}</p>
+                                  <p className="text-[10px] text-gray-400 font-mono">/blog/{b.slug}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 text-xs text-gray-600">{b.author||"—"}</td>
+                            <td className="px-5 py-4">
+                              <div className="flex flex-wrap gap-1">
+                                {tags.slice(0,3).map(t=><span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-medium">{t}</span>)}
+                              </div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <button onClick={()=>handleBlogStatusToggle(b.id,b.status)}
+                                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full transition-all ${b.status==="published"?"bg-green-100 text-green-700 hover:bg-green-200":"bg-amber-100 text-amber-700 hover:bg-amber-200"}`}>
+                                {b.status==="published"?<><ToggleRight size={13}/>Published</>:<><ToggleLeft size={13}/>Draft</>}
+                              </button>
+                            </td>
+                            <td className="px-5 py-4 text-xs text-gray-500">{new Date(b.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}</td>
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-1.5">
+                                <button onClick={()=>setEditBlog({...b, tags:(() => { try{ return (JSON.parse(b.tags) as string[]).join(", "); } catch{ return ""; } })()} as typeof b & {tags:string})} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" title="Edit"><Edit2 size={14}/></button>
+                                <a href={`/blog/${b.slug}`} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="View"><Eye size={14}/></a>
+                                <button onClick={()=>handleDeleteBlog(b.id)} className="p-1.5 rounded-lg border border-red-100 text-red-400 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={14}/></button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Edit Blog Modal ── */}
+          {editBlog && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/50" onClick={()=>setEditBlog(null)}/>
+              <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6 z-10 overflow-y-auto max-h-[90vh]">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2"><FileText size={18} className="text-indigo-600"/> Edit Blog Post</h3>
+                  <button onClick={()=>setEditBlog(null)} className="text-gray-400 hover:text-gray-700"><X size={20}/></button>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Title *</label>
+                      <input value={editBlog.title} onChange={e=>setEditBlog(p=>p?{...p,title:e.target.value}:null)}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Author</label>
+                      <input value={editBlog.author} onChange={e=>setEditBlog(p=>p?{...p,author:e.target.value}:null)}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Excerpt</label>
+                    <textarea value={editBlog.excerpt} onChange={e=>setEditBlog(p=>p?{...p,excerpt:e.target.value}:null)} rows={2}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 resize-none"/>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Tags (comma separated)</label>
+                      <input value={editBlog.tags} onChange={e=>setEditBlog(p=>p?{...p,tags:e.target.value}:null)} placeholder="Phonics, Reading, Tips"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+                      <select value={editBlog.status} onChange={e=>setEditBlog(p=>p?{...p,status:e.target.value}:null)}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+                        <option value="draft">Draft</option>
+                        <option value="published">Published</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Cover Image</label>
+                    <div className="flex gap-2">
+                      <input value={editBlog.thumbnail} onChange={e=>setEditBlog(p=>p?{...p,thumbnail:e.target.value}:null)} placeholder="https://…/cover.jpg"
+                        className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      <button type="button" onClick={()=>editBlogThumbRef.current?.click()} disabled={thumbUploading==="edit"}
+                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-semibold hover:bg-indigo-50 disabled:opacity-60 shrink-0 transition-colors">
+                        <Upload size={14}/> Upload
+                      </button>
+                      <input ref={editBlogThumbRef} type="file" accept="image/*" className="hidden"
+                        onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadThumbnail(f,"editBlog"); e.target.value=""; }}/>
+                    </div>
+                    {editBlog.thumbnail && (
+                      <div className="relative mt-2">
+                        <img src={editBlog.thumbnail} alt="preview" className="h-24 w-full object-cover rounded-xl border border-gray-100"/>
+                        <button type="button" onClick={()=>setEditBlog(p=>p?{...p,thumbnail:""}:null)}
+                          className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors"><X size={11}/></button>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Content</label>
+                    <RichTextEditor value={editBlog.content} onChange={html=>setEditBlog(p=>p?{...p,content:html}:null)} minHeight={250} placeholder="Write your blog post here…"/>
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <button onClick={()=>setEditBlog(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                  <button onClick={handleSaveBlog} disabled={loading["editBlog"]}
+                    className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                    {loading["editBlog"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Post</>}
+                  </button>
+                </div>
               </div>
             </div>
           )}

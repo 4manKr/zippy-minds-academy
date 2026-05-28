@@ -379,12 +379,12 @@ export default function CoursesPage() {
                       {course.name}
                     </h3>
 
-                    {/* Description with Read More */}
+                    {/* Description with Read More — formatted content visible even when collapsed */}
                     {hasContent ? (
                       <div className="mb-3">
-                        {isExp ? (
-                          isHtmlDesc ? (
-                            /* Rich HTML description */
+                        {/* Clip wrapper — hides overflow when collapsed */}
+                        <div className={`relative ${!isExp && isLong ? "max-h-[4.5rem] overflow-hidden" : ""}`}>
+                          {isHtmlDesc ? (
                             <div
                               className="text-xs text-on-surface-variant leading-relaxed
                                 [&_strong]:font-bold [&_em]:italic [&_u]:underline
@@ -395,16 +395,17 @@ export default function CoursesPage() {
                               dangerouslySetInnerHTML={{ __html: rawDesc }}
                             />
                           ) : (
-                            /* Plain text — preserve original line breaks */
-                            <p className="text-xs text-on-surface-variant leading-snug whitespace-pre-line">{rawDesc}</p>
-                          )
-                        ) : (
-                          <p className="text-xs text-on-surface-variant leading-snug">{shortDesc}</p>
-                        )}
+                            <p className="text-xs text-on-surface-variant leading-relaxed whitespace-pre-line">{rawDesc}</p>
+                          )}
+                          {/* Gradient fade at bottom when collapsed */}
+                          {!isExp && isLong && (
+                            <div className="absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-t from-surface-container-lowest to-transparent pointer-events-none" />
+                          )}
+                        </div>
                         {isLong && (
                           <button
                             onClick={() => toggleExpanded(course.id)}
-                            className="flex items-center gap-0.5 text-[11px] font-semibold text-primary hover:underline mt-1"
+                            className="flex items-center gap-0.5 text-[11px] font-semibold text-primary hover:underline mt-1.5"
                           >
                             {isExp ? <><ChevronUp size={12}/> Read Less</> : <><ChevronDown size={12}/> Read More</>}
                           </button>
