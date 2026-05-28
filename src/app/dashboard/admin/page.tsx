@@ -128,7 +128,7 @@ export default function AdminDashboard() {
   const editBlogThumbRef = useRef<HTMLInputElement>(null);
 
   // Thumbnail image upload
-  const [thumbUploading, setThumbUploading] = useState<"edit"|"add"|null>(null);
+  const [thumbUploading, setThumbUploading] = useState<"edit"|"add"|"editBlog"|"addBlog"|null>(null);
   const editThumbRef = useRef<HTMLInputElement>(null);
   const addThumbRef  = useRef<HTMLInputElement>(null);
 
@@ -483,7 +483,7 @@ export default function AdminDashboard() {
 
   // ── Thumbnail upload ──────────────────────────────────────────────────────
   const uploadThumbnail = useCallback(async (file: File, target: "edit"|"add"|"editBlog"|"addBlog") => {
-    setThumbUploading(target as "edit"|"add");
+    setThumbUploading(target);
     const form = new FormData();
     form.append("file", file);
     try {
@@ -2977,9 +2977,9 @@ export default function AdminDashboard() {
                         <div className="flex gap-2">
                           <input value={newBlog.thumbnail} onChange={e=>setNewBlog(p=>({...p,thumbnail:e.target.value}))} placeholder="https://…/cover.jpg"
                             className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
-                          <button type="button" onClick={()=>blogThumbRef.current?.click()} disabled={thumbUploading==="add"}
+                          <button type="button" onClick={()=>blogThumbRef.current?.click()} disabled={thumbUploading==="addBlog"}
                             className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-semibold hover:bg-indigo-50 disabled:opacity-60 shrink-0 transition-colors">
-                            <Upload size={14}/> Upload
+                            {thumbUploading==="addBlog" ? <div className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin"/> : <><Upload size={14}/> Upload</>}
                           </button>
                           <input ref={blogThumbRef} type="file" accept="image/*" className="hidden"
                             onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadThumbnail(f,"addBlog"); e.target.value=""; }}/>
@@ -3098,9 +3098,9 @@ export default function AdminDashboard() {
                     <div className="flex gap-2">
                       <input value={editBlog.thumbnail} onChange={e=>setEditBlog(p=>p?{...p,thumbnail:e.target.value}:null)} placeholder="https://…/cover.jpg"
                         className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
-                      <button type="button" onClick={()=>editBlogThumbRef.current?.click()} disabled={thumbUploading==="edit"}
+                      <button type="button" onClick={()=>editBlogThumbRef.current?.click()} disabled={thumbUploading==="editBlog"}
                         className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-semibold hover:bg-indigo-50 disabled:opacity-60 shrink-0 transition-colors">
-                        <Upload size={14}/> Upload
+                        {thumbUploading==="editBlog" ? <div className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin"/> : <><Upload size={14}/> Upload</>}
                       </button>
                       <input ref={editBlogThumbRef} type="file" accept="image/*" className="hidden"
                         onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadThumbnail(f,"editBlog"); e.target.value=""; }}/>
