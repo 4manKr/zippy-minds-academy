@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import RichTextEditor from "@/components/RichTextEditor";
 
-type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content"|"availability"|"leads"|"blog";
+type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content"|"availability"|"leads"|"blog"|"free-resources";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
@@ -128,9 +128,23 @@ export default function AdminDashboard() {
   const editBlogThumbRef = useRef<HTMLInputElement>(null);
 
   // Thumbnail image upload
-  const [thumbUploading, setThumbUploading] = useState<"edit"|"add"|"editBlog"|"addBlog"|null>(null);
+  const [thumbUploading, setThumbUploading] = useState<"edit"|"add"|"editBlog"|"addBlog"|"editFreeRes"|"addFreeRes"|null>(null);
   const editThumbRef = useRef<HTMLInputElement>(null);
   const addThumbRef  = useRef<HTMLInputElement>(null);
+
+  // Free Resources
+  interface DBFreeResource { id:string; title:string; description:string; fileUrl:string; fileType:string; fileSize:string; thumbnail:string; category:string; tags:string; downloads:number; status:string; createdAt:string; }
+  const [freeResources,        setFreeResources]        = useState<DBFreeResource[]>([]);
+  const [freeResourcesLoaded,  setFreeResourcesLoaded]  = useState(false);
+  const [editFreeResource,     setEditFreeResource]     = useState<DBFreeResource|null>(null);
+  const [addingFreeResource,   setAddingFreeResource]   = useState(false);
+  const [freeResourceSaveMsg,  setFreeResourceSaveMsg]  = useState<{type:"ok"|"err";text:string}|null>(null);
+  const [newFreeResource,      setNewFreeResource]      = useState({ title:"", description:"", fileUrl:"", fileType:"", fileSize:"", thumbnail:"", category:"Other", tags:"", status:"draft" });
+  const [freeResFileUploading, setFreeResFileUploading] = useState<"add"|"edit"|null>(null);
+  const freeResFileRef         = useRef<HTMLInputElement>(null);
+  const freeResThumbRef        = useRef<HTMLInputElement>(null);
+  const editFreeResFileRef     = useRef<HTMLInputElement>(null);
+  const editFreeResThumbRef    = useRef<HTMLInputElement>(null);
 
   // Tutor add / edit
   const TUTOR_SUBJECTS = ["Phonics","English Grammar","Mathematics","Public Speaking","Writing & Communication","Coding","Science","Life Skills","Hindi","General Knowledge","Creative Arts","Social Studies"];
@@ -215,6 +229,11 @@ export default function AdminDashboard() {
         if (d.posts) { setBlogs(d.posts); setBlogsLoaded(true); }
       }).catch(()=>{});
     }
+    if (section === "free-resources" && !freeResourcesLoaded) {
+      fetch("/api/admin/free-resources").then(r=>r.ok?r.json():{resources:[]}).then(d => {
+        if (d.resources) { setFreeResources(d.resources); setFreeResourcesLoaded(true); }
+      }).catch(()=>{});
+    }
     if (section === "tutors") {
       fetch("/api/admin/tutor-priority").then(r=>r.ok?r.json():{tutors:[]}).then(d => {
         if (d.tutors) {
@@ -225,7 +244,7 @@ export default function AdminDashboard() {
         }
       }).catch(()=>{});
     }
-  }, [section, leadsLoaded]);
+  }, [section, leadsLoaded, freeResourcesLoaded]);
 
   const handleSavePriority = async (tutorId: string) => {
     const raw = priorityEdits[tutorId] ?? "";
@@ -481,8 +500,80 @@ export default function AdminDashboard() {
     if (data.post) setBlogs(b=>b.map(x=>x.id===id?data.post:x));
   };
 
+  // ── Free Resources CRUD ───────────────────────────────────────────────────
+  const uploadFreeResourceFile = async (file: File, target: "add"|"edit") => {
+    setFreeResFileUploading(target);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res  = await fetch("/api/admin/upload-resource", { method:"POST", body:form });
+      const data = await res.json();
+      if (data.url) {
+        if (target === "add")  setNewFreeResource(p => ({ ...p, fileUrl:data.url, fileType:data.type||"", fileSize:data.size||"" }));
+        else                   setEditFreeResource(p => p ? { ...p, fileUrl:data.url, fileType:data.type||"", fileSize:data.size||"" } : null);
+      }
+    } catch { /* ignore */ }
+    setFreeResFileUploading(null);
+  };
+
+  const handleAddFreeResource = async () => {
+    if (!newFreeResource.title.trim()) return;
+    setLoad("addFreeRes", true); setFreeResourceSaveMsg(null);
+    try {
+      const res  = await fetch("/api/admin/free-resources", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ ...newFreeResource, tags: newFreeResource.tags.split(",").map(t=>t.trim()).filter(Boolean) }),
+      });
+      const data = await res.json();
+      if (data.resource) {
+        setFreeResources(r => [data.resource, ...r]);
+        setNewFreeResource({ title:"", description:"", fileUrl:"", fileType:"", fileSize:"", thumbnail:"", category:"Other", tags:"", status:"draft" });
+        setAddingFreeResource(false);
+        setFreeResourceSaveMsg({ type:"ok", text:"Resource created successfully!" });
+      } else {
+        setFreeResourceSaveMsg({ type:"err", text: data.error || "Failed to create" });
+      }
+    } catch { setFreeResourceSaveMsg({ type:"err", text:"Network error" }); }
+    setLoad("addFreeRes", false);
+  };
+
+  const handleSaveFreeResource = async () => {
+    if (!editFreeResource) return;
+    setLoad("editFreeRes", true); setFreeResourceSaveMsg(null);
+    try {
+      const res  = await fetch("/api/admin/free-resources", {
+        method:"PATCH", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ ...editFreeResource, tags: typeof editFreeResource.tags === "string"
+          ? editFreeResource.tags.split(",").map(t=>t.trim()).filter(Boolean)
+          : editFreeResource.tags }),
+      });
+      const data = await res.json();
+      if (data.resource) {
+        setFreeResources(r => r.map(x => x.id===editFreeResource.id ? data.resource : x));
+        setEditFreeResource(null);
+        setFreeResourceSaveMsg({ type:"ok", text:"Saved!" });
+      } else {
+        setFreeResourceSaveMsg({ type:"err", text: data.error || "Failed to save" });
+      }
+    } catch { setFreeResourceSaveMsg({ type:"err", text:"Network error" }); }
+    setLoad("editFreeRes", false);
+  };
+
+  const handleDeleteFreeResource = async (id: string) => {
+    if (!confirm("Delete this resource permanently?")) return;
+    await fetch("/api/admin/free-resources", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id }) });
+    setFreeResources(r => r.filter(x => x.id !== id));
+  };
+
+  const handleToggleFreeResourceStatus = async (id: string, current: string) => {
+    const status = current === "published" ? "draft" : "published";
+    const res  = await fetch("/api/admin/free-resources", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id, status }) });
+    const data = await res.json();
+    if (data.resource) setFreeResources(r => r.map(x => x.id===id ? data.resource : x));
+  };
+
   // ── Thumbnail upload ──────────────────────────────────────────────────────
-  const uploadThumbnail = useCallback(async (file: File, target: "edit"|"add"|"editBlog"|"addBlog") => {
+  const uploadThumbnail = useCallback(async (file: File, target: "edit"|"add"|"editBlog"|"addBlog"|"editFreeRes"|"addFreeRes") => {
     setThumbUploading(target);
     const form = new FormData();
     form.append("file", file);
@@ -490,10 +581,12 @@ export default function AdminDashboard() {
       const res  = await fetch("/api/admin/upload-image", { method:"POST", body:form });
       const data = await res.json();
       if (data.url) {
-        if      (target === "edit")     setEditCourse(p => p ? { ...p, thumbnail: data.url } : null);
-        else if (target === "add")      setNewCourse(p => ({ ...p, thumbnail: data.url }));
-        else if (target === "editBlog") setEditBlog(p => p ? { ...p, thumbnail: data.url } : null);
-        else if (target === "addBlog")  setNewBlog(p => ({ ...p, thumbnail: data.url }));
+        if      (target === "edit")        setEditCourse(p => p ? { ...p, thumbnail: data.url } : null);
+        else if (target === "add")         setNewCourse(p => ({ ...p, thumbnail: data.url }));
+        else if (target === "editBlog")    setEditBlog(p => p ? { ...p, thumbnail: data.url } : null);
+        else if (target === "addBlog")     setNewBlog(p => ({ ...p, thumbnail: data.url }));
+        else if (target === "editFreeRes") setEditFreeResource(p => p ? { ...p, thumbnail: data.url } : null);
+        else if (target === "addFreeRes")  setNewFreeResource(p => ({ ...p, thumbnail: data.url }));
       }
     } catch { /* ignore */ }
     setThumbUploading(null);
@@ -714,7 +807,8 @@ export default function AdminDashboard() {
     { id:"settings",      icon:Settings,     label:"Settings"                          },
     { id:"availability",  icon:CalendarDays, label:"Availability"                      },
     { id:"leads",         icon:Phone,        label:"Leads", badge:leads.length||undefined },
-    { id:"blog",          icon:FileText,     label:"Blog Posts"                            },
+    { id:"blog",           icon:FileText,     label:"Blog Posts"                            },
+    { id:"free-resources", icon:Download,     label:"Free Resources", badge:freeResources.length||undefined },
   ];
 
   const sectionTitle: Record<Section,string> = {
@@ -724,6 +818,7 @@ export default function AdminDashboard() {
     support:"Support Tickets", settings:"Platform Settings", availability:"Tutor Availability",
     leads:"Lead Enquiries",
     blog:"Blog Posts",
+    "free-resources":"Free Resources",
   };
 
   const isLoading = loading["init"];
@@ -3126,6 +3221,274 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── Free Resources ── */}
+          {section==="free-resources" && (
+            <div className="p-6 space-y-6">
+              {/* Header */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                  <div>
+                    <h2 className="font-bold text-gray-900">Free Resources ({freeResources.length})</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Upload and manage downloadable materials visible at /resources</p>
+                  </div>
+                  <button onClick={()=>{setAddingFreeResource(v=>!v);setFreeResourceSaveMsg(null);}}
+                    className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors">
+                    <Plus size={15}/> {addingFreeResource ? "Cancel" : "Add Resource"}
+                  </button>
+                </div>
+
+                {freeResourceSaveMsg && (
+                  <div className={`mx-6 mt-4 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 ${freeResourceSaveMsg.type==="ok"?"bg-green-50 text-green-700 border border-green-200":"bg-red-50 text-red-700 border border-red-200"}`}>
+                    {freeResourceSaveMsg.type==="ok" ? <CheckCircle size={15}/> : <AlertTriangle size={15}/>}
+                    {freeResourceSaveMsg.text}
+                  </div>
+                )}
+
+                {/* Add Form */}
+                {addingFreeResource && (
+                  <div className="p-6 border-b border-gray-100 bg-teal-50/30">
+                    <h3 className="font-semibold text-gray-800 text-sm mb-4">New Resource</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Title *</label>
+                        <input value={newFreeResource.title} onChange={e=>setNewFreeResource(p=>({...p,title:e.target.value}))}
+                          placeholder="e.g. Grade 3 Maths Worksheet"
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"/>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Description</label>
+                        <textarea value={newFreeResource.description} onChange={e=>setNewFreeResource(p=>({...p,description:e.target.value}))}
+                          placeholder="Brief description of this resource…" rows={2}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"/>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Category</label>
+                        <select value={newFreeResource.category} onChange={e=>setNewFreeResource(p=>({...p,category:e.target.value}))}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+                          {["Worksheets","Study Guides","Presentations","Videos","Audio","Templates","Other"].map(c=><option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+                        <select value={newFreeResource.status} onChange={e=>setNewFreeResource(p=>({...p,status:e.target.value}))}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+                          <option value="draft">Draft (hidden)</option>
+                          <option value="published">Published (visible)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Tags (comma-separated)</label>
+                        <input value={newFreeResource.tags} onChange={e=>setNewFreeResource(p=>({...p,tags:e.target.value}))}
+                          placeholder="e.g. maths, grade3, worksheet"
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"/>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Thumbnail (optional)</label>
+                        <div className="flex gap-2">
+                          <input value={newFreeResource.thumbnail} onChange={e=>setNewFreeResource(p=>({...p,thumbnail:e.target.value}))}
+                            placeholder="https://… or upload →"
+                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"/>
+                          <button type="button" onClick={()=>freeResThumbRef.current?.click()} disabled={thumbUploading==="addFreeRes"}
+                            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-teal-200 text-teal-600 text-sm font-semibold hover:bg-teal-50 disabled:opacity-60 shrink-0 transition-colors">
+                            {thumbUploading==="addFreeRes" ? <div className="w-4 h-4 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin"/> : <><Upload size={14}/> Upload</>}
+                          </button>
+                          <input ref={freeResThumbRef} type="file" accept="image/*" className="hidden"
+                            onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadThumbnail(f,"addFreeRes"); e.target.value=""; }}/>
+                        </div>
+                        {newFreeResource.thumbnail && (
+                          <div className="relative mt-2">
+                            <img src={newFreeResource.thumbnail} alt="thumb" className="h-20 w-full object-cover rounded-xl border border-gray-100"/>
+                            <button type="button" onClick={()=>setNewFreeResource(p=>({...p,thumbnail:""}))}
+                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors"><X size={11}/></button>
+                          </div>
+                        )}
+                      </div>
+                      {/* File upload */}
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Resource File (PDF, Word, PPT, Video, etc. — max 50 MB)</label>
+                        <div className="flex gap-2">
+                          <input value={newFreeResource.fileUrl} onChange={e=>setNewFreeResource(p=>({...p,fileUrl:e.target.value}))}
+                            placeholder="Paste URL or upload file →"
+                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"/>
+                          <button type="button" onClick={()=>freeResFileRef.current?.click()} disabled={freeResFileUploading==="add"}
+                            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-teal-200 text-teal-600 text-sm font-semibold hover:bg-teal-50 disabled:opacity-60 shrink-0 transition-colors">
+                            {freeResFileUploading==="add" ? <div className="w-4 h-4 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin"/> : <><Upload size={14}/> Upload File</>}
+                          </button>
+                          <input ref={freeResFileRef} type="file" className="hidden"
+                            onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadFreeResourceFile(f,"add"); e.target.value=""; }}/>
+                        </div>
+                        {newFreeResource.fileUrl && (
+                          <div className="mt-2 flex items-center gap-2 text-xs text-teal-700 bg-teal-50 px-3 py-2 rounded-xl border border-teal-100">
+                            <FileText size={12}/> File ready
+                            {newFreeResource.fileSize && <span className="text-gray-500">({newFreeResource.fileSize})</span>}
+                            {newFreeResource.fileType && <span className="ml-auto text-gray-400 font-mono">{newFreeResource.fileType}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-3 mt-4">
+                      <button onClick={()=>setAddingFreeResource(false)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                      <button onClick={handleAddFreeResource} disabled={loading["addFreeRes"] || !newFreeResource.title.trim()}
+                        className="flex-1 bg-teal-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                        {loading["addFreeRes"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Plus size={14}/> Create Resource</>}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-gray-50">{["Resource","Category","File","Downloads","Status","Actions"].map(h=><th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>)}</tr></thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {freeResources.length===0 && (
+                        <tr><td colSpan={6} className="px-5 py-10 text-center text-gray-400 text-sm">No resources yet — click "Add Resource" above to upload your first material</td></tr>
+                      )}
+                      {freeResources.map(r=>(
+                        <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 max-w-[240px]">
+                            <div className="flex items-center gap-3">
+                              {r.thumbnail ? (
+                                <img src={r.thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0"/>
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center shrink-0 text-teal-600"><FileText size={16}/></div>
+                              )}
+                              <div>
+                                <p className="font-semibold text-gray-900 text-xs leading-snug line-clamp-2">{r.title}</p>
+                                {r.description && <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{r.description}</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-600">{r.category}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[10px] font-bold uppercase text-gray-500">{r.fileType ? r.fileType.split("/").pop() : "—"}</span>
+                              {r.fileSize && <span className="text-[10px] text-gray-400">{r.fileSize}</span>}
+                              {r.fileUrl && (
+                                <a href={r.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-teal-600 hover:underline">Preview ↗</a>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-600 text-center">{r.downloads}</td>
+                          <td className="px-4 py-3">
+                            <button onClick={()=>handleToggleFreeResourceStatus(r.id, r.status)}
+                              className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors ${r.status==="published"?"bg-green-100 text-green-700 hover:bg-green-200":"bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                              {r.status}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <button onClick={()=>setEditFreeResource({...r, tags: (() => { try{return (JSON.parse(r.tags) as string[]).join(", ");}catch{return r.tags;} })() })}
+                                className="p-1.5 rounded-lg border border-teal-200 text-teal-600 hover:bg-teal-50 transition-colors" title="Edit"><Edit2 size={13}/></button>
+                              <button onClick={()=>handleDeleteFreeResource(r.id)}
+                                className="p-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors" title="Delete"><Trash2 size={13}/></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Edit Modal */}
+              {editFreeResource && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={()=>setEditFreeResource(null)}>
+                  <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={e=>e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="font-bold text-gray-900">Edit Resource</h3>
+                      <button onClick={()=>setEditFreeResource(null)} className="text-gray-400 hover:text-gray-700"><X size={18}/></button>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Title</label>
+                        <input value={editFreeResource.title} onChange={e=>setEditFreeResource(p=>p?{...p,title:e.target.value}:null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"/>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Description</label>
+                        <textarea value={editFreeResource.description} onChange={e=>setEditFreeResource(p=>p?{...p,description:e.target.value}:null)}
+                          rows={2} className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"/>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">Category</label>
+                          <select value={editFreeResource.category} onChange={e=>setEditFreeResource(p=>p?{...p,category:e.target.value}:null)}
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+                            {["Worksheets","Study Guides","Presentations","Videos","Audio","Templates","Other"].map(c=><option key={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+                          <select value={editFreeResource.status} onChange={e=>setEditFreeResource(p=>p?{...p,status:e.target.value}:null)}
+                            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+                            <option value="draft">Draft</option>
+                            <option value="published">Published</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Tags (comma-separated)</label>
+                        <input value={editFreeResource.tags} onChange={e=>setEditFreeResource(p=>p?{...p,tags:e.target.value}:null)}
+                          placeholder="maths, grade3, worksheet"
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"/>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Thumbnail</label>
+                        <div className="flex gap-2">
+                          <input value={editFreeResource.thumbnail} onChange={e=>setEditFreeResource(p=>p?{...p,thumbnail:e.target.value}:null)}
+                            placeholder="https://… or upload →"
+                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"/>
+                          <button type="button" onClick={()=>editFreeResThumbRef.current?.click()} disabled={thumbUploading==="editFreeRes"}
+                            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-teal-200 text-teal-600 text-sm font-semibold hover:bg-teal-50 disabled:opacity-60 shrink-0">
+                            {thumbUploading==="editFreeRes" ? <div className="w-4 h-4 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin"/> : <><Upload size={14}/> Upload</>}
+                          </button>
+                          <input ref={editFreeResThumbRef} type="file" accept="image/*" className="hidden"
+                            onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadThumbnail(f,"editFreeRes"); e.target.value=""; }}/>
+                        </div>
+                        {editFreeResource.thumbnail && (
+                          <div className="relative mt-2">
+                            <img src={editFreeResource.thumbnail} alt="thumb" className="h-20 w-full object-cover rounded-xl border border-gray-100"/>
+                            <button type="button" onClick={()=>setEditFreeResource(p=>p?{...p,thumbnail:""}:null)}
+                              className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 hover:bg-red-600 text-white rounded-full flex items-center justify-center"><X size={11}/></button>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Resource File (leave unchanged to keep existing)</label>
+                        <div className="flex gap-2">
+                          <input value={editFreeResource.fileUrl} onChange={e=>setEditFreeResource(p=>p?{...p,fileUrl:e.target.value}:null)}
+                            placeholder="Paste URL or upload file →"
+                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30"/>
+                          <button type="button" onClick={()=>editFreeResFileRef.current?.click()} disabled={freeResFileUploading==="edit"}
+                            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-teal-200 text-teal-600 text-sm font-semibold hover:bg-teal-50 disabled:opacity-60 shrink-0">
+                            {freeResFileUploading==="edit" ? <div className="w-4 h-4 border-2 border-teal-300 border-t-teal-600 rounded-full animate-spin"/> : <><Upload size={14}/> Replace</>}
+                          </button>
+                          <input ref={editFreeResFileRef} type="file" className="hidden"
+                            onChange={e=>{ const f=e.target.files?.[0]; if(f) uploadFreeResourceFile(f,"edit"); e.target.value=""; }}/>
+                        </div>
+                        {editFreeResource.fileUrl && (
+                          <div className="mt-2 flex items-center gap-2 text-xs text-teal-700 bg-teal-50 px-3 py-2 rounded-xl border border-teal-100">
+                            <FileText size={12}/> File attached
+                            {editFreeResource.fileSize && <span className="text-gray-500">({editFreeResource.fileSize})</span>}
+                            <a href={editFreeResource.fileUrl} target="_blank" rel="noopener noreferrer" className="ml-auto text-teal-600 hover:underline text-[10px]">Preview ↗</a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-3 mt-5">
+                      <button onClick={()=>setEditFreeResource(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                      <button onClick={handleSaveFreeResource} disabled={loading["editFreeRes"]}
+                        className="flex-1 bg-teal-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                        {loading["editFreeRes"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Changes</>}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

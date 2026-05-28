@@ -135,6 +135,23 @@ model Blog {
   updatedAt DateTime @updatedAt
 }
 
+// Free Resources — publicly viewable, login required to download
+model FreeResource {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  fileUrl     String   @default("")   // Cloudinary URL (raw or image)
+  fileType    String   @default("")   // MIME type, e.g. "application/pdf"
+  fileSize    String   @default("")   // human-readable, e.g. "2.4 MB"
+  thumbnail   String   @default("")   // optional cover image URL
+  category    String   @default("Other")  // Worksheets | Study Guides | Presentations | Videos | Audio | Templates | Other
+  tags        String   @default("[]") // JSON array of tag strings
+  downloads   Int      @default(0)
+  status      String   @default("draft") // draft | published
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // Lead capture — website popup (name + WhatsApp number)
 model Lead {
   id        String   @id @default(cuid())

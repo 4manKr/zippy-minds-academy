@@ -8,6 +8,7 @@ import { useSiteSettings } from "@/context/SiteSettingsContext";
 const footerLinks = {
   Platform: [
     { label: "Courses",       href: "/courses"    },
+    { label: "Free Resources",href: "/resources"  },
     { label: "Book Free Demo",href: "/book-demo"  },
     { label: "Our Tutors",    href: "/tutors"     },
   ],

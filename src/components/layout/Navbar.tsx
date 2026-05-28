@@ -9,10 +9,11 @@ import { cn } from "@/lib/utils";
 import DemoCTA from "@/components/DemoCTA";
 
 const navLinks = [
-  { label: "About Us", href: "/about"   },
-  { label: "Courses",  href: "/courses" },
-  { label: "Blog",     href: "/blog"    },
-  { label: "Contact",  href: "/contact" },
+  { label: "About Us",  href: "/about"      },
+  { label: "Courses",   href: "/courses"    },
+  { label: "Blog",      href: "/blog"       },
+  { label: "Resources", href: "/resources"  },
+  { label: "Contact",   href: "/contact"    },
 ];
 
 interface AuthUser { name: string; email: string; role: string; }
