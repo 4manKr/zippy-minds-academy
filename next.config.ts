@@ -25,7 +25,7 @@ const securityHeaders = [
       // Fonts
       "font-src 'self' https://fonts.gstatic.com",
       // Images: self + data URIs + external image hosts used by the app
-      "img-src 'self' data: blob: https://images.unsplash.com https://randomuser.me https://ui-avatars.com https://zippymindsacademy.com https://www.zippymindsacademy.com",
+      "img-src 'self' data: blob: https://images.unsplash.com https://randomuser.me https://ui-avatars.com https://zippymindsacademy.com https://www.zippymindsacademy.com https://res.cloudinary.com",
       // Connect (API fetch, WebSocket, analytics)
       "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://www.google-analytics.com https://www.googletagmanager.com https://api-m.paypal.com https://api-m.sandbox.paypal.com https://zippy-minds-zippy-minds.aws-ap-south-1.turso.io",
       // Frames: PayPal and Razorpay need their own iframes
@@ -44,6 +44,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "randomuser.me" },
       { protocol: "https", hostname: "ui-avatars.com" },
+      { protocol: "https", hostname: "res.cloudinary.com" },
     ],
   },
 
