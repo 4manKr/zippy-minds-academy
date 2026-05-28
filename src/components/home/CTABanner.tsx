@@ -10,7 +10,7 @@ export default function CTABanner() {
   return (
     <section className="py-24 bg-surface">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-16">
-        <div className="relative overflow-hidden rounded-[48px] bg-primary px-12 py-16 md:px-20 md:py-20 text-center">
+        <div className="relative overflow-hidden rounded-3xl sm:rounded-[40px] bg-primary px-6 sm:px-12 py-12 sm:py-16 md:px-20 md:py-20 text-center">
 
           {/* Decorative blobs */}
           <div className="absolute -top-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
