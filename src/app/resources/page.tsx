@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Search, Download, FileText, FileImage, Presentation,
   Video, Music, Archive, File, Lock, Filter, X, Loader2,
-  BookOpen, ChevronRight,
+  BookOpen, ChevronRight, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -60,29 +60,51 @@ function fileIconBg(mimeType: string) {
 
 function fileLabel(mimeType: string) {
   if (!mimeType) return "File";
-  if (mimeType === "application/pdf")         return "PDF";
-  if (mimeType.startsWith("image/"))          return "Image";
-  if (mimeType.startsWith("video/"))          return "Video";
-  if (mimeType.startsWith("audio/"))          return "Audio";
-  if (mimeType.includes("word") ||
-      mimeType.includes("document"))          return "Word";
-  if (mimeType.includes("presentation") ||
-      mimeType.includes("powerpoint"))        return "PowerPoint";
-  if (mimeType.includes("spreadsheet") ||
-      mimeType.includes("excel"))             return "Excel";
-  if (mimeType.includes("zip"))               return "ZIP";
+  if (mimeType === "application/pdf")                       return "PDF";
+  if (mimeType.startsWith("image/"))                        return "Image";
+  if (mimeType.startsWith("video/"))                        return "Video";
+  if (mimeType.startsWith("audio/"))                        return "Audio";
+  if (mimeType.includes("word") || mimeType.includes("document")) return "Word";
+  if (mimeType.includes("presentation") || mimeType.includes("powerpoint")) return "PPT";
+  if (mimeType.includes("spreadsheet")  || mimeType.includes("excel"))      return "Excel";
+  if (mimeType.includes("zip"))                             return "ZIP";
   return "File";
+}
+
+/** Guess a file extension from MIME type or URL */
+function guessExt(mimeType: string, url: string): string {
+  // Try URL first
+  const urlExt = url.split("?")[0].split(".").pop();
+  if (urlExt && urlExt.length <= 5) return urlExt;
+  // Fallback from MIME
+  const MAP: Record<string, string> = {
+    "application/pdf": "pdf",
+    "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+    "video/mp4": "mp4", "video/webm": "webm",
+    "audio/mpeg": "mp3", "audio/ogg": "ogg",
+    "application/zip": "zip",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  };
+  return MAP[mimeType] ?? "file";
 }
 
 // ─── Resource Card ────────────────────────────────────────────────────────────
 function ResourceCard({
   resource,
+  onView,
   onDownload,
+  viewing,
   downloading,
+  isLoggedIn,
 }: {
   resource: FreeResource;
+  onView: (id: string) => void;
   onDownload: (id: string) => void;
+  viewing: boolean;
   downloading: boolean;
+  isLoggedIn: boolean | null;
 }) {
   const tags = parseTags(resource.tags);
 
@@ -100,7 +122,7 @@ function ResourceCard({
           />
         ) : (
           <div className={cn("flex items-center justify-center h-full w-full", fileIconBg(resource.fileType))}>
-            <div className="text-5xl opacity-70">{fileIcon(resource.fileType)}</div>
+            <div className="opacity-70">{fileIcon(resource.fileType)}</div>
           </div>
         )}
         {/* Category badge */}
@@ -142,17 +164,31 @@ function ResourceCard({
         </div>
       </div>
 
-      {/* Download button */}
-      <div className="px-4 pb-4">
+      {/* Action buttons */}
+      <div className="px-4 pb-4 flex gap-2">
+        {/* View — no login needed */}
+        <button
+          onClick={() => onView(resource.id)}
+          disabled={viewing}
+          title="View in browser"
+          className="flex items-center justify-center gap-1.5 border border-outline-variant text-on-surface-variant font-semibold text-sm py-2.5 px-3 rounded-xl hover:bg-surface-container hover:text-primary transition-all disabled:opacity-60 shrink-0"
+        >
+          {viewing ? <Loader2 size={15} className="animate-spin" /> : <Eye size={15} />}
+          <span className="hidden sm:inline">View</span>
+        </button>
+
+        {/* Download — login required */}
         <button
           onClick={() => onDownload(resource.id)}
           disabled={downloading}
-          className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary font-bold text-sm py-2.5 rounded-xl hover:opacity-90 transition-all disabled:opacity-60"
+          className="flex-1 flex items-center justify-center gap-2 bg-primary text-on-primary font-bold text-sm py-2.5 rounded-xl hover:opacity-90 transition-all disabled:opacity-60"
         >
           {downloading ? (
-            <><Loader2 size={15} className="animate-spin" /> Downloading…</>
-          ) : (
+            <><Loader2 size={15} className="animate-spin" /> Saving…</>
+          ) : isLoggedIn ? (
             <><Download size={15} /> Download</>
+          ) : (
+            <><Lock size={14} /> Download</>
           )}
         </button>
       </div>
@@ -165,7 +201,7 @@ function LoginGateModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center relative animate-scale-in"
+        className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center relative"
         onClick={e => e.stopPropagation()}
       >
         <button onClick={onClose} className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface">
@@ -195,13 +231,14 @@ function LoginGateModal({ onClose }: { onClose: () => void }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ResourcesPage() {
-  const [resources,    setResources]    = useState<FreeResource[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [search,       setSearch]       = useState("");
-  const [category,     setCategory]     = useState("All");
-  const [showGate,     setShowGate]     = useState(false);
-  const [downloading,  setDownloading]  = useState<string | null>(null);
-  const [isLoggedIn,   setIsLoggedIn]   = useState<boolean | null>(null);
+  const [resources,   setResources]   = useState<FreeResource[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [search,      setSearch]      = useState("");
+  const [category,    setCategory]    = useState("All");
+  const [showGate,    setShowGate]    = useState(false);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [viewing,     setViewing]     = useState<string | null>(null);
+  const [isLoggedIn,  setIsLoggedIn]  = useState<boolean | null>(null);
 
   // Check auth state
   useEffect(() => {
@@ -211,7 +248,7 @@ export default function ResourcesPage() {
       .catch(() => setIsLoggedIn(false));
   }, []);
 
-  // Fetch resources
+  // Fetch published resources (no fileUrl in list)
   useEffect(() => {
     setLoading(true);
     fetch("/api/free-resources")
@@ -231,27 +268,65 @@ export default function ResourcesPage() {
     return matchesSearch && matchesCat;
   });
 
+  // ── VIEW (no login needed) ──────────────────────────────────────────────────
+  const handleView = useCallback(async (id: string) => {
+    setViewing(id);
+    try {
+      const res  = await fetch(`/api/free-resources?id=${id}`);
+      const data = await res.json();
+      const url  = data.resource?.fileUrl;
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        alert("File not available for viewing.");
+      }
+    } catch {
+      alert("Could not open file.");
+    } finally {
+      setViewing(null);
+    }
+  }, []);
+
+  // ── DOWNLOAD (login required) ───────────────────────────────────────────────
   const handleDownload = useCallback(async (id: string) => {
     if (!isLoggedIn) { setShowGate(true); return; }
     setDownloading(id);
     try {
-      const res = await fetch("/api/free-resources", {
-        method: "POST",
+      // 1. Get the authenticated download URL (also increments counter)
+      const res  = await fetch("/api/free-resources", {
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body:    JSON.stringify({ id }),
       });
       const data = await res.json();
       if (!res.ok) { alert(data.error || "Download failed"); return; }
-      // Trigger browser download
-      const a = document.createElement("a");
-      a.href     = data.url;
-      a.download = data.name || "resource";
-      a.target   = "_blank";
-      a.rel      = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      // Update local download count
+
+      const { url, name, type } = data as { url: string; name: string; type: string };
+
+      // 2. Fetch as blob so the browser saves it instead of navigating
+      try {
+        const fileRes = await fetch(url);
+        if (!fileRes.ok) throw new Error("fetch failed");
+        const blob    = await fileRes.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const ext     = guessExt(type, url);
+        const filename = name
+          ? (name.includes(".") ? name : `${name}.${ext}`)
+          : `resource.${ext}`;
+
+        const a = document.createElement("a");
+        a.href     = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      } catch {
+        // CORS / network issue — fall back to direct open (browser will handle save)
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+
+      // 3. Update local counter
       setResources(prev => prev.map(r => r.id === id ? { ...r, downloads: r.downloads + 1 } : r));
     } finally {
       setDownloading(null);
@@ -269,11 +344,12 @@ export default function ResourcesPage() {
             <BookOpen size={15} /> Free Learning Resources
           </div>
           <h1 className="font-display text-4xl md:text-5xl font-extrabold text-on-surface mb-4 leading-tight">
-            Download Free Study Materials
+            Free Study Materials
           </h1>
           <p className="text-on-surface-variant text-lg max-w-2xl mx-auto mb-10 leading-relaxed">
             Worksheets, study guides, presentations and more — curated by our expert tutors.
-            Browse freely, log in to download.
+            <br className="hidden sm:block" />
+            <span className="font-semibold text-primary">View freely</span> · Log in to download.
           </p>
 
           {/* Search */}
@@ -365,8 +441,11 @@ export default function ResourcesPage() {
                   <ResourceCard
                     key={resource.id}
                     resource={resource}
+                    onView={handleView}
                     onDownload={handleDownload}
+                    viewing={viewing === resource.id}
                     downloading={downloading === resource.id}
+                    isLoggedIn={isLoggedIn}
                   />
                 ))}
               </div>
@@ -375,7 +454,7 @@ export default function ResourcesPage() {
         </div>
       </section>
 
-      {/* ── Login CTA (for non-logged-in users) ── */}
+      {/* ── Login CTA banner (guests only) ── */}
       {isLoggedIn === false && (
         <section className="py-12 bg-primary/5 border-t border-outline-variant">
           <div className="max-w-2xl mx-auto px-4 text-center">
