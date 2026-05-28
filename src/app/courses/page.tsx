@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search, Star, Filter, IndianRupee, DollarSign, BookOpen, Sparkles, CheckCircle, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
-import { SUBJECT_COLORS } from "@/lib/utils";
+import { getSubjectColors } from "@/lib/utils";
 import DemoCTA from "@/components/DemoCTA";
 import CustomCourseModal from "@/components/CustomCourseModal";
 import { usePricingVisibility } from "@/hooks/usePricingVisibility";
@@ -298,7 +298,7 @@ export default function CoursesPage() {
             {filtered.map((course) => {
               const meta        = COURSE_META[course.name] ?? DEFAULT_META;
               const subjectName = course.subject?.name ?? course.name;
-              const colors      = SUBJECT_COLORS[subjectName] ?? SUBJECT_COLORS[course.name] ?? SUBJECT_COLORS["Science"];
+              const colors      = getSubjectColors(subjectName);
               // Prefer DB values; fall back to hardcoded meta
               const displayAge     = course.ageRange     || meta.ageGroup;
               const displayRating  = course.rating > 0   ? course.rating  : meta.rating;

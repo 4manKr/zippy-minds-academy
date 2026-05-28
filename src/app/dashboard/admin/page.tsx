@@ -375,7 +375,14 @@ export default function AdminDashboard() {
     setLoad("editSubject", true);
     const res = await fetch("/api/admin/courses", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ type:"subject", subjectId:editSubject.id, name:editSubject.name, ageGroup:editSubject.ageGroup, totalDuration:editSubject.totalDuration, color:editSubject.color }) });
     const data = await res.json();
-    if (data.subject) { setSubjects(s=>s.map(x=>x.id===editSubject.id?{...data.subject,courses:x.courses}:x)); setEditSubject(null); }
+    if (data.subject) {
+      setSubjects(s=>s.map(x=>x.id===editSubject.id?{...data.subject,courses:x.courses}:x));
+      // Keep courses' embedded subject info in sync so colors update immediately
+      setCourses(c=>c.map(x=>x.subjectId===data.subject.id
+        ? {...x, subject:{ id:data.subject.id, name:data.subject.name, color:data.subject.color }}
+        : x));
+      setEditSubject(null);
+    }
     else await fetchAll(); // refetch on error to keep UI in sync
     setLoad("editSubject", false);
   };
