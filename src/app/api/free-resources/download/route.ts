@@ -59,7 +59,9 @@ export async function GET(req: NextRequest) {
     if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
 
     // ── Fetch record ─────────────────────────────────────────────────────────
-    const resource = await prisma.freeResource.findUnique({
+    // Use findFirst — findUnique only accepts unique-indexed fields in where,
+    // so compound { id, status } can behave unexpectedly with the libSQL adapter.
+    const resource = await prisma.freeResource.findFirst({
       where: { id, status: "published" },
     });
     if (!resource)          return NextResponse.json({ error: "Not found" },         { status: 404 });
@@ -77,16 +79,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "File unavailable from storage" }, { status: 502 });
     }
 
-    const filename = safeFilename(resource.title, resource.fileType, resource.fileUrl);
+    // Safety: if Cloudinary returned an HTML / JSON error page, bail out
+    const upstreamContentType = upstream.headers.get("content-type") ?? "";
+    if (upstreamContentType.includes("text/html") || upstreamContentType.includes("application/json")) {
+      return NextResponse.json({ error: "File unavailable from storage" }, { status: 502 });
+    }
+
+    // Prefer the MIME type we saved; fall back to what upstream reports
+    const contentType = resource.fileType || upstreamContentType || "application/octet-stream";
+    const filename    = safeFilename(resource.title, contentType, resource.fileUrl);
 
     // Stream the upstream body straight back to the client
     return new Response(upstream.body, {
       status: 200,
       headers: {
-        "Content-Type":        resource.fileType || "application/octet-stream",
+        "Content-Type":        contentType,
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control":       "private, no-store",
-        // Pass content-length through if upstream sent it
         ...(upstream.headers.get("content-length")
           ? { "Content-Length": upstream.headers.get("content-length")! }
           : {}),

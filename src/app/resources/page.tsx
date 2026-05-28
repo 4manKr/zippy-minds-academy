@@ -295,26 +295,44 @@ export default function ResourcesPage() {
     }
   }, []);
 
-  // ── DOWNLOAD (server-side proxy → proper filename, no CORS) ─────────────────
-  const handleDownload = useCallback((id: string) => {
+  // ── DOWNLOAD ────────────────────────────────────────────────────────────────
+  // Same-origin proxy fetch → blob URL → proper Save-As dialog with real filename.
+  // No CORS issues (our own server), no random Cloudinary IDs as filenames.
+  const handleDownload = useCallback(async (id: string) => {
     if (!isLoggedIn) { setShowGate(true); return; }
     setDownloading(id);
+    try {
+      const res = await fetch(`/api/free-resources/download?id=${id}`);
 
-    // Navigate to our proxy endpoint — browser will show Save-As with correct name
-    // Using a hidden <a> click so the page doesn't navigate away
-    const a = document.createElement("a");
-    a.href   = `/api/free-resources/download?id=${id}`;
-    a.target = "_blank";          // new tab — if auth fails, user sees error there
-    a.rel    = "noopener noreferrer";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert((err as { error?: string }).error || "Download failed. Please try again.");
+        return;
+      }
 
-    // Optimistically update counter; server increments the real value
-    setResources(prev => prev.map(r => r.id === id ? { ...r, downloads: r.downloads + 1 } : r));
+      // Read filename from the Content-Disposition header set by our proxy
+      const disposition = res.headers.get("content-disposition") ?? "";
+      const nameMatch   = disposition.match(/filename="([^"]+)"/);
+      const filename    = nameMatch ? nameMatch[1] : "resource";
 
-    // Re-enable button after a short delay
-    setTimeout(() => setDownloading(null), 2000);
+      const blob    = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href     = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+      // Optimistically reflect the counter increment
+      setResources(prev => prev.map(r => r.id === id ? { ...r, downloads: r.downloads + 1 } : r));
+    } catch {
+      alert("Download failed. Please try again.");
+    } finally {
+      setDownloading(null);
+    }
   }, [isLoggedIn]);
 
   return (
