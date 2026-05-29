@@ -10,7 +10,8 @@ const securityHeaders = [
   // Stop leaking the full URL as referrer to third-party sites
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Disable unused powerful browser features
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  // NOTE: payment=(self) allows Razorpay / Stripe Payment Request API — do NOT use payment=() as that blocks payment popups
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
   // Basic XSS protection for older browsers
   { key: "X-XSS-Protection", value: "1; mode=block" },
   // Content Security Policy — restricts what scripts/styles/iframes can load
@@ -29,7 +30,7 @@ const securityHeaders = [
       // Connect (API fetch, WebSocket, analytics)
       "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://www.google-analytics.com https://www.googletagmanager.com https://api-m.paypal.com https://api-m.sandbox.paypal.com https://zippy-minds-zippy-minds.aws-ap-south-1.turso.io",
       // Frames: PayPal and Razorpay need their own iframes
-      "frame-src https://www.paypal.com https://checkout.razorpay.com https://www.googletagmanager.com",
+      "frame-src https://www.paypal.com https://checkout.razorpay.com https://api.razorpay.com https://lumberjack.razorpay.com https://www.googletagmanager.com",
       // Form submissions only to self
       "form-action 'self'",
       // Upgrade insecure requests on the fly
