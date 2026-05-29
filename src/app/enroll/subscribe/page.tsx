@@ -13,6 +13,17 @@ import Script from "next/script";
 
 declare global { interface Window { Razorpay: any; } }
 
+// ── Helpers: default days from sessionsPerWeek ────────────────────────────────
+function defaultDaysForSpw(spw: number): string[] {
+  if (spw >= 7) return ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  if (spw >= 6) return ["Mon","Tue","Wed","Thu","Fri","Sat"];
+  if (spw >= 5) return ["Mon","Tue","Wed","Thu","Fri"];
+  if (spw === 4) return ["Mon","Tue","Wed","Thu"];
+  if (spw === 3) return ["Mon","Wed","Fri"];
+  if (spw === 2) return ["Mon","Thu"];
+  return ["Mon"];
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TIME_SLOTS = [
   "8:00 AM","9:00 AM","10:00 AM","11:00 AM","12:00 PM",
@@ -173,18 +184,19 @@ function SessionPreview({ dates, timeSlot, courseName, compact }: {
 function SubscribeInner() {
   const router      = useRouter();
   const params      = useSearchParams();
-  const courseName    = params.get("course")    ?? "Subscription";
-  const courseId      = params.get("courseId")  ?? "";
-  const priceINR      = parseInt(params.get("price")    ?? "199", 10) || 199;
-  const priceUSD      = parseInt(params.get("priceUSD") ?? "15",  10) || 15;
-  const durationValue = parseInt(params.get("dv") ?? "1", 10) || 1;
-  const durationUnit  = params.get("du") ?? "months";
+  const courseName      = params.get("course")    ?? "Subscription";
+  const courseId        = params.get("courseId")  ?? "";
+  const priceINR        = parseInt(params.get("price")    ?? "199", 10) || 199;
+  const priceUSD        = parseInt(params.get("priceUSD") ?? "15",  10) || 15;
+  const durationValue   = parseInt(params.get("dv")  ?? "1", 10) || 1;
+  const durationUnit    = params.get("du") ?? "months";
+  const sessionsPerWeek = parseInt(params.get("spw") ?? "5", 10) || 5;
 
   type Step = "slot"|"details"|"payment"|"done";
   const [step, setStep] = useState<Step>("slot");
 
-  // Slot
-  const [selDays,    setSelDays]    = useState<string[]>(["Mon","Tue","Wed","Thu","Fri"]);
+  // Slot — initialise days based on the course's sessionsPerWeek setting
+  const [selDays,    setSelDays]    = useState<string[]>(() => defaultDaysForSpw(sessionsPerWeek));
   const [selTime,    setSelTime]    = useState("");
   const [popularity, setPopularity] = useState<Record<string,number>>({});
 
@@ -521,12 +533,45 @@ function SubscribeInner() {
                 )}
               </div>
 
-              {/* Session count + date range preview */}
-              {sessionDates.length > 0 && selTime && (
-                <div className="p-3 bg-primary/5 rounded-xl border border-primary/15 text-sm text-on-surface-variant">
-                  <span className="font-semibold text-on-surface">{sessionDates.length} sessions</span>
-                  {" · "}{sessionDates[0]} → {sessionDates[sessionDates.length-1]}
-                  {" · "}{daysLabel} at {selTime}
+              {/* ── Session dates preview ── */}
+              {sessionDates.length > 0 && (
+                <div className="space-y-2">
+                  {/* Summary row */}
+                  <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-xl border border-primary/15 text-sm flex-wrap">
+                    <CheckCircle size={14} className="text-primary shrink-0"/>
+                    <span className="font-semibold text-on-surface">{sessionDates.length} sessions</span>
+                    <span className="text-on-surface-variant">·</span>
+                    <span className="text-on-surface-variant">
+                      {formatDate(sessionDates[0])} → {formatDate(sessionDates[sessionDates.length - 1])}
+                    </span>
+                    {selTime && (
+                      <>
+                        <span className="text-on-surface-variant">·</span>
+                        <span className="font-medium text-primary">{daysLabel} at {selTime}</span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* First-5 upcoming session dates */}
+                  <div className="bg-surface-container rounded-xl border border-outline-variant/50 overflow-hidden">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant px-3 pt-2.5 pb-1">
+                      Upcoming session dates
+                    </p>
+                    <div className="divide-y divide-outline-variant/30">
+                      {sessionDates.slice(0, 5).map((date, i) => (
+                        <div key={date} className="flex items-center gap-3 px-3 py-2">
+                          <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                          <span className="text-sm font-medium text-on-surface">{formatDateLong(date)}</span>
+                          {selTime && <span className="ml-auto text-xs text-on-surface-variant">{selTime}</span>}
+                        </div>
+                      ))}
+                    </div>
+                    {sessionDates.length > 5 && (
+                      <p className="text-xs text-on-surface-variant text-center py-2 border-t border-outline-variant/30">
+                        + {sessionDates.length - 5} more sessions
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 

@@ -50,14 +50,27 @@ const SUBJECT_COLORS: Record<string, string> = {
 };
 
 interface Course {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  priceUSD: number;
-  status: string;
-  durationValue?: number;
-  durationUnit?: string;
+  id:              string;
+  name:            string;
+  description:     string;
+  price:           number;
+  priceUSD:        number;
+  status:          string;
+  durationValue?:  number;
+  durationUnit?:   string;
+  sessionsPerWeek?: number;
+  subject?:        { id: string; name: string };
+}
+
+/** Human-readable schedule label derived from sessionsPerWeek */
+function scheduleLabel(spw: number): string {
+  if (spw >= 7) return "Daily (7 days/week)";
+  if (spw >= 6) return "6 days/week (Mon–Sat)";
+  if (spw >= 5) return "Mon–Fri (5 days/week)";
+  if (spw === 4) return "4 days/week";
+  if (spw === 3) return "3 days/week (Mon, Wed, Fri)";
+  if (spw === 2) return "2 days/week";
+  return "1 day/week";
 }
 
 function EnrollInner() {
@@ -81,10 +94,13 @@ function EnrollInner() {
       .finally(() => setLoading(false));
   }, []);
 
-  // When a subject is pre-selected (coming from a course card / demo),
-  // show ONLY that course. Otherwise show everything.
+  // Match by subject.name OR course.name so admin-uploaded courses
+  // always appear regardless of how they were named.
   const sorted = preSubject
-    ? courses.filter(c => c.name === preSubject)
+    ? courses.filter(c =>
+        c.subject?.name === preSubject ||
+        c.name === preSubject
+      )
     : courses;
 
   const waMsg = (courseName: string) =>
@@ -141,10 +157,16 @@ function EnrollInner() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {sorted.map(course => {
-              const isFeatured  = course.name === preSubject;
-              const icon        = SUBJECT_ICONS[course.name]  ?? "📚";
-              const gradient    = SUBJECT_COLORS[course.name] ?? "from-blue-400 to-indigo-600";
+              const subjectName = course.subject?.name ?? course.name;
+              const isFeatured  = course.subject?.name === preSubject || course.name === preSubject;
+              const icon        = SUBJECT_ICONS[subjectName] ?? SUBJECT_ICONS[course.name] ?? "📚";
+              const gradient    = SUBJECT_COLORS[subjectName] ?? SUBJECT_COLORS[course.name] ?? "from-blue-400 to-indigo-600";
+              const spw         = course.sessionsPerWeek ?? 5;
               const waLink      = `https://wa.me/${whatsappNumber}?text=${waMsg(course.name)}`;
+
+              // Build subscribe URL with sessionsPerWeek so the slot page
+              // can pre-select the correct number of days
+              const subscribeHref = `/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&priceUSD=${course.priceUSD ?? 15}&dv=${course.durationValue ?? 1}&du=${course.durationUnit ?? "months"}&spw=${spw}`;
 
               return (
                 <div key={course.id}
@@ -177,14 +199,15 @@ function EnrollInner() {
                         <div className="flex items-end gap-1 mb-1">
                           {isIndia !== false
                             ? <IndianRupee size={20} className="text-primary mb-0.5" />
-                            : <DollarSign size={20} className="text-primary mb-0.5" />
+                            : <DollarSign  size={20} className="text-primary mb-0.5" />
                           }
                           <span className="font-display text-3xl font-extrabold text-primary">
                             {isIndia !== false ? course.price : (course.priceUSD ?? 15)}
                           </span>
                         </div>
                         <p className="text-xs text-on-surface-variant mb-1 flex items-center gap-1">
-                          <BookOpen size={11} /> {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
+                          <BookOpen size={11} />
+                          {course.durationValue ?? 1} {course.durationUnit ?? "months"} · {scheduleLabel(spw)}
                         </p>
                         {isIndia === false && (
                           <p className="text-[10px] text-on-surface-variant/60 mb-3">USD · International pricing</p>
@@ -201,13 +224,14 @@ function EnrollInner() {
                           <span className="text-sm font-semibold text-on-surface-variant">Contact for pricing</span>
                         </div>
                         <p className="text-xs text-on-surface-variant mb-4 flex items-center gap-1">
-                          <BookOpen size={11} /> {course.durationValue ?? 1} {course.durationUnit ?? "months"} · Daily Mon–Fri
+                          <BookOpen size={11} />
+                          {course.durationValue ?? 1} {course.durationUnit ?? "months"} · {scheduleLabel(spw)}
                         </p>
                       </>
                     )}
 
                     <div className="mt-auto space-y-2">
-                      <Link href={`/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&priceUSD=${course.priceUSD ?? 15}&dv=${course.durationValue??1}&du=${course.durationUnit??"months"}`}
+                      <Link href={subscribeHref}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-white text-sm transition-all hover:opacity-90 active:scale-95 bg-primary">
                         <CreditCard size={16} />
                         Pick Slot &amp; Subscribe
