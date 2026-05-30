@@ -10,6 +10,11 @@ import {
 import { usePricingVisibility } from "@/hooks/usePricingVisibility";
 import { useSiteSettings } from "@/context/SiteSettingsContext";
 
+/** Strip HTML tags → plain text for card previews */
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 const INCLUDES = [
   "Live 1-on-1 sessions with your assigned tutor",
   "Personalised learning plan for your child",
@@ -190,8 +195,9 @@ function EnrollInner() {
                     <span className="text-4xl block mb-2">{icon}</span>
                     <h3 className="font-display font-extrabold text-white text-xl leading-tight">{course.name}</h3>
                     {course.description && (
-                      <div className="text-white/80 text-xs mt-1 leading-relaxed line-clamp-2 [&_*]:!text-white/80 [&_*]:!text-xs [&_*]:!font-normal [&_*]:!bg-transparent"
-                        dangerouslySetInnerHTML={{ __html: course.description }}</div>
+                      <p className="text-white/80 text-xs mt-1 leading-relaxed line-clamp-2">
+                        {stripHtml(course.description)}
+                      </p>
                     )}
                   </div>
 
