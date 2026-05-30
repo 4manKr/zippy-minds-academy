@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import {
   Calendar, Clock, ChevronRight, ChevronLeft, CheckCircle,
   CreditCard, Sparkles, AlertCircle,
-  ArrowRight, User,
+  ArrowRight, User, Tag, X,
 } from "lucide-react";
 import { usePricingVisibility } from "@/hooks/usePricingVisibility";
 import { useSiteSettings } from "@/context/SiteSettingsContext";
@@ -227,10 +227,18 @@ function SubscribeInner() {
   const [sessionDates,   setSessionDates]   = useState<string[]>([]);
   const [createdSessions, setCreatedSessions] = useState<{date:string;zoomLink?:string|null}[]>([]);
 
+  // Coupon
+  const [couponInput,     setCouponInput]    = useState("");
+  const [couponApplied,   setCouponApplied]  = useState<{
+    code: string; discountAmount: number; discountedPrice: number; discountLabel: string;
+  } | null>(null);
+  const [couponLoading,   setCouponLoading]  = useState(false);
+  const [couponError,     setCouponError]    = useState("");
+
   // keep latest values accessible inside Razorpay callback
-  const latestRef = useRef({ selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates });
+  const latestRef = useRef({ selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied });
   useEffect(() => {
-    latestRef.current = { selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates };
+    latestRef.current = { selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied };
   });
 
   useEffect(() => {
@@ -296,7 +304,8 @@ function SubscribeInner() {
   }, [availableTimeSlots, selTime]);
 
   // Geo-derived display values
-  const chargePrice    = isIndia !== false ? priceINR : priceUSD;
+  const basePrice      = isIndia !== false ? priceINR : priceUSD;
+  const chargePrice    = couponApplied ? couponApplied.discountedPrice : basePrice;
   const chargeCurrency = isIndia !== false ? "INR" : "USD";
   const priceSymbol    = isIndia !== false ? "₹" : "$";
   const daysLabel      = formatDays(selDays);
@@ -313,6 +322,8 @@ function SubscribeInner() {
         childName: v.childName, childAge: v.childAge, grade: v.grade,
         durationValue: v.durationValue, durationUnit: v.durationUnit,
         sessionDates: v.sessionDates,
+        couponCode:     v.couponApplied?.code     ?? null,
+        discountAmount: v.couponApplied?.discountAmount ?? 0,
       }),
     });
     const data = await res.json();
@@ -320,6 +331,45 @@ function SubscribeInner() {
     setCreatedSessions(data.sessions ?? []);
     setStep("done");
     localStorage.removeItem("pending_subscription");
+  };
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    setCouponError(""); setCouponLoading(true);
+    try {
+      const v = latestRef.current;
+      const originalPrice = v.isIndia !== false ? v.priceINR : v.priceUSD;
+      const res  = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, originalPrice }),
+      });
+      const data = await res.json();
+      if (!data.valid) {
+        setCouponError(data.error ?? "Invalid coupon");
+        setCouponApplied(null);
+      } else {
+        setCouponApplied({
+          code:            data.coupon.code,
+          discountAmount:  data.discountAmount,
+          discountedPrice: data.discountedPrice,
+          discountLabel:   data.discountLabel,
+        });
+        setCouponInput(data.coupon.code);
+        setCouponError("");
+      }
+    } catch {
+      setCouponError("Could not validate coupon. Try again.");
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponApplied(null);
+    setCouponInput("");
+    setCouponError("");
   };
 
   const handlePay = async () => {
@@ -336,9 +386,17 @@ function SubscribeInner() {
         chargeAmount, chargeCurrency,
       }));
 
+      const coupon = v.couponApplied;
+      // Use discounted amount if coupon applied, otherwise full amount
+      const finalAmount = coupon ? coupon.discountedPrice : chargeAmount;
+
       const res = await fetch("/api/payment/create-order", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ gateway, amount:chargeAmount, currency:chargeCurrency, courseId, courseName }),
+        body: JSON.stringify({
+          gateway, amount: finalAmount, currency: chargeCurrency,
+          courseId, courseName,
+          couponCode: coupon?.code ?? null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -357,7 +415,7 @@ function SubscribeInner() {
           theme: { color: "#005da8" },
           handler: async (response: { razorpay_payment_id: string }) => {
             try {
-              await doCreateSubscription({ gateway:"razorpay", gatewayId:response.razorpay_payment_id, amount:chargeAmount, currency:chargeCurrency });
+              await doCreateSubscription({ gateway:"razorpay", gatewayId:response.razorpay_payment_id, amount:finalAmount, currency:chargeCurrency });
             } catch(e) {
               setPayError(e instanceof Error ? e.message : "Could not create sessions. Contact support.");
             } finally { setPayLoading(false); }
@@ -672,9 +730,23 @@ function SubscribeInner() {
                       <>
                         {isIndia === null
                           ? <div className="w-20 h-8 bg-primary/10 rounded animate-pulse"/>
-                          : <span className="font-display text-3xl font-extrabold text-primary">
-                              {priceSymbol}{chargePrice}
-                            </span>
+                          : (
+                            <div>
+                              {couponApplied && (
+                                <p className="text-sm line-through text-on-surface-variant/50 leading-none mb-0.5">
+                                  {priceSymbol}{basePrice}
+                                </p>
+                              )}
+                              <span className={`font-display text-3xl font-extrabold ${couponApplied ? "text-green-600" : "text-primary"}`}>
+                                {priceSymbol}{chargePrice}
+                              </span>
+                              {couponApplied && (
+                                <p className="text-[10px] font-bold text-green-600 mt-0.5">
+                                  {couponApplied.discountLabel} ✓
+                                </p>
+                              )}
+                            </div>
+                          )
                         }
                         <p className="text-xs text-on-surface-variant">{durationValue} {durationUnit} course</p>
                         <p className="text-[11px] text-on-surface-variant/60 mt-0.5">
@@ -698,6 +770,54 @@ function SubscribeInner() {
               {showPricing ? (
                 /* ── Normal payment flow ── */
                 <>
+                  {/* ── Coupon code box ── */}
+                  <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4">
+                    <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                      <Tag size={13}/> Have a coupon code?
+                    </p>
+
+                    {couponApplied ? (
+                      /* Applied state */
+                      <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                        <CheckCircle size={18} className="text-green-500 shrink-0"/>
+                        <div className="flex-1">
+                          <p className="font-bold text-green-800 text-sm">{couponApplied.code}</p>
+                          <p className="text-xs text-green-600">
+                            {couponApplied.discountLabel} applied · You save {priceSymbol}{couponApplied.discountAmount}
+                          </p>
+                        </div>
+                        <button onClick={handleRemoveCoupon}
+                          className="p-1.5 rounded-full hover:bg-green-100 text-green-600 transition-colors">
+                          <X size={14}/>
+                        </button>
+                      </div>
+                    ) : (
+                      /* Input state */
+                      <div className="flex gap-2">
+                        <input
+                          value={couponInput}
+                          onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(""); }}
+                          onKeyDown={e => e.key === "Enter" && handleApplyCoupon()}
+                          placeholder="e.g. RESHMA200"
+                          className="flex-1 px-4 py-2.5 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm font-mono font-semibold uppercase placeholder:font-normal placeholder:normal-case focus:outline-none focus:border-primary"
+                        />
+                        <button
+                          onClick={handleApplyCoupon}
+                          disabled={!couponInput.trim() || couponLoading}
+                          className="px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                        >
+                          {couponLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : "Apply"}
+                        </button>
+                      </div>
+                    )}
+
+                    {couponError && (
+                      <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                        <AlertCircle size={12}/>{couponError}
+                      </p>
+                    )}
+                  </div>
+
                   {/* Gateway selection — India: Razorpay only; International: Stripe + PayPal */}
                   <div className="space-y-2">
                     {GATEWAYS
@@ -738,7 +858,15 @@ function SubscribeInner() {
                       className="flex-1 flex items-center justify-center gap-2 bg-primary text-white font-bold py-3.5 rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-60">
                       {payLoading
                         ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"/>
-                        : <><CreditCard size={18}/>Pay {priceSymbol}{chargePrice} &amp; Book Sessions<ArrowRight size={18}/></>
+                        : (
+                          <>
+                            <CreditCard size={18}/>
+                            Pay {priceSymbol}{chargePrice}
+                            {couponApplied && <span className="text-xs opacity-80">(saved {priceSymbol}{couponApplied.discountAmount})</span>}
+                            &amp; Book Sessions
+                            <ArrowRight size={18}/>
+                          </>
+                        )
                       }
                     </button>
                   </div>

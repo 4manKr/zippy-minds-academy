@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
       timeSlot, timezone,
       childName, childAge, grade,
       durationValue, durationUnit,
+      couponCode, discountAmount,
     } = body;
 
     if (!timeSlot || !childName) {
@@ -112,8 +113,36 @@ export async function POST(req: NextRequest) {
         status:      "PAID",
         courseName,
         courseId:    courseId ?? null,
+        couponCode:  couponCode ?? "",
+        discount:    Number(discountAmount) || 0,
       },
     });
+
+    // ── 1b. Record coupon usage + increment counter ───────────────────────
+    if (couponCode) {
+      const upper  = String(couponCode).toUpperCase().trim();
+      const coupon = await prisma.coupon.findFirst({ where: { code: upper } });
+      if (coupon) {
+        // Write usage record
+        await prisma.couponUsage.create({
+          data: {
+            couponId:       coupon.id,
+            couponCode:     upper,
+            userId:         session.userId ?? "unknown",
+            userEmail:      parentEmail,
+            userName:       parentName,
+            subscriptionId: payment.id,
+            courseName,
+            discountGiven:  Number(discountAmount) || 0,
+          },
+        });
+        // Increment global counter
+        await prisma.coupon.update({
+          where: { id: coupon.id },
+          data:  { usedCount: { increment: 1 }, updatedAt: new Date() },
+        });
+      }
+    }
 
     // ── 2. Create Enrollment record ───────────────────────────────────────
     const enrollment = await prisma.enrollment.create({

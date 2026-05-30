@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Please log in to make a payment" }, { status: 401 });
     }
 
-    const { gateway, currency, courseId, courseName } = await req.json();
+    const { gateway, currency, courseId, courseName, couponCode } = await req.json();
     if (!gateway || !courseName) {
       return NextResponse.json({ error: "gateway and courseName are required" }, { status: 400 });
     }
@@ -49,9 +49,38 @@ export async function POST(req: NextRequest) {
       // INR for Razorpay, USD for PayPal/Stripe
       amount = (currency ?? "INR") === "INR" ? course.price : (course.priceUSD ?? 15);
     } else {
-      // Fallback: no courseId provided — use a fixed demo price of 0 (free demo)
-      // Real paid courses MUST pass courseId
       amount = 0;
+    }
+
+    // ── Apply coupon discount (server-side, re-validated here) ────────────────
+    let discountAmount = 0;
+    let validatedCoupon: { id: string; code: string } | null = null;
+
+    if (couponCode) {
+      const upper = String(couponCode).toUpperCase().trim();
+      const coupon = await prisma.coupon.findFirst({ where: { code: upper } });
+
+      if (coupon && coupon.isActive) {
+        const notExpired  = !coupon.expiresAt || new Date() <= coupon.expiresAt;
+        const globalOk    = coupon.maxUses === null || coupon.usedCount < coupon.maxUses;
+
+        const userId      = session.userId ?? "";
+        const userUsages  = userId
+          ? await prisma.couponUsage.count({ where: { couponId: coupon.id, userId } })
+          : 0;
+        const perUserOk   = userUsages < coupon.maxUsesPerUser;
+
+        if (notExpired && globalOk && perUserOk) {
+          discountAmount =
+            coupon.discountType === "percent"
+              ? Math.round((amount * coupon.discountValue) / 100)
+              : coupon.discountValue;
+
+          discountAmount  = Math.min(discountAmount, amount);
+          amount          = amount - discountAmount;
+          validatedCoupon = { id: coupon.id, code: coupon.code };
+        }
+      }
     }
 
     // ── Razorpay ──────────────────────────────────────────────────────────────
@@ -74,14 +103,16 @@ export async function POST(req: NextRequest) {
       });
 
       return NextResponse.json({
-        gateway:     "razorpay",
-        orderId:     order.id,
-        amount:      order.amount,
-        currency:    order.currency,
+        gateway:        "razorpay",
+        orderId:        order.id,
+        amount:         order.amount,
+        currency:       order.currency,
         keyId,
-        name:        "Zippy Minds Academy",
-        description: `Monthly subscription — ${courseName}`,
-        prefill:     { name: session.name ?? "", email: session.email ?? "" },
+        name:           "Zippy Minds Academy",
+        description:    `Monthly subscription — ${courseName}`,
+        prefill:        { name: session.name ?? "", email: session.email ?? "" },
+        discountAmount,
+        coupon:         validatedCoupon,
       });
     }
 

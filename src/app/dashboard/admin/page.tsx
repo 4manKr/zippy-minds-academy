@@ -10,11 +10,11 @@ import {
   AlertTriangle, Settings, MessageSquare, Calendar, Bell,
   Trash2, TrendingUp, Send, ToggleLeft, ToggleRight, Plus, Edit2, Zap,
   MapPin, RefreshCw, Save, PlayCircle, FileText, Download,
-  Play, Upload, Link as LinkIcon, User, CalendarDays, Lock, Phone, Palette, SortAsc,
+  Play, Upload, Link as LinkIcon, User, CalendarDays, Lock, Phone, Palette, SortAsc, Tag,
 } from "lucide-react";
 import RichTextEditor from "@/components/RichTextEditor";
 
-type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content"|"availability"|"leads"|"blog"|"free-resources";
+type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"analytics"|"support"|"settings"|"content"|"availability"|"leads"|"blog"|"free-resources"|"coupons";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
@@ -146,6 +146,17 @@ export default function AdminDashboard() {
   const editFreeResFileRef     = useRef<HTMLInputElement>(null);
   const editFreeResThumbRef    = useRef<HTMLInputElement>(null);
 
+  // Coupons
+  interface DBCouponUsage { id:string; userId:string; userEmail:string; userName:string; subscriptionId:string; courseName:string; discountGiven:number; createdAt:string; }
+  interface DBCoupon { id:string; code:string; influencerName:string; discountType:string; discountValue:number; commissionPerUse:number; maxUses:number|null; maxUsesPerUser:number; usedCount:number; isActive:boolean; expiresAt:string|null; createdAt:string; uniqueUsers:number; totalDiscount:number; commissionOwed:number; usages:DBCouponUsage[]; }
+  const [coupons,         setCoupons]         = useState<DBCoupon[]>([]);
+  const [couponsLoaded,   setCouponsLoaded]   = useState(false);
+  const [editCoupon,      setEditCoupon]      = useState<DBCoupon|null>(null);
+  const [addingCoupon,    setAddingCoupon]    = useState(false);
+  const [couponSaveMsg,   setCouponSaveMsg]   = useState<{type:"ok"|"err";text:string}|null>(null);
+  const [newCoupon,       setNewCoupon]       = useState({ code:"", influencerName:"", discountType:"flat", discountValue:"0", commissionPerUse:"0", maxUses:"", maxUsesPerUser:"1", isActive:true, expiresAt:"" });
+  const [expandedCoupon,  setExpandedCoupon]  = useState<string|null>(null);
+
   // Tutor add / edit
   const TUTOR_SUBJECTS = ["Phonics","English Grammar","Mathematics","Public Speaking","Writing & Communication","Coding","Science","Life Skills","Hindi","General Knowledge","Creative Arts","Social Studies"];
   const [addTutorOpen, setAddTutorOpen] = useState(false);
@@ -234,6 +245,11 @@ export default function AdminDashboard() {
         if (d.resources) { setFreeResources(d.resources); setFreeResourcesLoaded(true); }
       }).catch(()=>{});
     }
+    if (section === "coupons" && !couponsLoaded) {
+      fetch("/api/admin/coupons").then(r=>r.ok?r.json():{coupons:[]}).then(d => {
+        if (d.coupons) { setCoupons(d.coupons); setCouponsLoaded(true); }
+      }).catch(()=>{});
+    }
     if (section === "tutors") {
       fetch("/api/admin/tutor-priority").then(r=>r.ok?r.json():{tutors:[]}).then(d => {
         if (d.tutors) {
@@ -244,7 +260,7 @@ export default function AdminDashboard() {
         }
       }).catch(()=>{});
     }
-  }, [section, leadsLoaded, freeResourcesLoaded]);
+  }, [section, leadsLoaded, freeResourcesLoaded, couponsLoaded]);
 
   const handleSavePriority = async (tutorId: string) => {
     const raw = priorityEdits[tutorId] ?? "";
@@ -572,6 +588,65 @@ export default function AdminDashboard() {
     if (data.resource) setFreeResources(r => r.map(x => x.id===id ? data.resource : x));
   };
 
+  // ── Coupon handlers ──────────────────────────────────────────────────────
+  const handleAddCoupon = async () => {
+    setLoad("addCoupon", true); setCouponSaveMsg(null);
+    try {
+      const res  = await fetch("/api/admin/coupons", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          ...newCoupon,
+          discountValue:    parseFloat(newCoupon.discountValue) || 0,
+          commissionPerUse: parseFloat(newCoupon.commissionPerUse) || 0,
+          maxUses:          newCoupon.maxUses ? parseInt(newCoupon.maxUses) : null,
+          maxUsesPerUser:   parseInt(newCoupon.maxUsesPerUser) || 1,
+          expiresAt:        newCoupon.expiresAt || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setCouponSaveMsg({ type:"err", text: data.error ?? "Failed" }); return; }
+      setCoupons(p => [{ ...data.coupon, usages:[], uniqueUsers:0, totalDiscount:0, commissionOwed:0 }, ...p]);
+      setAddingCoupon(false);
+      setNewCoupon({ code:"", influencerName:"", discountType:"flat", discountValue:"0", commissionPerUse:"0", maxUses:"", maxUsesPerUser:"1", isActive:true, expiresAt:"" });
+      setCouponSaveMsg({ type:"ok", text:"Coupon created!" });
+    } finally { setLoad("addCoupon", false); }
+  };
+
+  const handleSaveCoupon = async () => {
+    if (!editCoupon) return;
+    setLoad("editCoupon", true); setCouponSaveMsg(null);
+    try {
+      const res  = await fetch("/api/admin/coupons", {
+        method:"PATCH", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          id: editCoupon.id,
+          code: editCoupon.code, influencerName: editCoupon.influencerName,
+          discountType: editCoupon.discountType, discountValue: editCoupon.discountValue,
+          commissionPerUse: editCoupon.commissionPerUse,
+          maxUses: editCoupon.maxUses, maxUsesPerUser: editCoupon.maxUsesPerUser,
+          isActive: editCoupon.isActive, expiresAt: editCoupon.expiresAt,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setCouponSaveMsg({ type:"err", text: data.error ?? "Failed" }); return; }
+      setCoupons(p => p.map(c => c.id === editCoupon.id ? { ...c, ...data.coupon } : c));
+      setEditCoupon(null);
+      setCouponSaveMsg({ type:"ok", text:"Saved!" });
+    } finally { setLoad("editCoupon", false); }
+  };
+
+  const handleDeleteCoupon = async (id: string) => {
+    if (!confirm("Delete this coupon? All usage records will be deleted too.")) return;
+    await fetch("/api/admin/coupons", { method:"DELETE", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id }) });
+    setCoupons(p => p.filter(c => c.id !== id));
+  };
+
+  const handleToggleCoupon = async (id: string, current: boolean) => {
+    const res  = await fetch("/api/admin/coupons", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id, isActive: !current }) });
+    const data = await res.json();
+    if (data.coupon) setCoupons(p => p.map(c => c.id===id ? { ...c, isActive: data.coupon.isActive } : c));
+  };
+
   // ── Thumbnail upload ──────────────────────────────────────────────────────
   const uploadThumbnail = useCallback(async (file: File, target: "edit"|"add"|"editBlog"|"addBlog"|"editFreeRes"|"addFreeRes") => {
     setThumbUploading(target);
@@ -809,6 +884,7 @@ export default function AdminDashboard() {
     { id:"leads",         icon:Phone,        label:"Leads", badge:leads.length||undefined },
     { id:"blog",           icon:FileText,     label:"Blog Posts"                            },
     { id:"free-resources", icon:Download,     label:"Free Resources", badge:freeResources.length||undefined },
+    { id:"coupons",        icon:Tag,           label:"Coupons & Affiliates", badge:coupons.length||undefined },
   ];
 
   const sectionTitle: Record<Section,string> = {
@@ -819,6 +895,7 @@ export default function AdminDashboard() {
     leads:"Lead Enquiries",
     blog:"Blog Posts",
     "free-resources":"Free Resources",
+    "coupons":"Coupons & Affiliates",
   };
 
   const isLoading = loading["init"];
@@ -3484,6 +3561,279 @@ export default function AdminDashboard() {
                       <button onClick={handleSaveFreeResource} disabled={loading["editFreeRes"]}
                         className="flex-1 bg-teal-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 flex items-center justify-center gap-2">
                         {loading["editFreeRes"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Changes</>}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── COUPONS & AFFILIATES ── */}
+          {section === "coupons" && (
+            <div className="space-y-6">
+              {couponSaveMsg && (
+                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold ${couponSaveMsg.type==="ok"?"bg-green-50 text-green-700 border border-green-200":"bg-red-50 text-red-700 border border-red-200"}`}>
+                  {couponSaveMsg.type==="ok"?<CheckCircle size={16}/>:<XCircle size={16}/>} {couponSaveMsg.text}
+                </div>
+              )}
+
+              {/* Stats bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label:"Total Coupons",  value: coupons.length },
+                  { label:"Active Coupons", value: coupons.filter(c=>c.isActive).length },
+                  { label:"Total Uses",     value: coupons.reduce((s,c)=>s+c.usedCount,0) },
+                  { label:"Commission Owed",value: "₹" + coupons.reduce((s,c)=>s+c.commissionOwed,0).toFixed(0) },
+                ].map(stat=>(
+                  <div key={stat.label} className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+                    <p className="text-xs text-gray-500">{stat.label}</p>
+                    <p className="text-2xl font-extrabold text-gray-900 mt-0.5">{stat.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add coupon */}
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-gray-900 flex items-center gap-2"><Tag size={16} className="text-indigo-600"/> All Coupons</h3>
+                  <button onClick={()=>setAddingCoupon(p=>!p)}
+                    className="flex items-center gap-1.5 bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-indigo-700 transition-colors">
+                    <Plus size={15}/> Create Coupon
+                  </button>
+                </div>
+
+                {/* Create form */}
+                {addingCoupon && (
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 mb-5">
+                    <h4 className="font-bold text-indigo-900 mb-4">New Coupon</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Code *</label>
+                        <input value={newCoupon.code} onChange={e=>setNewCoupon(p=>({...p,code:e.target.value.toUpperCase()}))}
+                          placeholder="e.g. RESHMA200" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono font-bold uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Influencer Name *</label>
+                        <input value={newCoupon.influencerName} onChange={e=>setNewCoupon(p=>({...p,influencerName:e.target.value}))}
+                          placeholder="e.g. Reshma" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Discount Type</label>
+                        <select value={newCoupon.discountType} onChange={e=>setNewCoupon(p=>({...p,discountType:e.target.value}))}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+                          <option value="flat">Flat (₹ off)</option>
+                          <option value="percent">Percentage (% off)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                          Discount Value ({newCoupon.discountType==="flat"?"₹":"%"}) *
+                        </label>
+                        <input type="number" value={newCoupon.discountValue} onChange={e=>setNewCoupon(p=>({...p,discountValue:e.target.value}))}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Commission Per Use (₹)</label>
+                        <input type="number" value={newCoupon.commissionPerUse} onChange={e=>setNewCoupon(p=>({...p,commissionPerUse:e.target.value}))}
+                          placeholder="e.g. 50" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Max Uses Per User</label>
+                        <input type="number" min="1" value={newCoupon.maxUsesPerUser} onChange={e=>setNewCoupon(p=>({...p,maxUsesPerUser:e.target.value}))}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        <p className="text-[10px] text-gray-400 mt-1">1 = each user can use this code only once</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Global Max Uses (blank = unlimited)</label>
+                        <input type="number" value={newCoupon.maxUses} onChange={e=>setNewCoupon(p=>({...p,maxUses:e.target.value}))}
+                          placeholder="e.g. 100" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Expiry Date (optional)</label>
+                        <input type="date" value={newCoupon.expiresAt} onChange={e=>setNewCoupon(p=>({...p,expiresAt:e.target.value}))}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 mt-4">
+                      <button onClick={()=>setAddingCoupon(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                      <button onClick={handleAddCoupon} disabled={loading["addCoupon"]}
+                        className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                        {loading["addCoupon"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Plus size={14}/> Create Coupon</>}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Coupon list */}
+                {coupons.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <Tag size={32} className="mx-auto mb-2 opacity-30"/>
+                    <p className="text-sm font-semibold">No coupons yet</p>
+                    <p className="text-xs mt-1">Create your first affiliate coupon code above</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {coupons.map(coupon => (
+                      <div key={coupon.id} className="border border-gray-100 rounded-2xl overflow-hidden">
+                        {/* Main row */}
+                        <div className="flex items-center gap-4 p-4">
+                          {/* Code badge */}
+                          <div className="bg-indigo-100 text-indigo-700 font-mono font-extrabold text-sm px-3 py-1.5 rounded-xl shrink-0 tracking-wider">
+                            {coupon.code}
+                          </div>
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-gray-900 text-sm">{coupon.influencerName}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold">
+                                {coupon.discountType === "flat" ? `₹${coupon.discountValue} off` : `${coupon.discountValue}% off`}
+                              </span>
+                              {coupon.commissionPerUse > 0 && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-semibold">
+                                  ₹{coupon.commissionPerUse}/use
+                                </span>
+                              )}
+                              {!coupon.isActive && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-semibold">Inactive</span>
+                              )}
+                              {coupon.expiresAt && new Date() > new Date(coupon.expiresAt) && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-600 font-semibold">Expired</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {coupon.usedCount} uses · {coupon.uniqueUsers} unique users
+                              {coupon.maxUsesPerUser === 1 && " · 1 use/person"}
+                              {coupon.maxUsesPerUser > 1 && ` · max ${coupon.maxUsesPerUser}/person`}
+                              {coupon.maxUses && ` · ${coupon.usedCount}/${coupon.maxUses} global`}
+                              {coupon.commissionOwed > 0 && ` · ₹${coupon.commissionOwed.toFixed(0)} owed`}
+                            </p>
+                          </div>
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button onClick={()=>handleToggleCoupon(coupon.id, coupon.isActive)}
+                              className={`text-xs px-2.5 py-1 rounded-lg font-semibold border transition-colors ${coupon.isActive?"border-green-200 text-green-700 bg-green-50 hover:bg-green-100":"border-gray-200 text-gray-500 bg-gray-50 hover:bg-gray-100"}`}>
+                              {coupon.isActive ? "Active" : "Off"}
+                            </button>
+                            <button onClick={()=>setEditCoupon(coupon)}
+                              className="p-2 rounded-lg hover:bg-indigo-50 text-indigo-600 transition-colors"><Edit2 size={14}/></button>
+                            <button onClick={()=>setExpandedCoupon(p => p===coupon.id ? null : coupon.id)}
+                              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"><Eye size={14}/></button>
+                            <button onClick={()=>handleDeleteCoupon(coupon.id)}
+                              className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 size={14}/></button>
+                          </div>
+                        </div>
+
+                        {/* Expanded usage details */}
+                        {expandedCoupon === coupon.id && (
+                          <div className="border-t border-gray-100 bg-gray-50 p-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                              {[
+                                { label:"Total Uses",       value: coupon.usedCount },
+                                { label:"Unique Users",     value: coupon.uniqueUsers },
+                                { label:"Total Discount",   value: `₹${coupon.totalDiscount.toFixed(0)}` },
+                                { label:"Commission Owed",  value: `₹${coupon.commissionOwed.toFixed(0)}` },
+                              ].map(s=>(
+                                <div key={s.label} className="bg-white rounded-xl border border-gray-100 px-3 py-2 text-center">
+                                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">{s.label}</p>
+                                  <p className="text-xl font-extrabold text-gray-900">{s.value}</p>
+                                </div>
+                              ))}
+                            </div>
+                            {coupon.usages.length === 0 ? (
+                              <p className="text-xs text-gray-400 text-center py-4">No uses yet</p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Recent Uses</p>
+                                {coupon.usages.map(u=>(
+                                  <div key={u.id} className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-3 py-2 text-xs">
+                                    <div>
+                                      <p className="font-semibold text-gray-800">{u.userName || u.userEmail}</p>
+                                      <p className="text-gray-400">{u.courseName} · saved ₹{u.discountGiven}</p>
+                                    </div>
+                                    <span className="ml-auto text-gray-400 shrink-0">
+                                      {new Date(u.createdAt).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Edit coupon modal */}
+              {editCoupon && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={e=>{if(e.target===e.currentTarget)setEditCoupon(null)}}>
+                  <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-5">
+                      <h3 className="font-bold text-gray-900 text-lg">Edit Coupon</h3>
+                      <button onClick={()=>setEditCoupon(null)} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"><X size={16}/></button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Code</label>
+                        <input value={editCoupon.code} onChange={e=>setEditCoupon(p=>p?{...p,code:e.target.value.toUpperCase()}:null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono font-bold uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Influencer Name</label>
+                        <input value={editCoupon.influencerName} onChange={e=>setEditCoupon(p=>p?{...p,influencerName:e.target.value}:null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Discount Type</label>
+                        <select value={editCoupon.discountType} onChange={e=>setEditCoupon(p=>p?{...p,discountType:e.target.value}:null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30">
+                          <option value="flat">Flat (₹ off)</option>
+                          <option value="percent">Percentage (% off)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">
+                          Discount Value ({editCoupon.discountType==="flat"?"₹":"%"})
+                        </label>
+                        <input type="number" value={editCoupon.discountValue} onChange={e=>setEditCoupon(p=>p?{...p,discountValue:parseFloat(e.target.value)||0}:null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Commission Per Use (₹)</label>
+                        <input type="number" value={editCoupon.commissionPerUse} onChange={e=>setEditCoupon(p=>p?{...p,commissionPerUse:parseFloat(e.target.value)||0}:null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Max Uses Per User</label>
+                        <input type="number" min="1" value={editCoupon.maxUsesPerUser} onChange={e=>setEditCoupon(p=>p?{...p,maxUsesPerUser:parseInt(e.target.value)||1}:null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        <p className="text-[10px] text-gray-400 mt-1">1 = each user can only use this once</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Global Max Uses (blank = unlimited)</label>
+                        <input type="number" value={editCoupon.maxUses ?? ""} onChange={e=>setEditCoupon(p=>p?{...p,maxUses:e.target.value?parseInt(e.target.value):null}:null)}
+                          placeholder="unlimited" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-gray-600 uppercase tracking-wide block mb-1">Expiry Date</label>
+                        <input type="date" value={editCoupon.expiresAt ? editCoupon.expiresAt.split("T")[0] : ""} onChange={e=>setEditCoupon(p=>p?{...p,expiresAt:e.target.value||null}:null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-4 mb-4">
+                      <label className="text-sm font-semibold text-gray-700">Active</label>
+                      <button onClick={()=>setEditCoupon(p=>p?{...p,isActive:!p.isActive}:null)}
+                        className={`w-10 h-6 rounded-full transition-colors ${editCoupon.isActive?"bg-indigo-600":"bg-gray-200"} relative`}>
+                        <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${editCoupon.isActive?"translate-x-5":"translate-x-1"}`}/>
+                      </button>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={()=>setEditCoupon(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</button>
+                      <button onClick={handleSaveCoupon} disabled={loading["editCoupon"]}
+                        className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                        {loading["editCoupon"] ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <><Save size={14}/> Save Changes</>}
                       </button>
                     </div>
                   </div>

@@ -267,8 +267,43 @@ model Payment {
   status      String   @default("PENDING")  // PENDING | PAID | FAILED
   courseName  String
   courseId    String?
+  couponCode  String   @default("")         // coupon used at checkout (empty = none)
+  discount    Float    @default(0)          // discount amount applied
   createdAt   DateTime @default(now())
   sessions    MonthlySession[]
+}
+
+// Affiliate / influencer coupon codes
+model Coupon {
+  id               String   @id @default(cuid())
+  code             String   @unique         // e.g. "RESHMA200" — uppercase enforced in API
+  influencerName   String                   // e.g. "Reshma"
+  discountType     String   @default("flat")  // flat | percent
+  discountValue    Float    @default(0)     // ₹200 or 20 (%)
+  commissionPerUse Float    @default(0)     // how much you owe influencer per valid use
+  maxUses          Int?                     // null = unlimited global uses
+  maxUsesPerUser   Int      @default(1)     // how many times one user can use this code
+  usedCount        Int      @default(0)     // auto-incremented on each valid use
+  isActive         Boolean  @default(true)
+  expiresAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  usages           CouponUsage[]
+}
+
+// Tracks every individual use of a coupon
+model CouponUsage {
+  id             String   @id @default(cuid())
+  couponId       String
+  couponCode     String                     // denormalised for quick lookups
+  userId         String                     // the user who used it
+  userEmail      String   @default("")
+  userName       String   @default("")
+  subscriptionId String   @default("")      // paymentId of the purchase
+  courseName     String   @default("")
+  discountGiven  Float    @default(0)
+  createdAt      DateTime @default(now())
+  coupon         Coupon   @relation(fields: [couponId], references: [id])
 }
 
 model Enrollment {
