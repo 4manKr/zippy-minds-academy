@@ -190,7 +190,8 @@ function EnrollInner() {
                     <span className="text-4xl block mb-2">{icon}</span>
                     <h3 className="font-display font-extrabold text-white text-xl leading-tight">{course.name}</h3>
                     {course.description && (
-                      <p className="text-white/80 text-xs mt-1 leading-relaxed line-clamp-2">{course.description}</p>
+                      <div className="text-white/80 text-xs mt-1 leading-relaxed line-clamp-2 [&_*]:!text-white/80 [&_*]:!text-xs [&_*]:!font-normal [&_*]:!bg-transparent"
+                        dangerouslySetInnerHTML={{ __html: course.description }}</div>
                     )}
                   </div>
 
