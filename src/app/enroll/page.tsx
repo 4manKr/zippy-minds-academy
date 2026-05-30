@@ -50,16 +50,18 @@ const SUBJECT_COLORS: Record<string, string> = {
 };
 
 interface Course {
-  id:              string;
-  name:            string;
-  description:     string;
-  price:           number;
-  priceUSD:        number;
-  status:          string;
-  durationValue?:  number;
-  durationUnit?:   string;
+  id:               string;
+  name:             string;
+  description:      string;
+  price:            number;
+  priceUSD:         number;
+  originalPrice?:   number;
+  originalPriceUSD?: number;
+  status:           string;
+  durationValue?:   number;
+  durationUnit?:    string;
   sessionsPerWeek?: number;
-  subject?:        { id: string; name: string };
+  subject?:         { id: string; name: string };
 }
 
 /** Human-readable schedule label derived from sessionsPerWeek */
@@ -166,7 +168,7 @@ function EnrollInner() {
 
               // Build subscribe URL with sessionsPerWeek so the slot page
               // can pre-select the correct number of days
-              const subscribeHref = `/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&priceUSD=${course.priceUSD ?? 15}&dv=${course.durationValue ?? 1}&du=${course.durationUnit ?? "months"}&spw=${spw}`;
+              const subscribeHref = `/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&priceUSD=${course.priceUSD ?? 15}&op=${course.originalPrice ?? 0}&opUSD=${course.originalPriceUSD ?? 0}&dv=${course.durationValue ?? 1}&du=${course.durationUnit ?? "months"}&spw=${spw}`;
 
               return (
                 <div key={course.id}
@@ -194,30 +196,42 @@ function EnrollInner() {
 
                   {/* Price + CTA */}
                   <div className="p-5 flex flex-col flex-1">
-                    {showPricing ? (
-                      <>
-                        <div className="flex items-end gap-1 mb-1">
-                          {isIndia !== false
-                            ? <IndianRupee size={20} className="text-primary mb-0.5" />
-                            : <DollarSign  size={20} className="text-primary mb-0.5" />
-                          }
-                          <span className="font-display text-3xl font-extrabold text-primary">
-                            {isIndia !== false ? course.price : (course.priceUSD ?? 15)}
-                          </span>
-                        </div>
-                        <p className="text-xs text-on-surface-variant mb-1 flex items-center gap-1">
-                          <BookOpen size={11} />
-                          {course.durationValue ?? 1} {course.durationUnit ?? "months"} · {scheduleLabel(spw)}
-                        </p>
-                        {isIndia === false && (
-                          <p className="text-[10px] text-on-surface-variant/60 mb-3">USD · International pricing</p>
-                        )}
-                        {isIndia === true && (
-                          <p className="text-[10px] text-on-surface-variant/60 mb-3">INR · India pricing</p>
-                        )}
-                        {isIndia === null && <div className="h-3 mb-3" />}
-                      </>
-                    ) : (
+                    {showPricing ? (() => {
+                      const offerPrice  = isIndia !== false ? course.price             : (course.priceUSD        ?? 15);
+                      const origPrice   = isIndia !== false ? (course.originalPrice ?? 0) : (course.originalPriceUSD ?? 0);
+                      const hasDiscount = origPrice > offerPrice && origPrice > 0;
+                      const savingAmt   = hasDiscount ? origPrice - offerPrice : 0;
+                      const savingPct   = hasDiscount ? Math.round((savingAmt / origPrice) * 100) : 0;
+                      const sym         = isIndia !== false ? "₹" : "$";
+                      return (
+                        <>
+                          {/* Discount badge */}
+                          {hasDiscount && (
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm text-on-surface-variant/50 line-through">{sym}{origPrice}</span>
+                              <span className="text-[10px] font-extrabold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{savingPct}% OFF</span>
+                            </div>
+                          )}
+                          <div className="flex items-end gap-1 mb-1">
+                            {isIndia !== false
+                              ? <IndianRupee size={20} className="text-primary mb-0.5" />
+                              : <DollarSign  size={20} className="text-primary mb-0.5" />
+                            }
+                            <span className="font-display text-3xl font-extrabold text-primary">{offerPrice}</span>
+                          </div>
+                          {hasDiscount && (
+                            <p className="text-[11px] font-bold text-green-600 mb-1">🎉 You save {sym}{savingAmt}!</p>
+                          )}
+                          <p className="text-xs text-on-surface-variant mb-1 flex items-center gap-1">
+                            <BookOpen size={11} />
+                            {course.durationValue ?? 1} {course.durationUnit ?? "months"} · {scheduleLabel(spw)}
+                          </p>
+                          {isIndia === false && <p className="text-[10px] text-on-surface-variant/60 mb-3">USD · International pricing</p>}
+                          {isIndia === true  && <p className="text-[10px] text-on-surface-variant/60 mb-3">INR · India pricing</p>}
+                          {isIndia === null  && <div className="h-3 mb-3" />}
+                        </>
+                      );
+                    })() : (
                       <>
                         <div className="flex items-center gap-2 mb-1">
                           <HelpCircle size={16} className="text-on-surface-variant" />

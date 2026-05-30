@@ -110,6 +110,8 @@ interface Course {
   rating: number;
   price: number;
   priceUSD: number;
+  originalPrice?: number;
+  originalPriceUSD?: number;
   sortOrder: number;
   status: string;
   durationValue?: number;
@@ -441,18 +443,35 @@ export default function CoursesPage() {
                     </div>
 
                     {/* Price */}
-                    <div className="flex items-baseline gap-0.5 mb-4">
-                      {showPricing ? (
-                        <>
-                          {isIndia !== false
-                            ? <IndianRupee size={15} className="text-primary mb-0.5 shrink-0" />
-                            : <DollarSign  size={15} className="text-primary mb-0.5 shrink-0" />
-                          }
-                          <span className="font-display text-2xl font-extrabold text-primary leading-none">
-                            {isIndia !== false ? course.price : (course.priceUSD ?? 15)}
-                          </span>
-                        </>
-                      ) : (
+                    <div className="mb-4">
+                      {showPricing ? (() => {
+                        const offerPrice    = isIndia !== false ? course.price        : (course.priceUSD        ?? 15);
+                        const origPrice     = isIndia !== false ? (course.originalPrice ?? 0) : (course.originalPriceUSD ?? 0);
+                        const hasDiscount   = origPrice > offerPrice && origPrice > 0;
+                        const savingAmt     = hasDiscount ? origPrice - offerPrice : 0;
+                        const savingPct     = hasDiscount ? Math.round((savingAmt / origPrice) * 100) : 0;
+                        const sym           = isIndia !== false ? "₹" : "$";
+                        return (
+                          <div>
+                            {hasDiscount && (
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm text-on-surface-variant/60 line-through">{sym}{origPrice}</span>
+                                <span className="text-[10px] font-extrabold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{savingPct}% OFF</span>
+                              </div>
+                            )}
+                            <div className="flex items-baseline gap-0.5">
+                              {isIndia !== false
+                                ? <IndianRupee size={15} className="text-primary mb-0.5 shrink-0" />
+                                : <DollarSign  size={15} className="text-primary mb-0.5 shrink-0" />
+                              }
+                              <span className="font-display text-2xl font-extrabold text-primary leading-none">{offerPrice}</span>
+                            </div>
+                            {hasDiscount && (
+                              <p className="text-[11px] font-semibold text-green-600 mt-0.5">You save {sym}{savingAmt}!</p>
+                            )}
+                          </div>
+                        );
+                      })() : (
                         <span className="text-sm font-semibold text-on-surface-variant">Contact for pricing</span>
                       )}
                     </div>

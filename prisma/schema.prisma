@@ -108,8 +108,10 @@ model Course {
   teacherName     String   @default("")
   showTeacher     Boolean  @default(false)
   rating          Float    @default(0)
-  price           Int      @default(199)       // INR
-  priceUSD        Int      @default(15)        // USD
+  price           Int      @default(199)       // INR  (offer / actual price)
+  priceUSD        Int      @default(15)        // USD  (offer / actual price)
+  originalPrice   Int      @default(0)         // INR  (crossed-out "before" price; 0 = no discount shown)
+  originalPriceUSD Int     @default(0)         // USD  (crossed-out "before" price; 0 = no discount shown)
   durationValue   Int      @default(1)
   durationUnit    String   @default("months")  // days | weeks | months
   sessionsPerWeek Int      @default(1)

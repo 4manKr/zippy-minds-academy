@@ -20,7 +20,7 @@ type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"anal
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
 interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; needsAdmin?:boolean; declinedTutors?:string; createdAt:string; }
 interface DBSubject { id:string; name:string; ageGroup:string; totalDuration:string; color:string; status:string; courses:DBCourse[]; }
-interface DBCourse  { id:string; name:string; description:string; thumbnail:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; sortOrder:number; subjectId?:string|null; subject?:{id:string;name:string;color:string}|null; }
+interface DBCourse  { id:string; name:string; description:string; thumbnail:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; originalPrice:number; originalPriceUSD:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; sortOrder:number; subjectId?:string|null; subject?:{id:string;name:string;color:string}|null; }
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
 interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; showPricing:string; }
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
   const [newSubject,     setNewSubject]     = useState({ name:"", ageGroup:"", totalDuration:"", color:"" });
   const [addingSubject,  setAddingSubject]  = useState(false);
   const [editSubject,    setEditSubject]    = useState<DBSubject|null>(null);
-  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" });
+  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" });
   const [addingCourse,   setAddingCourse]   = useState(false);
   // Content management
   const [contentTab,     setContentTab]     = useState<"resources"|"videos"|"recordings">("resources");
@@ -453,12 +453,13 @@ export default function AdminDashboard() {
       teacherName:newCourse.teacherName, showTeacher:newCourse.showTeacher,
       rating:parseFloat(newCourse.rating)||0,
       price:parseInt(newCourse.price)||199, priceUSD:parseInt(newCourse.priceUSD)||15,
+      originalPrice:parseInt(newCourse.originalPrice)||0, originalPriceUSD:parseInt(newCourse.originalPriceUSD)||0,
       durationValue:parseInt(newCourse.durationValue)||1, durationUnit:newCourse.durationUnit||"months",
       sessionsPerWeek:parseInt(newCourse.sessionsPerWeek)||1,
       sortOrder:parseInt(newCourse.sortOrder)||0,
     }) });
     const data = await res.json();
-    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" }); setAddingCourse(false); }
+    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" }); setAddingCourse(false); }
     setLoad("addCourse", false);
   };
 
@@ -717,6 +718,7 @@ export default function AdminDashboard() {
           subjectId:editCourse.subjectId||null, ageRange:editCourse.ageRange,
           teacherName:editCourse.teacherName, showTeacher:editCourse.showTeacher, rating:editCourse.rating,
           price:editCourse.price, priceUSD:editCourse.priceUSD,
+          originalPrice:editCourse.originalPrice??0, originalPriceUSD:editCourse.originalPriceUSD??0,
           durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit,
           sessionsPerWeek:editCourse.sessionsPerWeek, sortOrder:editCourse.sortOrder }) });
       const data = await res.json();
@@ -1103,14 +1105,27 @@ export default function AdminDashboard() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Price ₹ (INR)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Offer Price ₹ (INR) <span className="text-xs text-gray-400">— actual charge</span></label>
                   <input type="number" value={editCourse.price} onChange={e=>setEditCourse(p=>p?{...p,price:parseInt(e.target.value)||0}:null)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Price $ (USD)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Offer Price $ (USD)</label>
                   <input type="number" value={editCourse.priceUSD??15} onChange={e=>setEditCourse(p=>p?{...p,priceUSD:parseInt(e.target.value)||0}:null)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Original Price ₹ <span className="text-xs text-gray-400">— crossed-out (0 = hide)</span></label>
+                  <input type="number" min="0" value={editCourse.originalPrice??0} onChange={e=>setEditCourse(p=>p?{...p,originalPrice:parseInt(e.target.value)||0}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30"/>
+                  <p className="text-[10px] text-gray-400 mt-1">Set higher than offer price to show discount badge</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Original Price $ <span className="text-xs text-gray-400">— crossed-out (0 = hide)</span></label>
+                  <input type="number" min="0" value={editCourse.originalPriceUSD??0} onChange={e=>setEditCourse(p=>p?{...p,originalPriceUSD:parseInt(e.target.value)||0}:null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30"/>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1782,12 +1797,20 @@ export default function AdminDashboard() {
                         </label>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price ₹ (INR)</label>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Offer Price ₹ INR <span className="text-[10px] text-gray-400">(actual charge)</span></label>
                         <input type="number" value={newCourse.price} onChange={e=>setNewCourse(p=>({...p,price:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-gray-600 mb-1 block">Price $ (USD)</label>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Offer Price $ USD</label>
                         <input type="number" value={newCourse.priceUSD} onChange={e=>setNewCourse(p=>({...p,priceUSD:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Original ₹ INR <span className="text-[10px] text-orange-500">(crossed-out, 0=hide)</span></label>
+                        <input type="number" min="0" value={newCourse.originalPrice} onChange={e=>setNewCourse(p=>({...p,originalPrice:e.target.value}))} placeholder="0" className="w-full border border-orange-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30"/>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">Original $ USD <span className="text-[10px] text-orange-500">(crossed-out, 0=hide)</span></label>
+                        <input type="number" min="0" value={newCourse.originalPriceUSD} onChange={e=>setNewCourse(p=>({...p,originalPriceUSD:e.target.value}))} placeholder="0" className="w-full border border-orange-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30"/>
                       </div>
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Duration</label>

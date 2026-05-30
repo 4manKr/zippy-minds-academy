@@ -184,13 +184,15 @@ function SessionPreview({ dates, timeSlot, courseName, compact }: {
 function SubscribeInner() {
   const router      = useRouter();
   const params      = useSearchParams();
-  const courseName      = params.get("course")    ?? "Subscription";
-  const courseId        = params.get("courseId")  ?? "";
-  const priceINR        = parseInt(params.get("price")    ?? "199", 10) || 199;
-  const priceUSD        = parseInt(params.get("priceUSD") ?? "15",  10) || 15;
-  const durationValue   = parseInt(params.get("dv")  ?? "1", 10) || 1;
-  const durationUnit    = params.get("du") ?? "months";
-  const sessionsPerWeek = parseInt(params.get("spw") ?? "5", 10) || 5;
+  const courseName        = params.get("course")    ?? "Subscription";
+  const courseId          = params.get("courseId")  ?? "";
+  const priceINR          = parseInt(params.get("price")    ?? "199", 10) || 199;
+  const priceUSD          = parseInt(params.get("priceUSD") ?? "15",  10) || 15;
+  const origPriceINR      = parseInt(params.get("op")    ?? "0", 10) || 0;
+  const origPriceUSD      = parseInt(params.get("opUSD") ?? "0", 10) || 0;
+  const durationValue     = parseInt(params.get("dv")  ?? "1", 10) || 1;
+  const durationUnit      = params.get("du") ?? "months";
+  const sessionsPerWeek   = parseInt(params.get("spw") ?? "5", 10) || 5;
 
   type Step = "slot"|"details"|"payment"|"done";
   const [step, setStep] = useState<Step>("slot");
@@ -717,6 +719,13 @@ function SubscribeInner() {
             <div className="space-y-4">
               {/* Summary */}
               <div className="bg-primary/5 border border-primary/15 rounded-2xl p-5">
+                {/* Savings callout — shown when coupon applied */}
+                {couponApplied && showPricing && (
+                  <div className="flex items-center gap-2 bg-green-500 text-white rounded-xl px-4 py-2.5 mb-4 text-sm font-bold">
+                    <span className="text-lg">🎉</span>
+                    You&apos;re saving {priceSymbol}{couponApplied.discountAmount} with code <span className="font-mono tracking-wider">{couponApplied.code}</span>!
+                  </div>
+                )}
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wide mb-0.5">Subscribing to</p>
@@ -730,23 +739,32 @@ function SubscribeInner() {
                       <>
                         {isIndia === null
                           ? <div className="w-20 h-8 bg-primary/10 rounded animate-pulse"/>
-                          : (
-                            <div>
-                              {couponApplied && (
-                                <p className="text-sm line-through text-on-surface-variant/50 leading-none mb-0.5">
-                                  {priceSymbol}{basePrice}
-                                </p>
-                              )}
-                              <span className={`font-display text-3xl font-extrabold ${couponApplied ? "text-green-600" : "text-primary"}`}>
-                                {priceSymbol}{chargePrice}
-                              </span>
-                              {couponApplied && (
-                                <p className="text-[10px] font-bold text-green-600 mt-0.5">
-                                  {couponApplied.discountLabel} ✓
-                                </p>
-                              )}
-                            </div>
-                          )
+                          : (() => {
+                            const origCoursePrice = isIndia !== false ? origPriceINR : origPriceUSD;
+                            const hasCourseDisc   = origCoursePrice > basePrice && origCoursePrice > 0;
+                            const totalSaved      = (hasCourseDisc ? origCoursePrice - basePrice : 0) + (couponApplied?.discountAmount ?? 0);
+                            const strikePrice     = couponApplied ? basePrice : (hasCourseDisc ? origCoursePrice : 0);
+                            return (
+                              <div>
+                                {strikePrice > 0 && (
+                                  <p className="text-sm line-through text-on-surface-variant/50 leading-none mb-0.5">
+                                    {priceSymbol}{strikePrice}
+                                  </p>
+                                )}
+                                <span className={`font-display text-3xl font-extrabold ${totalSaved > 0 ? "text-green-600" : "text-primary"}`}>
+                                  {priceSymbol}{chargePrice}
+                                </span>
+                                {totalSaved > 0 && (
+                                  <p className="text-[10px] font-bold text-green-600 mt-0.5">
+                                    🎉 Saved {priceSymbol}{totalSaved}!
+                                  </p>
+                                )}
+                                {couponApplied && (
+                                  <p className="text-[10px] text-green-600/70 mt-0.5">{couponApplied.discountLabel} coupon ✓</p>
+                                )}
+                              </div>
+                            );
+                          })()
                         }
                         <p className="text-xs text-on-surface-variant">{durationValue} {durationUnit} course</p>
                         <p className="text-[11px] text-on-surface-variant/60 mt-0.5">
@@ -798,7 +816,7 @@ function SubscribeInner() {
                           value={couponInput}
                           onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(""); }}
                           onKeyDown={e => e.key === "Enter" && handleApplyCoupon()}
-                          placeholder="e.g. RESHMA200"
+                          placeholder="CODE200 / CODE20%"
                           className="flex-1 px-4 py-2.5 rounded-xl border border-outline-variant bg-surface text-on-surface text-sm font-mono font-semibold uppercase placeholder:font-normal placeholder:normal-case focus:outline-none focus:border-primary"
                         />
                         <button
