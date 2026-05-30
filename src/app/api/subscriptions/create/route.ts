@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
       childName, childAge, grade,
       durationValue, durationUnit,
       couponCode, discountAmount,
+      slotId,
     } = body;
 
     if (!timeSlot || !childName) {
@@ -142,6 +143,19 @@ export async function POST(req: NextRequest) {
           data:  { usedCount: { increment: 1 }, updatedAt: new Date() },
         });
       }
+    }
+
+    // ── 1c. Increment course slot booking count ───────────────────────────
+    if (slotId && courseId) {
+      try {
+        const courseRec = await prisma.course.findUnique({ where: { id: courseId }, select: { courseSlots: true } });
+        if (courseRec) {
+          const slots: { id:string; days:string[]; time:string; maxCapacity:number; bookings:number }[] =
+            (() => { try { return JSON.parse(courseRec.courseSlots || "[]"); } catch { return []; } })();
+          const updated = slots.map(s => s.id === slotId ? { ...s, bookings: Math.min(s.bookings + 1, s.maxCapacity) } : s);
+          await prisma.course.update({ where: { id: courseId }, data: { courseSlots: JSON.stringify(updated) } });
+        }
+      } catch { /* non-fatal */ }
     }
 
     // ── 2. Create Enrollment record ───────────────────────────────────────

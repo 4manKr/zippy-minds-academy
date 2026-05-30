@@ -118,6 +118,8 @@ model Course {
   pricePerSessionUSD     Int      @default(0)    // USD  group class per session
   privatePricePerSessionUSD Int   @default(0)    // USD  1-to-1 class per session
   sessionDurationMins    Int      @default(60)   // session length in minutes
+  // ── Course-wise slot combinations (admin-configured) ──────────────────────
+  courseSlots     String   @default("[]")     // JSON: [{id,days,time,maxCapacity,bookings}]
   durationValue   Int      @default(1)
   durationUnit    String   @default("months")  // days | weeks | months
   sessionsPerWeek Int      @default(1)

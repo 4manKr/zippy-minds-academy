@@ -208,6 +208,12 @@ function SubscribeInner() {
   const cwPppsUSD  = parseInt(params.get("pppsUSD") ?? "0", 10);  // private $/session
   const cwDurMins  = parseInt(params.get("sdm")     ?? "60", 10) || 60;
 
+  // Parse admin-configured slots from URL
+  interface CourseSlot { id:string; days:string[]; time:string; maxCapacity:number; bookings:number; }
+  const cwSlots: CourseSlot[] = (() => {
+    try { return JSON.parse(decodeURIComponent(params.get("slots") ?? "[]")); } catch { return []; }
+  })();
+
   const durationValue     = parseInt(params.get("dv")  ?? "1", 10) || 1;
   const durationUnit      = params.get("du") ?? "months";
 
@@ -217,8 +223,9 @@ function SubscribeInner() {
   const [step, setStep] = useState<Step>(enrollModel === "course-wise" ? "daytime" : "slot");
 
   // Course-wise specific state
-  const [dayComboIdx, setDayComboIdx] = useState(0); // 0 = Mon-Tue-Wed, 1 = Thu-Fri-Sat
-  const [classType,   setClassType]   = useState<"group"|"private">("group");
+  const [dayComboIdx,    setDayComboIdx]    = useState(0);
+  const [classType,      setClassType]      = useState<"group"|"private">("group");
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
 
   // Slot — initialise days based on model
   const [selDays,    setSelDays]    = useState<string[]>(() =>
@@ -275,9 +282,9 @@ function SubscribeInner() {
   const chargeCurrency_early = isIndia !== false ? "INR" : "USD";
 
   // keep latest values accessible inside Razorpay callback
-  const latestRef = useRef({ selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied, enrollModel, cwTotalPrice: cwTotalPrice_early, classType, chargeCurrency: chargeCurrency_early });
+  const latestRef = useRef({ selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied, enrollModel, cwTotalPrice: cwTotalPrice_early, classType, chargeCurrency: chargeCurrency_early, selectedSlotId });
   useEffect(() => {
-    latestRef.current = { selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied, enrollModel, cwTotalPrice: cwTotalPrice_early, classType, chargeCurrency: chargeCurrency_early };
+    latestRef.current = { selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied, enrollModel, cwTotalPrice: cwTotalPrice_early, classType, chargeCurrency: chargeCurrency_early, selectedSlotId };
   });
 
   useEffect(() => {
@@ -372,6 +379,7 @@ function SubscribeInner() {
         sessionDates: v.sessionDates,
         couponCode:     v.couponApplied?.code     ?? null,
         discountAmount: v.couponApplied?.discountAmount ?? 0,
+        slotId:         v.selectedSlotId ?? null,
       }),
     });
     const data = await res.json();
@@ -561,73 +569,86 @@ function SubscribeInner() {
             </div>
           )}
 
-          {/* ── COURSE-WISE STEP 1: DAY + TIME ── */}
+          {/* ── COURSE-WISE STEP 1: SLOT PICKER ── */}
           {step === "daytime" && (
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 space-y-6">
-              {/* Day combo selector */}
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 space-y-5">
               <div>
                 <h2 className="font-bold text-on-surface text-lg mb-1 flex items-center gap-2">
-                  <Calendar size={20} className="text-primary"/> Choose Your Day Combination
+                  <Calendar size={20} className="text-primary"/> Choose Your Slot
                 </h2>
                 <p className="text-sm text-on-surface-variant mb-4">
-                  3 sessions per week · pick the batch that works best for you
+                  3 sessions per week · select a slot combination that works for you
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {COURSE_WISE_COMBOS.map((combo, idx) => {
-                    const isSelected = dayComboIdx === idx;
-                    return (
-                      <button key={idx} onClick={() => { setDayComboIdx(idx); setSelDays(combo.days); setSelTime(""); }}
-                        className={`flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all ${
-                          isSelected ? "border-primary bg-primary/5 shadow-sm" : "border-outline-variant hover:border-primary/40 bg-surface-container"
-                        }`}>
-                        <span className="text-2xl shrink-0 mt-0.5">{combo.icon}</span>
-                        <div className="flex-1">
-                          <p className={`font-bold text-base ${isSelected ? "text-primary" : "text-on-surface"}`}>{combo.label}</p>
-                          <p className="text-xs text-on-surface-variant mt-0.5">{combo.desc}</p>
-                          <div className="flex gap-1 mt-2">
-                            {combo.days.map(d => (
-                              <span key={d} className={`px-2 py-0.5 rounded-lg text-xs font-bold ${isSelected ? "bg-primary text-white" : "bg-surface-container-highest text-on-surface-variant"}`}>{d}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? "border-primary bg-primary" : "border-outline-variant"}`}>
-                          {isSelected && <div className="w-2 h-2 rounded-full bg-white"/>}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Time slot picker */}
-              <div>
-                <h3 className="font-bold text-on-surface text-base mb-1 flex items-center gap-2">
-                  <Clock size={18} className="text-primary"/> Choose Your Time Slot
-                </h3>
-                <p className="text-sm text-on-surface-variant mb-4">
-                  Sessions happen at this time on all 3 days
-                  {Object.keys(tutorAvailability).length > 0 && " · Filtered by tutor availability"}
-                </p>
-                {availableTimeSlots.length === 0 ? (
-                  <div className="text-center py-8 text-on-surface-variant text-sm">
-                    <p className="text-3xl mb-2">📅</p>
-                    <p className="font-semibold">No available slots for these days</p>
-                    <p className="text-xs mt-1">Try the other day combination or contact us</p>
+                {cwSlots.length === 0 ? (
+                  <div className="text-center py-10 text-on-surface-variant">
+                    <p className="text-4xl mb-3">📅</p>
+                    <p className="font-semibold">No slots configured for this course</p>
+                    <p className="text-xs mt-1">Please contact us to enroll via WhatsApp</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {TIME_SLOTS.map(time => {
-                      const isAvail = availableTimeSlots.includes(time);
-                      const cnt     = popularity[time] ?? 0;
+                  <div className="space-y-3">
+                    {cwSlots.map(slot => {
+                      const isFull     = slot.bookings >= slot.maxCapacity;
+                      const isSelected = selectedSlotId === slot.id;
+                      const spotsLeft  = slot.maxCapacity - slot.bookings;
                       return (
-                        <button key={time} onClick={() => isAvail && setSelTime(time)} disabled={!isAvail}
-                          className={`relative py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
-                            !isAvail ? "border-outline-variant text-on-surface-variant/30 bg-surface-container cursor-not-allowed opacity-40"
-                            : selTime === time ? "border-primary bg-primary text-white"
-                            : "border-outline-variant hover:border-primary/40 text-on-surface"
+                        <button key={slot.id}
+                          onClick={() => {
+                            if (isFull) return;
+                            setSelectedSlotId(slot.id);
+                            setSelDays(slot.days);
+                            setSelTime(slot.time);
+                          }}
+                          disabled={isFull}
+                          className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${
+                            isFull
+                              ? "border-outline-variant bg-surface-container opacity-60 cursor-not-allowed"
+                              : isSelected
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-outline-variant hover:border-primary/40 bg-surface-container-lowest"
                           }`}>
-                          {time}
-                          {isAvail && cnt >= 3 && <span className="absolute -top-1.5 -right-1 text-[9px] bg-amber-400 text-white px-1 rounded-full">🔥</span>}
+                          {/* Days */}
+                          <div className="flex-1">
+                            <div className="flex gap-1.5 mb-1.5">
+                              {slot.days.map(d => (
+                                <span key={d} className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
+                                  isFull ? "bg-surface-container text-on-surface-variant/50"
+                                  : isSelected ? "bg-primary text-white"
+                                  : "bg-primary/10 text-primary"
+                                }`}>{d}</span>
+                              ))}
+                            </div>
+                            <p className={`font-bold text-base ${isSelected ? "text-primary" : isFull ? "text-on-surface-variant/60" : "text-on-surface"}`}>
+                              {slot.time}
+                            </p>
+                            <p className="text-xs text-on-surface-variant mt-0.5">{cwDurMins} min/session</p>
+                          </div>
+                          {/* Capacity */}
+                          <div className="text-right shrink-0">
+                            {isFull ? (
+                              <span className="inline-flex items-center gap-1 text-xs font-bold bg-red-100 text-red-600 px-2.5 py-1 rounded-full">
+                                🔴 Full
+                              </span>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-1 justify-end mb-1">
+                                  {Array.from({ length: slot.maxCapacity }).map((_, i) => (
+                                    <div key={i} className={`w-2.5 h-2.5 rounded-full ${i < slot.bookings ? "bg-amber-400" : "bg-green-400"}`}/>
+                                  ))}
+                                </div>
+                                <p className={`text-xs font-bold ${spotsLeft <= 1 ? "text-amber-600" : "text-green-600"}`}>
+                                  {spotsLeft} spot{spotsLeft !== 1 ? "s" : ""} left
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          {/* Radio */}
+                          {!isFull && (
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? "border-primary bg-primary" : "border-outline-variant"}`}>
+                              {isSelected && <div className="w-2 h-2 rounded-full bg-white"/>}
+                            </div>
+                          )}
                         </button>
                       );
                     })}
@@ -635,19 +656,17 @@ function SubscribeInner() {
                 )}
               </div>
 
-              {/* Session dates preview */}
-              {sessionDates.length > 0 && selTime && (
-                <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-xl border border-primary/15 text-sm flex-wrap">
+              {/* Selected slot summary */}
+              {selectedSlotId && selTime && (
+                <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-xl border border-primary/15 text-sm">
                   <CheckCircle size={14} className="text-primary shrink-0"/>
-                  <span className="font-semibold text-on-surface">{cwTotalSessions} sessions</span>
+                  <span className="font-semibold text-on-surface">{selDays.join(" · ")} at {selTime}</span>
                   <span className="text-on-surface-variant">·</span>
-                  <span className="font-medium text-primary">{COURSE_WISE_COMBOS[dayComboIdx].label} at {selTime}</span>
-                  <span className="text-on-surface-variant">·</span>
-                  <span className="text-on-surface-variant">{durationValue} {durationUnit}</span>
+                  <span className="text-on-surface-variant">{cwTotalSessions} sessions · {durationValue} {durationUnit}</span>
                 </div>
               )}
 
-              <button onClick={() => setStep("classtype")} disabled={!selTime}
+              <button onClick={() => setStep("classtype")} disabled={!selectedSlotId}
                 className="w-full flex items-center justify-center gap-2 bg-primary text-white font-bold py-3.5 rounded-2xl hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                 Continue <ChevronRight size={18}/>
               </button>
@@ -668,7 +687,7 @@ function SubscribeInner() {
                 {/* Selected schedule summary */}
                 <div className="flex items-center gap-2 bg-primary/5 border border-primary/15 rounded-2xl px-4 py-3 mb-5 text-sm">
                   <CheckCircle size={14} className="text-primary shrink-0"/>
-                  <span className="font-semibold text-on-surface">{COURSE_WISE_COMBOS[dayComboIdx].label}</span>
+                  <span className="font-semibold text-on-surface">{selDays.join(" · ")}</span>
                   <span className="text-on-surface-variant">·</span>
                   <span className="text-primary font-medium">{selTime}</span>
                   <span className="text-on-surface-variant">·</span>
@@ -742,7 +761,7 @@ function SubscribeInner() {
                     <span className="font-bold text-on-surface">{priceSymbol}{cwTotalPrice}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-on-surface-variant">
-                    <span>{COURSE_WISE_COMBOS[dayComboIdx].label} · {selTime} · {durationValue} {durationUnit}</span>
+                    <span>{selDays.join(" · ")} · {selTime} · {durationValue} {durationUnit}</span>
                     <span>{classType === "private" ? "1-to-1" : "Group"}</span>
                   </div>
                   <div className="mt-3 pt-3 border-t border-primary/15 flex items-center justify-between">

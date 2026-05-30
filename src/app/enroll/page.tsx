@@ -67,6 +67,7 @@ interface Course {
   pricePerSessionUSD?:        number;
   privatePricePerSessionUSD?: number;
   sessionDurationMins?:       number;
+  courseSlots?:               string;
   status:           string;
   durationValue?:   number;
   durationUnit?:    string;
@@ -179,7 +180,7 @@ function EnrollInner() {
               // Build subscribe URL
               const isCourseWise = enrollmentModel === "course-wise";
               const subscribeHref = isCourseWise
-                ? `/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&model=course-wise&pps=${course.pricePerSession ?? 0}&ppps=${course.privatePricePerSession ?? 0}&ppsUSD=${course.pricePerSessionUSD ?? 0}&pppsUSD=${course.privatePricePerSessionUSD ?? 0}&sdm=${course.sessionDurationMins ?? 60}&dv=${course.durationValue ?? 1}&du=${course.durationUnit ?? "months"}`
+                ? `/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&model=course-wise&pps=${course.pricePerSession ?? 0}&ppps=${course.privatePricePerSession ?? 0}&ppsUSD=${course.pricePerSessionUSD ?? 0}&pppsUSD=${course.privatePricePerSessionUSD ?? 0}&sdm=${course.sessionDurationMins ?? 60}&dv=${course.durationValue ?? 1}&du=${course.durationUnit ?? "months"}&slots=${encodeURIComponent(course.courseSlots ?? "[]")}`
                 : `/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&priceUSD=${course.priceUSD ?? 15}&op=${course.originalPrice ?? 0}&opUSD=${course.originalPriceUSD ?? 0}&dv=${course.durationValue ?? 1}&du=${course.durationUnit ?? "months"}&spw=${spw}`;
 
               return (
@@ -214,28 +215,33 @@ function EnrollInner() {
                       const sym = isIndia !== false ? "₹" : "$";
 
                       if (isCourseWise) {
-                        // Course-wise: show per-session starting price
-                        const groupPrice   = isIndia !== false ? (course.pricePerSession ?? 0)    : (course.pricePerSessionUSD ?? 0);
-                        const privatePrice = isIndia !== false ? (course.privatePricePerSession ?? 0) : (course.privatePricePerSessionUSD ?? 0);
-                        const durMins      = course.sessionDurationMins ?? 60;
+                        // Course-wise: show per-session starting price (group only; 1-to-1 asked at checkout)
+                        const groupPrice = isIndia !== false ? (course.pricePerSession ?? 0) : (course.pricePerSessionUSD ?? 0);
+                        const durMins    = course.sessionDurationMins ?? 60;
+                        // Parse available slots
+                        let slots: { id:string; days:string[]; time:string; maxCapacity:number; bookings:number }[] = [];
+                        try { slots = JSON.parse((course as any).courseSlots || "[]"); } catch {}
+                        const availableSlots = slots.filter(s => s.bookings < s.maxCapacity);
                         return (
                           <>
-                            <div className="mb-2">
-                              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide mb-1">Group class (3–5 students)</p>
-                              <div className="flex items-end gap-1">
+                            {groupPrice > 0 && (
+                              <div className="flex items-end gap-1 mb-1">
                                 {isIndia !== false ? <IndianRupee size={18} className="text-primary mb-0.5"/> : <DollarSign size={18} className="text-primary mb-0.5"/>}
                                 <span className="font-display text-2xl font-extrabold text-primary">{groupPrice}</span>
                                 <span className="text-xs text-on-surface-variant mb-0.5">/session</span>
                               </div>
-                              {privatePrice > 0 && (
-                                <p className="text-[10px] text-on-surface-variant mt-0.5">1-to-1: {sym}{privatePrice}/session</p>
-                              )}
-                            </div>
+                            )}
                             <p className="text-xs text-on-surface-variant mb-1 flex items-center gap-1">
                               <BookOpen size={11}/>
                               {durMins} min · 3 days/week · {course.durationValue ?? 1} {course.durationUnit ?? "months"}
                             </p>
-                            <p className="text-[10px] text-indigo-600 font-semibold mb-3">Price auto-calculated at checkout</p>
+                            {slots.length > 0 && (
+                              <p className="text-[10px] font-semibold mb-2">
+                                {availableSlots.length > 0
+                                  ? <span className="text-green-600">{availableSlots.length} slot{availableSlots.length>1?"s":""} available</span>
+                                  : <span className="text-red-500">All slots full</span>}
+                              </p>
+                            )}
                           </>
                         );
                       }

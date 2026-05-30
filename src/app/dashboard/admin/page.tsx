@@ -20,7 +20,8 @@ type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"anal
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
 interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; needsAdmin?:boolean; declinedTutors?:string; createdAt:string; }
 interface DBSubject { id:string; name:string; ageGroup:string; totalDuration:string; color:string; status:string; courses:DBCourse[]; }
-interface DBCourse  { id:string; name:string; description:string; thumbnail:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; originalPrice:number; originalPriceUSD:number; pricePerSession:number; privatePricePerSession:number; pricePerSessionUSD:number; privatePricePerSessionUSD:number; sessionDurationMins:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; sortOrder:number; subjectId?:string|null; subject?:{id:string;name:string;color:string}|null; }
+interface CourseSlot { id:string; days:string[]; time:string; maxCapacity:number; bookings:number; }
+interface DBCourse  { id:string; name:string; description:string; thumbnail:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; originalPrice:number; originalPriceUSD:number; pricePerSession:number; privatePricePerSession:number; pricePerSessionUSD:number; privatePricePerSessionUSD:number; sessionDurationMins:number; courseSlots:string; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; sortOrder:number; subjectId?:string|null; subject?:{id:string;name:string;color:string}|null; }
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
 interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; showPricing:string; enrollmentModel:string; }
@@ -79,7 +80,11 @@ export default function AdminDashboard() {
   const [newSubject,     setNewSubject]     = useState({ name:"", ageGroup:"", totalDuration:"", color:"" });
   const [addingSubject,  setAddingSubject]  = useState(false);
   const [editSubject,    setEditSubject]    = useState<DBSubject|null>(null);
-  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", pricePerSession:"0", privatePricePerSession:"0", pricePerSessionUSD:"0", privatePricePerSessionUSD:"0", sessionDurationMins:"60", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" });
+  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", pricePerSession:"0", privatePricePerSession:"0", pricePerSessionUSD:"0", privatePricePerSessionUSD:"0", sessionDurationMins:"60", courseSlots:[] as CourseSlot[], durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" });
+  const [newSlotDayCombo, setNewSlotDayCombo] = useState<"MWF"|"TFS">("MWF"); // MWF=Mon-Tue-Wed, TFS=Thu-Fri-Sat
+  const [newSlotTime,     setNewSlotTime]     = useState("");
+  const [editSlotDayCombo,setEditSlotDayCombo] = useState<"MWF"|"TFS">("MWF");
+  const [editSlotTime,    setEditSlotTime]    = useState("");
   const [addingCourse,   setAddingCourse]   = useState(false);
   // Content management
   const [contentTab,     setContentTab]     = useState<"resources"|"videos"|"recordings">("resources");
@@ -457,14 +462,34 @@ export default function AdminDashboard() {
       pricePerSession:parseInt(newCourse.pricePerSession)||0, privatePricePerSession:parseInt(newCourse.privatePricePerSession)||0,
       pricePerSessionUSD:parseInt(newCourse.pricePerSessionUSD)||0, privatePricePerSessionUSD:parseInt(newCourse.privatePricePerSessionUSD)||0,
       sessionDurationMins:parseInt(newCourse.sessionDurationMins)||60,
+      courseSlots: newCourse.courseSlots,
       durationValue:parseInt(newCourse.durationValue)||1, durationUnit:newCourse.durationUnit||"months",
       sessionsPerWeek:parseInt(newCourse.sessionsPerWeek)||1,
       sortOrder:parseInt(newCourse.sortOrder)||0,
     }) });
     const data = await res.json();
-    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", pricePerSession:"0", privatePricePerSession:"0", pricePerSessionUSD:"0", privatePricePerSessionUSD:"0", sessionDurationMins:"60", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" }); setAddingCourse(false); }
+    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", pricePerSession:"0", privatePricePerSession:"0", pricePerSessionUSD:"0", privatePricePerSessionUSD:"0", sessionDurationMins:"60", courseSlots:[], durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" }); setAddingCourse(false); }
     setLoad("addCourse", false);
   };
+
+  // ── Slot helpers ──────────────────────────────────────────────────────────
+  const COMBO_DAYS: Record<"MWF"|"TFS", string[]> = {
+    MWF: ["Mon","Tue","Wed"],
+    TFS: ["Thu","Fri","Sat"],
+  };
+  const ADMIN_TIME_SLOTS = [
+    "7:00 AM","8:00 AM","9:00 AM","10:00 AM","11:00 AM","12:00 PM",
+    "1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM","7:00 PM","8:00 PM",
+  ];
+  function addSlotToList(slots: CourseSlot[], combo: "MWF"|"TFS", time: string): CourseSlot[] {
+    if (!time) return slots;
+    // No duplicate combo+time
+    if (slots.some(s => s.days.join() === COMBO_DAYS[combo].join() && s.time === time)) return slots;
+    return [...slots, { id: `${combo}-${time}-${Date.now()}`, days: COMBO_DAYS[combo], time, maxCapacity: 5, bookings: 0 }];
+  }
+  function removeSlot(slots: CourseSlot[], id: string): CourseSlot[] {
+    return slots.filter(s => s.id !== id);
+  }
 
   // ── Blog CRUD ─────────────────────────────────────────────────────────────
   const handleAddBlog = async () => {
@@ -725,6 +750,7 @@ export default function AdminDashboard() {
           pricePerSession:editCourse.pricePerSession??0, privatePricePerSession:editCourse.privatePricePerSession??0,
           pricePerSessionUSD:editCourse.pricePerSessionUSD??0, privatePricePerSessionUSD:editCourse.privatePricePerSessionUSD??0,
           sessionDurationMins:editCourse.sessionDurationMins??60,
+          courseSlots: (() => { try { return JSON.parse(editCourse.courseSlots||"[]"); } catch { return []; } })(),
           durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit,
           sessionsPerWeek:editCourse.sessionsPerWeek, sortOrder:editCourse.sortOrder }) });
       const data = await res.json();
@@ -1137,26 +1163,26 @@ export default function AdminDashboard() {
               {/* Course-wise pricing section */}
               <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
                 <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                  <Tag size={12}/> Course-wise Model Pricing (per session)
+                  <Tag size={12}/> Course-wise Model Pricing
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Group Price ₹/session <span className="text-[10px] text-gray-400">(3–5 students)</span></label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Group ₹/session <span className="text-[10px] text-gray-400">(3–5 students)</span></label>
                     <input type="number" min="0" value={editCourse.pricePerSession??0} onChange={e=>setEditCourse(p=>p?{...p,pricePerSession:parseInt(e.target.value)||0}:null)}
                       className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">1-to-1 Price ₹/session</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">1-to-1 ₹/session</label>
                     <input type="number" min="0" value={editCourse.privatePricePerSession??0} onChange={e=>setEditCourse(p=>p?{...p,privatePricePerSession:parseInt(e.target.value)||0}:null)}
                       className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Group Price $/session</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Group $/session</label>
                     <input type="number" min="0" value={editCourse.pricePerSessionUSD??0} onChange={e=>setEditCourse(p=>p?{...p,pricePerSessionUSD:parseInt(e.target.value)||0}:null)}
                       className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">1-to-1 Price $/session</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">1-to-1 $/session</label>
                     <input type="number" min="0" value={editCourse.privatePricePerSessionUSD??0} onChange={e=>setEditCourse(p=>p?{...p,privatePricePerSessionUSD:parseInt(e.target.value)||0}:null)}
                       className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
                   </div>
@@ -1164,7 +1190,49 @@ export default function AdminDashboard() {
                     <label className="block text-xs font-semibold text-gray-600 mb-1">Session Duration (mins)</label>
                     <input type="number" min="30" step="15" value={editCourse.sessionDurationMins??60} onChange={e=>setEditCourse(p=>p?{...p,sessionDurationMins:parseInt(e.target.value)||60}:null)}
                       className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
-                    <p className="text-[10px] text-gray-400 mt-1">e.g. 45, 60, 90 mins per class</p>
+                  </div>
+                </div>
+                {/* ── Slot Manager ── */}
+                <div className="border-t border-indigo-200 pt-3 mt-1">
+                  <p className="text-xs font-bold text-indigo-600 mb-2 flex items-center gap-1"><Calendar size={11}/> Available Slots (shown to students)</p>
+                  {/* Existing slots */}
+                  <div className="space-y-1.5 mb-3">
+                    {(() => {
+                      let slots: CourseSlot[] = [];
+                      try { slots = JSON.parse(editCourse.courseSlots||"[]"); } catch {}
+                      return slots.length === 0
+                        ? <p className="text-xs text-gray-400 italic">No slots yet — add one below</p>
+                        : slots.map(sl => (
+                          <div key={sl.id} className="flex items-center gap-2 bg-white border border-indigo-200 rounded-xl px-3 py-2">
+                            <div className="flex-1">
+                              <span className="text-xs font-bold text-indigo-700">{sl.days.join(" · ")} at {sl.time}</span>
+                              <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${sl.bookings>=sl.maxCapacity?"bg-red-100 text-red-600":"bg-green-100 text-green-700"}`}>
+                                {sl.bookings}/{sl.maxCapacity} {sl.bookings>=sl.maxCapacity?"Full":"booked"}
+                              </span>
+                            </div>
+                            <button onClick={()=>setEditCourse(p=>p?{...p,courseSlots:JSON.stringify(removeSlot((() => { try{return JSON.parse(p.courseSlots||"[]")}catch{return[]} })(),sl.id))}:null)}
+                              className="p-1 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 size={12}/></button>
+                          </div>
+                        ));
+                    })()}
+                  </div>
+                  {/* Add slot row */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select value={editSlotDayCombo} onChange={e=>setEditSlotDayCombo(e.target.value as "MWF"|"TFS")}
+                      className="border border-indigo-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white">
+                      <option value="MWF">Mon · Tue · Wed</option>
+                      <option value="TFS">Thu · Fri · Sat</option>
+                    </select>
+                    <select value={editSlotTime} onChange={e=>setEditSlotTime(e.target.value)}
+                      className="border border-indigo-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white">
+                      <option value="">— time —</option>
+                      {ADMIN_TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <button onClick={()=>{ setEditCourse(p=>{ if(!p)return null; const cur: CourseSlot[] = (() => { try{return JSON.parse(p.courseSlots||"[]")}catch{return[]} })(); return {...p,courseSlots:JSON.stringify(addSlotToList(cur,editSlotDayCombo,editSlotTime))}; }); setEditSlotTime(""); }}
+                      disabled={!editSlotTime}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-40 transition-colors">
+                      <Plus size={11}/> Add Slot
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1893,9 +1961,9 @@ export default function AdminDashboard() {
                     {/* Course-wise per-session pricing */}
                     <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-3">
                       <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                        <Tag size={12}/> Course-wise Model Pricing (per session)
+                        <Tag size={12}/> Course-wise Model Pricing
                       </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                         <div>
                           <label className="text-xs font-medium text-gray-600 mb-1 block">Group ₹/session <span className="text-[10px] text-gray-400">(3–5 students)</span></label>
                           <input type="number" min="0" value={newCourse.pricePerSession} onChange={e=>setNewCourse(p=>({...p,pricePerSession:e.target.value}))} placeholder="0" className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
@@ -1909,12 +1977,46 @@ export default function AdminDashboard() {
                           <input type="number" min="15" step="15" value={newCourse.sessionDurationMins} onChange={e=>setNewCourse(p=>({...p,sessionDurationMins:e.target.value}))} placeholder="60" className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-gray-600 mb-1 block">Group $/session <span className="text-[10px] text-gray-400">(USD)</span></label>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Group $/session</label>
                           <input type="number" min="0" value={newCourse.pricePerSessionUSD} onChange={e=>setNewCourse(p=>({...p,pricePerSessionUSD:e.target.value}))} placeholder="0" className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-gray-600 mb-1 block">1-to-1 $/session <span className="text-[10px] text-gray-400">(USD)</span></label>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">1-to-1 $/session</label>
                           <input type="number" min="0" value={newCourse.privatePricePerSessionUSD} onChange={e=>setNewCourse(p=>({...p,privatePricePerSessionUSD:e.target.value}))} placeholder="0" className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        </div>
+                      </div>
+                      {/* Slot Manager */}
+                      <div className="border-t border-indigo-200 pt-3">
+                        <p className="text-xs font-bold text-indigo-600 mb-2 flex items-center gap-1"><Calendar size={11}/> Available Slots (shown to students)</p>
+                        <div className="space-y-1.5 mb-2">
+                          {newCourse.courseSlots.length === 0
+                            ? <p className="text-xs text-gray-400 italic">No slots yet — add one below</p>
+                            : newCourse.courseSlots.map(sl => (
+                              <div key={sl.id} className="flex items-center gap-2 bg-white border border-indigo-200 rounded-xl px-3 py-2">
+                                <span className="text-xs font-bold text-indigo-700 flex-1">{sl.days.join(" · ")} at {sl.time}</span>
+                                <span className="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">0/{sl.maxCapacity}</span>
+                                <button onClick={()=>setNewCourse(p=>({...p,courseSlots:removeSlot(p.courseSlots,sl.id)}))}
+                                  className="p-1 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 size={12}/></button>
+                              </div>
+                            ))
+                          }
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <select value={newSlotDayCombo} onChange={e=>setNewSlotDayCombo(e.target.value as "MWF"|"TFS")}
+                            className="border border-indigo-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white">
+                            <option value="MWF">Mon · Tue · Wed</option>
+                            <option value="TFS">Thu · Fri · Sat</option>
+                          </select>
+                          <select value={newSlotTime} onChange={e=>setNewSlotTime(e.target.value)}
+                            className="border border-indigo-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white">
+                            <option value="">— time —</option>
+                            {ADMIN_TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
+                          </select>
+                          <button onClick={()=>{ setNewCourse(p=>({...p,courseSlots:addSlotToList(p.courseSlots,newSlotDayCombo,newSlotTime)})); setNewSlotTime(""); }}
+                            disabled={!newSlotTime}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-40 transition-colors">
+                            <Plus size={11}/> Add Slot
+                          </button>
                         </div>
                       </div>
                     </div>

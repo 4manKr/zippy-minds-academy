@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       name, description, thumbnail, subjectId, ageRange, teacherName, showTeacher,
       rating, price, priceUSD, originalPrice, originalPriceUSD,
       pricePerSession, privatePricePerSession, pricePerSessionUSD, privatePricePerSessionUSD, sessionDurationMins,
+      courseSlots,
       durationValue, durationUnit, sessionsPerWeek, sortOrder,
     } = body;
     if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
         pricePerSessionUSD:        pricePerSessionUSD        ?? 0,
         privatePricePerSessionUSD: privatePricePerSessionUSD ?? 0,
         sessionDurationMins:       sessionDurationMins       ?? 60,
+        courseSlots:               courseSlots ? JSON.stringify(courseSlots) : "[]",
         durationValue:             durationValue             ?? 1,
         durationUnit:              durationUnit              ?? "months",
         sessionsPerWeek:           sessionsPerWeek           ?? 1,
@@ -120,6 +122,7 @@ export async function PATCH(req: NextRequest) {
       courseId, name, description, thumbnail, subjectId, ageRange, teacherName,
       showTeacher, rating, price, priceUSD, originalPrice, originalPriceUSD,
       pricePerSession, privatePricePerSession, pricePerSessionUSD, privatePricePerSessionUSD, sessionDurationMins,
+      courseSlots,
       durationValue, durationUnit, sessionsPerWeek, sortOrder, status,
     } = body;
 
@@ -143,6 +146,7 @@ export async function PATCH(req: NextRequest) {
         ...(pricePerSessionUSD         !== undefined && { pricePerSessionUSD: pricePerSessionUSD || 0 }),
         ...(privatePricePerSessionUSD  !== undefined && { privatePricePerSessionUSD: privatePricePerSessionUSD || 0 }),
         ...(sessionDurationMins        !== undefined && { sessionDurationMins: sessionDurationMins || 60 }),
+        ...(courseSlots                !== undefined && { courseSlots: JSON.stringify(courseSlots) }),
         ...(durationValue              !== undefined && { durationValue }),
         ...(durationUnit               !== undefined && { durationUnit }),
         ...(sessionsPerWeek            !== undefined && { sessionsPerWeek }),
