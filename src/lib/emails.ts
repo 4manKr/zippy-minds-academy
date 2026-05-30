@@ -861,3 +861,207 @@ export async function sendTutorEnrollmentAssignedEmail(params: {
 
   await send(tutorEmail, `🎓 New Enrollment — ${subject} for ${childName} (Mon–Fri at ${timeSlot})`, html, FROM_TUTORS);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENROLLMENT RECEIPT — sent to parent/user right after payment (course-wise)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendEnrollmentReceiptEmail(data: {
+  parentName:    string;
+  parentEmail:   string;
+  childName:     string;
+  courseName:    string;
+  days:          string;
+  timeSlot:      string;
+  timezone:      string;
+  classType:     string;
+  totalSessions: number;
+  amountPaid:    number;
+  currency:      string;
+  tutorName:     string;
+  durationValue: number;
+  durationUnit:  string;
+}) {
+  const { parentName, parentEmail, childName, courseName, days, timeSlot, timezone, classType, totalSessions, amountPaid, currency, tutorName, durationValue, durationUnit } = data;
+  const currencySymbol = currency === "USD" ? "$" : "₹";
+  const durationStr = `${durationValue} ${durationUnit}`;
+
+  const html = wrapper(`
+    <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
+      ✅ Payment Confirmed!
+    </h2>
+    <p style="font-size:14px;color:#555;margin:0 0 20px;">
+      Hi <strong>${parentName}</strong>, your payment for <strong>${childName}</strong>'s ${courseName} course has been received. Here's your receipt.
+    </p>
+    <div style="background:#f0f7ff;border:1px solid #cce0ff;border-radius:14px;padding:20px;margin-bottom:20px;">
+      <p style="font-size:11px;font-weight:700;color:#005da8;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 12px;">Enrollment Receipt</p>
+      <table width="100%" cellpadding="0" cellspacing="6">
+        ${infoRow("Course",         courseName)}
+        ${infoRow("Student",        childName)}
+        ${infoRow("Class Type",     classType)}
+        ${infoRow("Schedule",       `${days} at ${timeSlot}`)}
+        ${infoRow("Timezone",       timezone)}
+        ${infoRow("Duration",       durationStr)}
+        ${infoRow("Total Sessions", String(totalSessions))}
+        ${infoRow("Amount Paid",    `<strong style="color:#059669;font-size:16px;">${currencySymbol}${amountPaid.toLocaleString()}</strong>`)}
+        ${infoRow("Tutor",          tutorName === "TBD" ? "<em>To be confirmed</em>" : tutorName)}
+      </table>
+    </div>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+      <p style="font-size:13px;color:#92400e;font-weight:600;margin:0;">
+        ⏳ Your tutor will confirm your class shortly. You'll receive an email once everything is set!
+      </p>
+    </div>
+    ${btnPrimary("View Dashboard →", `${BASE_URL}/dashboard/parent`)}
+  `);
+
+  await send(parentEmail, `✅ Payment Confirmed — ${courseName} Enrollment Receipt`, html, FROM_BOOKINGS);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TUTOR COURSE-WISE NOTIFICATION — to tutor when assigned a new course student
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendTutorCourseWiseNotificationEmail(params: {
+  tutorName:     string;
+  tutorEmail:    string;
+  parentName:    string;
+  parentEmail:   string;
+  childName:     string;
+  courseName:    string;
+  days:          string;
+  timeSlot:      string;
+  timezone:      string;
+  classType:     string;
+  totalSessions: number;
+  enrollmentId:  string;
+}) {
+  const { tutorName, tutorEmail, parentName, parentEmail, childName, courseName, days, timeSlot, timezone, classType, totalSessions, enrollmentId } = params;
+  const acceptUrl = `${BASE_URL}/dashboard/tutor?section=enrollments&accept=${enrollmentId}`;
+
+  const html = wrapper(`
+    <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
+      🎓 New Class Assigned!
+    </h2>
+    <p style="font-size:14px;color:#555;margin:0 0 20px;">
+      Hi <strong>${tutorName}</strong>, a new course-wise student has been enrolled and assigned to you. Please review the details and accept below.
+    </p>
+    <div style="background:#f0f7ff;border:1px solid #c7dcf5;border-radius:14px;padding:16px;margin:16px 0;">
+      <table width="100%" cellpadding="0" cellspacing="6">
+        ${infoRow("Student",        childName)}
+        ${infoRow("Course",         courseName)}
+        ${infoRow("Class Type",     classType)}
+        ${infoRow("Parent",         parentName)}
+        ${infoRow("Parent Email",   parentEmail)}
+        ${infoRow("Schedule",       `${days} at ${timeSlot}`)}
+        ${infoRow("Timezone",       timezone)}
+        ${infoRow("Total Sessions", String(totalSessions))}
+      </table>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+      <p style="font-size:13px;color:#166534;font-weight:600;margin:0;">
+        Please accept this class within 24 hours so the student's class can be confirmed.
+      </p>
+    </div>
+    <div style="text-align:center;margin-bottom:20px;">
+      <a href="${acceptUrl}" style="display:inline-block;background:#059669;color:#fff;font-weight:800;font-size:15px;padding:14px 36px;border-radius:12px;text-decoration:none;">
+        Accept This Class →
+      </a>
+    </div>
+    ${btnPrimary("View Dashboard →", `${BASE_URL}/dashboard/tutor`)}
+  `);
+
+  await send(tutorEmail, `🎓 New Class Assigned — ${courseName} for ${childName}`, html, FROM_TUTORS);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENROLLMENT ACCEPTED — to parent when tutor accepts the course-wise class
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendEnrollmentAcceptedEmail(data: {
+  parentName:    string;
+  parentEmail:   string;
+  childName:     string;
+  courseName:    string;
+  tutorName:     string;
+  days:          string;
+  timeSlot:      string;
+  timezone:      string;
+  totalSessions: number;
+  firstDate:     string;
+}) {
+  const { parentName, parentEmail, childName, courseName, tutorName, days, timeSlot, timezone, totalSessions, firstDate } = data;
+  const firstDateFmt = (() => { try { const [y,m,d] = firstDate.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"}); } catch { return firstDate; } })();
+
+  const html = wrapper(`
+    <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
+      🎊 Your class is confirmed!
+    </h2>
+    <p style="font-size:14px;color:#555;margin:0 0 20px;">
+      Great news, <strong>${parentName}</strong>! <strong>${childName}</strong>'s ${courseName} class has been confirmed with your tutor.
+    </p>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:14px;padding:20px;margin-bottom:20px;">
+      <p style="font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 12px;">Class Details</p>
+      <table width="100%" cellpadding="0" cellspacing="6">
+        ${infoRow("Course",         courseName)}
+        ${infoRow("Student",        childName)}
+        ${infoRow("Tutor",          `<strong>${tutorName}</strong>`)}
+        ${infoRow("Schedule",       `${days} at ${timeSlot}`)}
+        ${infoRow("Timezone",       timezone)}
+        ${infoRow("Total Sessions", String(totalSessions))}
+        ${infoRow("First Session",  `<strong>${firstDateFmt}</strong>`)}
+      </table>
+    </div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px 16px;margin-bottom:20px;">
+      <p style="font-size:13px;color:#1e40af;font-weight:600;margin:0;">
+        📧 You'll receive a reminder 30 minutes before each session with the Zoom link.
+      </p>
+    </div>
+    ${btnPrimary("View Dashboard →", `${BASE_URL}/dashboard/parent`)}
+  `);
+
+  await send(parentEmail, `🎊 Your ${courseName} class is confirmed with ${tutorName}!`, html, FROM_BOOKINGS);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN ENROLLMENT ALERT — to admin when new course-wise enrollment happens
+// ─────────────────────────────────────────────────────────────────────────────
+export async function sendAdminEnrollmentAlert(data: {
+  parentName:    string;
+  parentEmail:   string;
+  childName:     string;
+  courseName:    string;
+  days:          string;
+  timeSlot:      string;
+  classType:     string;
+  tutorName:     string;
+  amountPaid:    number;
+  currency:      string;
+  enrollmentId:  string;
+}) {
+  const { adminEmail } = await getContactSettings();
+  const { parentName, parentEmail, childName, courseName, days, timeSlot, classType, tutorName, amountPaid, currency, enrollmentId } = data;
+  const currencySymbol = currency === "USD" ? "$" : "₹";
+
+  const html = wrapper(`
+    <h2 style="font-size:22px;font-weight:800;color:#0d1b2e;margin:4px 0 6px;">
+      📥 New Course Enrollment
+    </h2>
+    <p style="font-size:14px;color:#555;margin:0 0 20px;">
+      A new course-wise enrollment just came in. Review and ensure the tutor has been assigned.
+    </p>
+    <div style="background:#f0f7ff;border:1px solid #c7dcf5;border-radius:14px;padding:16px;margin:16px 0;">
+      <table width="100%" cellpadding="0" cellspacing="6">
+        ${infoRow("Student",        childName)}
+        ${infoRow("Course",         courseName)}
+        ${infoRow("Class Type",     classType)}
+        ${infoRow("Parent",         parentName)}
+        ${infoRow("Parent Email",   parentEmail)}
+        ${infoRow("Schedule",       `${days} at ${timeSlot}`)}
+        ${infoRow("Assigned Tutor", tutorName)}
+        ${infoRow("Amount Paid",    `<strong style="color:#059669;">${currencySymbol}${amountPaid.toLocaleString()}</strong>`)}
+        ${infoRow("Enrollment ID",  enrollmentId)}
+      </table>
+    </div>
+    ${btnPrimary("Admin Dashboard →", `${BASE_URL}/dashboard/admin`)}
+  `);
+
+  await send(adminEmail, `📥 New Course Enrollment — ${courseName} (${childName})`, html, FROM_ADMIN);
+}

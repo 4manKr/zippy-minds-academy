@@ -53,6 +53,21 @@ interface UserInfo {
   availability?: Record<string, string[]>;
 }
 
+interface TPendingEnrollment {
+  id: string;
+  parentName: string;
+  parentEmail: string;
+  childName: string;
+  courseName: string;
+  dayOfWeek: string;
+  timeSlot: string;
+  timezone: string;
+  totalSessions: number;
+  tutorStatus: string;
+  startDate: string;
+  createdAt: string;
+}
+
 /* ─── Helpers ───────────────────────────────────────────────────────────── */
 function getSubjectStyle(subject: string) {
   const map: Record<string, { color: string; bg: string; icon: string }> = {
@@ -135,6 +150,10 @@ export default function TutorDashboard() {
   const [monthAvailSaving, setMonthAvailSaving] = useState(false);
   const [monthAvailMsg, setMonthAvailMsg]   = useState<{type:"ok"|"err";text:string}|null>(null);
 
+  // Pending course-wise enrollments
+  const [pendingEnrollments, setPendingEnrollments] = useState<TPendingEnrollment[]>([]);
+  const [acceptingId, setAcceptingId]               = useState<string|null>(null);
+
   // Notes
   const [noteOpen, setNoteOpen]   = useState<string | null>(null);
   const [noteText, setNoteText]   = useState("");
@@ -198,6 +217,12 @@ export default function TutorDashboard() {
         if (existing) setMonthAvailForm(JSON.parse(existing.slots) as Record<string, string[]>);
       }
       if (availData?.protectedSlots)  setProtectedSlots(availData.protectedSlots);
+
+      // Fetch pending course-wise enrollments (non-blocking)
+      fetch("/api/tutor/pending-enrollments")
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.enrollments) setPendingEnrollments(d.enrollments); })
+        .catch(() => {});
     }).catch(() => router.push("/auth/login"))
       .finally(() => setLoading(false));
   }, [router]);
@@ -386,6 +411,17 @@ export default function TutorDashboard() {
     }
   };
 
+  const handleAcceptEnrollment = async (id: string) => {
+    setAcceptingId(id);
+    try {
+      const res = await fetch(`/api/enrollments/${id}/accept`, { method: "POST" });
+      if (res.ok) {
+        setPendingEnrollments(p => p.filter(e => e.id !== id));
+      }
+    } catch { /* ignore */ }
+    setAcceptingId(null);
+  };
+
   const handleSaveNote = async () => {
     if (!noteOpen) return;
     setNoteSaving(true);
@@ -553,7 +589,10 @@ export default function TutorDashboard() {
       <nav className="flex flex-col flex-grow gap-0.5 px-2">
         {navItems.map(item => {
           const Icon = item.icon;
-          const badge = item.id === "sessions" && pendingRequests.length > 0 ? pendingRequests.length : null;
+          const badge =
+            item.id === "sessions" && pendingRequests.length > 0 ? pendingRequests.length :
+            item.id === "dashboard" && pendingEnrollments.length > 0 ? pendingEnrollments.length :
+            null;
           return (
             <button key={item.id} onClick={() => { setSection(item.id); setSidebarOpen(false); }}
               className={section === item.id ? "sidebar-link-active" : "sidebar-link"}>
@@ -651,6 +690,50 @@ export default function TutorDashboard() {
         ══════════════════════════════════════════ */}
         {section === "dashboard" && (
           <div className="space-y-6">
+
+            {/* Pending Acceptances */}
+            {pendingEnrollments.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                <h3 className="font-display font-bold text-amber-900 text-base mb-3 flex items-center gap-2">
+                  <AlertCircle size={18} className="text-amber-600" />
+                  Pending Class Acceptances ({pendingEnrollments.length})
+                </h3>
+                <div className="space-y-3">
+                  {pendingEnrollments.map(en => (
+                    <div key={en.id} className="bg-white border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-on-surface">{en.childName}</p>
+                          <span className="text-xs text-on-surface-variant">·</span>
+                          <p className="text-sm text-on-surface-variant">{en.courseName}</p>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-on-surface-variant flex-wrap">
+                          <span>📅 {en.dayOfWeek.split(",").join(" · ")} at {en.timeSlot}</span>
+                          <span>🌍 {en.timezone}</span>
+                          <span>📊 {en.totalSessions} sessions</span>
+                        </div>
+                        <p className="text-xs text-on-surface-variant mt-1">Parent: {en.parentName} ({en.parentEmail})</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => handleAcceptEnrollment(en.id)}
+                          disabled={acceptingId === en.id}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-xl hover:bg-green-700 disabled:opacity-60 transition-all">
+                          {acceptingId === en.id
+                            ? <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Accepting...</>
+                            : <><CheckCircle size={14} /> Accept Class</>}
+                        </button>
+                        <a href={`mailto:zippymindsacademy@gmail.com?subject=Course enrollment ${en.id}`}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-600 text-xs font-bold rounded-xl hover:bg-gray-200 transition-all">
+                          Contact Admin
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Greeting */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>

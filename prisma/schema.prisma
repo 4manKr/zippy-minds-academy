@@ -332,6 +332,10 @@ model Enrollment {
   startDate     String   // first session YYYY-MM-DD
   endDate       String   // last session YYYY-MM-DD
   totalSessions Int      @default(0)
+  tutorId       String   @default("")
+  tutorName     String   @default("TBD")
+  tutorInitials String   @default("??")
+  tutorStatus   String   @default("PENDING")  // PENDING | ACCEPTED | DECLINED
   status        String   @default("ACTIVE") // ACTIVE | COMPLETED | CANCELLED
   createdAt     DateTime @default(now())
   sessions      MonthlySession[]

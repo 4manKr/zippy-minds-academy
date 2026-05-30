@@ -20,7 +20,7 @@ type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"anal
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
 interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; needsAdmin?:boolean; declinedTutors?:string; createdAt:string; }
 interface DBSubject { id:string; name:string; ageGroup:string; totalDuration:string; color:string; status:string; courses:DBCourse[]; }
-interface CourseSlot { id:string; days:string[]; time:string; maxCapacity:number; bookings:number; }
+interface CourseSlot { id:string; days:string[]; time:string; maxCapacity:number; bookings:number; tutorId?:string; tutorName?:string; }
 interface DBCourse  { id:string; name:string; description:string; thumbnail:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; originalPrice:number; originalPriceUSD:number; pricePerSession:number; privatePricePerSession:number; pricePerSessionUSD:number; privatePricePerSessionUSD:number; sessionDurationMins:number; courseSlots:string; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; sortOrder:number; subjectId?:string|null; subject?:{id:string;name:string;color:string}|null; }
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
@@ -31,7 +31,7 @@ interface DBRecording { id:string; title:string; description:string; subject:str
 interface AvailabilityRecord { id:string; tutorId:string; tutorName:string; monthYear:string; slots:string; timezone:string; isLocked:boolean; createdAt:string; }
 interface ChangeRequest { id:string; tutorId:string; tutorName:string; monthYear:string; currentSlots:string; proposedSlots:string; reason:string; status:string; parentApprovals:string; adminName:string; createdAt:string; expiresAt:string; }
 interface DBPayment { id:string; parentEmail:string; parentName:string; childName:string; amount:number; currency:string; gateway:string; gatewayId?:string|null; status:string; courseName:string; courseId?:string|null; createdAt:string; }
-interface DBEnrollment { id:string; paymentId?:string|null; parentEmail:string; parentName:string; childName:string; subject:string; courseName:string; dayOfWeek:string; timeSlot:string; timezone:string; startDate:string; endDate:string; totalSessions:number; status:string; createdAt:string; sessions:{id:string;date:string;status:string;zoomLink?:string|null}[]; }
+interface DBEnrollment { id:string; paymentId?:string|null; parentEmail:string; parentName:string; childName:string; subject:string; courseName:string; dayOfWeek:string; timeSlot:string; timezone:string; startDate:string; endDate:string; totalSessions:number; tutorId?:string; tutorName?:string; tutorInitials?:string; tutorStatus?:string; status:string; createdAt:string; sessions:{id:string;date:string;status:string;zoomLink?:string|null}[]; }
 
 
 export default function AdminDashboard() {
@@ -81,10 +81,16 @@ export default function AdminDashboard() {
   const [addingSubject,  setAddingSubject]  = useState(false);
   const [editSubject,    setEditSubject]    = useState<DBSubject|null>(null);
   const [newCourse,      setNewCourse]      = useState({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", pricePerSession:"0", privatePricePerSession:"0", pricePerSessionUSD:"0", privatePricePerSessionUSD:"0", sessionDurationMins:"60", courseSlots:[] as CourseSlot[], durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" });
-  const [newSlotDayCombo, setNewSlotDayCombo] = useState<"MWF"|"TFS">("MWF"); // MWF=Mon-Tue-Wed, TFS=Thu-Fri-Sat
-  const [newSlotTime,     setNewSlotTime]     = useState("");
-  const [editSlotDayCombo,setEditSlotDayCombo] = useState<"MWF"|"TFS">("MWF");
-  const [editSlotTime,    setEditSlotTime]    = useState("");
+  const [newSlotDayCombo,  setNewSlotDayCombo]  = useState<"MWF"|"TFS">("MWF"); // MWF=Mon-Tue-Wed, TFS=Thu-Fri-Sat
+  const [newSlotTime,      setNewSlotTime]      = useState("");
+  const [newSlotTutorId,   setNewSlotTutorId]   = useState("");
+  const [newSlotTutorName, setNewSlotTutorName] = useState("");
+  const [editSlotDayCombo, setEditSlotDayCombo] = useState<"MWF"|"TFS">("MWF");
+  const [editSlotTime,     setEditSlotTime]     = useState("");
+  const [editSlotTutorId,  setEditSlotTutorId]  = useState("");
+  const [editSlotTutorName,setEditSlotTutorName]= useState("");
+  const [reassignEnrollId,    setReassignEnrollId]    = useState<string|null>(null);
+  const [reassignEnrollTutor, setReassignEnrollTutor] = useState("");
   const [addingCourse,   setAddingCourse]   = useState(false);
   // Content management
   const [contentTab,     setContentTab]     = useState<"resources"|"videos"|"recordings">("resources");
@@ -481,11 +487,11 @@ export default function AdminDashboard() {
     "7:00 AM","8:00 AM","9:00 AM","10:00 AM","11:00 AM","12:00 PM",
     "1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM","7:00 PM","8:00 PM",
   ];
-  function addSlotToList(slots: CourseSlot[], combo: "MWF"|"TFS", time: string): CourseSlot[] {
+  function addSlotToList(slots: CourseSlot[], combo: "MWF"|"TFS", time: string, tutorId?: string, tutorName?: string): CourseSlot[] {
     if (!time) return slots;
     // No duplicate combo+time
     if (slots.some(s => s.days.join() === COMBO_DAYS[combo].join() && s.time === time)) return slots;
-    return [...slots, { id: `${combo}-${time}-${Date.now()}`, days: COMBO_DAYS[combo], time, maxCapacity: 5, bookings: 0 }];
+    return [...slots, { id: `${combo}-${time}-${Date.now()}`, days: COMBO_DAYS[combo], time, maxCapacity: 5, bookings: 0, tutorId: tutorId || undefined, tutorName: tutorName || undefined }];
   }
   function removeSlot(slots: CourseSlot[], id: string): CourseSlot[] {
     return slots.filter(s => s.id !== id);
@@ -719,6 +725,23 @@ export default function AdminDashboard() {
       }
     } finally {
       setExtendLoading(false);
+    }
+  };
+
+  // ── Enrollment reassign tutor ─────────────────────────────────────────────
+  const handleReassignTutor = async (enrollmentId: string) => {
+    if (!reassignEnrollTutor) return;
+    const tutor = tutors.find(t => t.id === reassignEnrollTutor);
+    if (!tutor) return;
+    const res = await fetch(`/api/admin/enrollments/${enrollmentId}/reassign`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tutorId: tutor.id, tutorName: tutor.name }),
+    });
+    if (res.ok) {
+      setEnrollments(e => e.map(x => x.id === enrollmentId ? { ...x, tutorName: tutor.name, tutorStatus: "PENDING" } : x));
+      setReassignEnrollId(null);
+      setReassignEnrollTutor("");
     }
   };
 
@@ -1228,7 +1251,12 @@ export default function AdminDashboard() {
                       <option value="">— time —</option>
                       {ADMIN_TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
                     </select>
-                    <button onClick={()=>{ setEditCourse(p=>{ if(!p)return null; const cur: CourseSlot[] = (() => { try{return JSON.parse(p.courseSlots||"[]")}catch{return[]} })(); return {...p,courseSlots:JSON.stringify(addSlotToList(cur,editSlotDayCombo,editSlotTime))}; }); setEditSlotTime(""); }}
+                    <select value={editSlotTutorId} onChange={e=>{ const t=tutors.find(x=>x.id===e.target.value); setEditSlotTutorId(e.target.value); setEditSlotTutorName(t?.name||""); }}
+                      className="border border-indigo-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white">
+                      <option value="">— assign tutor —</option>
+                      {tutors.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                    <button onClick={()=>{ setEditCourse(p=>{ if(!p)return null; const cur: CourseSlot[] = (() => { try{return JSON.parse(p.courseSlots||"[]")}catch{return[]} })(); return {...p,courseSlots:JSON.stringify(addSlotToList(cur,editSlotDayCombo,editSlotTime,editSlotTutorId||undefined,editSlotTutorName||undefined))}; }); setEditSlotTime(""); setEditSlotTutorId(""); setEditSlotTutorName(""); }}
                       disabled={!editSlotTime}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-40 transition-colors">
                       <Plus size={11}/> Add Slot
@@ -2012,7 +2040,12 @@ export default function AdminDashboard() {
                             <option value="">— time —</option>
                             {ADMIN_TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
                           </select>
-                          <button onClick={()=>{ setNewCourse(p=>({...p,courseSlots:addSlotToList(p.courseSlots,newSlotDayCombo,newSlotTime)})); setNewSlotTime(""); }}
+                          <select value={newSlotTutorId} onChange={e=>{ const t=tutors.find(x=>x.id===e.target.value); setNewSlotTutorId(e.target.value); setNewSlotTutorName(t?.name||""); }}
+                            className="border border-indigo-200 rounded-xl px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white">
+                            <option value="">— assign tutor —</option>
+                            {tutors.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                          </select>
+                          <button onClick={()=>{ setNewCourse(p=>({...p,courseSlots:addSlotToList(p.courseSlots,newSlotDayCombo,newSlotTime,newSlotTutorId||undefined,newSlotTutorName||undefined)})); setNewSlotTime(""); setNewSlotTutorId(""); setNewSlotTutorName(""); }}
                             disabled={!newSlotTime}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-40 transition-colors">
                             <Plus size={11}/> Add Slot
@@ -2285,6 +2318,8 @@ export default function AdminDashboard() {
                                   <span>🕐 {en.timeSlot} · Mon–Fri</span>
                                   <span>📅 {en.startDate} → {en.endDate}</span>
                                   <span>📊 {completedSessions}/{en.totalSessions} sessions done</span>
+                                  <span>👨‍🏫 {en.tutorName ?? "TBD"}</span>
+                                  {en.tutorStatus && <span className={`font-semibold px-1.5 py-0.5 rounded-full ${en.tutorStatus==="ACCEPTED"?"bg-green-100 text-green-700":en.tutorStatus==="DECLINED"?"bg-red-100 text-red-600":"bg-yellow-100 text-yellow-700"}`}>{en.tutorStatus}</span>}
                                 </div>
                                 <div className="mt-2 h-1.5 bg-gray-100 rounded-full w-48">
                                   <div className="h-full bg-blue-500 rounded-full transition-all" style={{width:`${pct}%`}}/>
@@ -2309,6 +2344,23 @@ export default function AdminDashboard() {
                                   <button onClick={()=>{setExtendId(en.id);setExtendDays("5");}}
                                     className="flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl hover:bg-blue-100 transition-all">
                                     <Plus size={12}/> Extend
+                                  </button>
+                                )}
+                                {reassignEnrollId === en.id ? (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <select value={reassignEnrollTutor} onChange={e=>setReassignEnrollTutor(e.target.value)}
+                                      className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none">
+                                      <option value="">— pick tutor —</option>
+                                      {tutors.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                                    </select>
+                                    <button onClick={()=>handleReassignTutor(en.id)} disabled={!reassignEnrollTutor}
+                                      className="px-3 py-1 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50">Save</button>
+                                    <button onClick={()=>{setReassignEnrollId(null);setReassignEnrollTutor("");}} className="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200">✕</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={()=>{setReassignEnrollId(en.id);setReassignEnrollTutor("");}}
+                                    className="flex items-center gap-1 px-3 py-1.5 bg-purple-50 text-purple-700 text-xs font-bold rounded-xl hover:bg-purple-100 transition-all">
+                                    <User size={12}/> Reassign
                                   </button>
                                 )}
                               </div>

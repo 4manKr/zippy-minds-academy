@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { createZoomMeeting } from "@/lib/zoom";
-import { sendSubscriptionConfirmedEmail, sendTutorEnrollmentAssignedEmail } from "@/lib/emails";
+import { sendSubscriptionConfirmedEmail, sendTutorEnrollmentAssignedEmail, sendEnrollmentReceiptEmail, sendTutorCourseWiseNotificationEmail, sendAdminEnrollmentAlert } from "@/lib/emails";
 import { findBestTutor } from "@/lib/tutorAssignment";
 
 export const runtime = "nodejs";
@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
       durationValue, durationUnit,
       couponCode, discountAmount,
       slotId,
+      classType, tutorId, tutorName: bodyTutorName,
     } = body;
 
     if (!timeSlot || !childName) {
@@ -159,6 +160,12 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Create Enrollment record ───────────────────────────────────────
+    const resolvedTutorName = bodyTutorName ?? "TBD";
+    const resolvedTutorId   = tutorId ?? "";
+    const resolvedInitials  = resolvedTutorName !== "TBD"
+      ? resolvedTutorName.split(" ").map((w: string) => w[0] ?? "").join("").toUpperCase().slice(0, 2) || "??"
+      : "??";
+
     const enrollment = await prisma.enrollment.create({
       data: {
         paymentId:     payment.id,
@@ -175,6 +182,10 @@ export async function POST(req: NextRequest) {
         startDate:     sessionDates[0],
         endDate:       sessionDates[sessionDates.length - 1],
         totalSessions: sessionDates.length,
+        tutorId:       resolvedTutorId,
+        tutorName:     resolvedTutorName,
+        tutorInitials: resolvedInitials,
+        tutorStatus:   "PENDING",
         status:        "ACTIVE",
       },
     });
@@ -217,6 +228,60 @@ export async function POST(req: NextRequest) {
 
       sessions.push(ms);
     }
+
+    // ── 3b. Look up tutor email for course-wise notification ─────────────
+    const tutorUser = resolvedTutorId
+      ? await prisma.user.findUnique({ where: { id: resolvedTutorId }, select: { email: true } })
+      : null;
+
+    // ── 3c. Send course-wise emails (non-blocking) ────────────────────────
+    sendEnrollmentReceiptEmail({
+      parentName,
+      parentEmail,
+      childName:     childName ?? "",
+      courseName,
+      days:          days.join(" · "),
+      timeSlot,
+      timezone:      tz,
+      classType:     classType ?? "Group",
+      totalSessions: sessions.length,
+      amountPaid:    Number(amount) || 0,
+      currency:      currency ?? "INR",
+      tutorName:     resolvedTutorName,
+      durationValue: dv,
+      durationUnit:  du,
+    }).catch(() => {});
+
+    if (tutorUser?.email) {
+      sendTutorCourseWiseNotificationEmail({
+        tutorName:     resolvedTutorName,
+        tutorEmail:    tutorUser.email,
+        parentName,
+        parentEmail,
+        childName:     childName ?? "",
+        courseName,
+        days:          days.join(" · "),
+        timeSlot,
+        timezone:      tz,
+        classType:     classType ?? "Group",
+        totalSessions: sessions.length,
+        enrollmentId:  enrollment.id,
+      }).catch(() => {});
+    }
+
+    sendAdminEnrollmentAlert({
+      parentName,
+      parentEmail,
+      childName:     childName ?? "",
+      courseName,
+      days:          days.join(" · "),
+      timeSlot,
+      classType:     classType ?? "Group",
+      tutorName:     resolvedTutorName,
+      amountPaid:    Number(amount) || 0,
+      currency:      currency ?? "INR",
+      enrollmentId:  enrollment.id,
+    }).catch(() => {});
 
     // ── 4. Priority-based tutor assignment ───────────────────────────────
     try {
