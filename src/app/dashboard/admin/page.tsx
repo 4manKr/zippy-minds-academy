@@ -20,10 +20,10 @@ type Section = "overview"|"users"|"tutors"|"courses"|"sessions"|"payments"|"anal
 interface DBUser    { id:string; name:string; email:string; phone?:string|null; role:string; approvalStatus?:string; subjects?:string[]; createdAt:string; }
 interface DBBooking { id:string; parentName:string; parentEmail:string; childName:string; subject:string; tutorName:string; date:string; timeSlot:string; status:string; monthlyPrice:number; zoomLink?:string|null; needsAdmin?:boolean; declinedTutors?:string; createdAt:string; }
 interface DBSubject { id:string; name:string; ageGroup:string; totalDuration:string; color:string; status:string; courses:DBCourse[]; }
-interface DBCourse  { id:string; name:string; description:string; thumbnail:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; originalPrice:number; originalPriceUSD:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; sortOrder:number; subjectId?:string|null; subject?:{id:string;name:string;color:string}|null; }
+interface DBCourse  { id:string; name:string; description:string; thumbnail:string; ageRange:string; teacherName:string; showTeacher:boolean; rating:number; price:number; priceUSD:number; originalPrice:number; originalPriceUSD:number; pricePerSession:number; privatePricePerSession:number; pricePerSessionUSD:number; privatePricePerSessionUSD:number; sessionDurationMins:number; status:string; durationValue:number; durationUnit:string; sessionsPerWeek:number; sortOrder:number; subjectId?:string|null; subject?:{id:string;name:string;color:string}|null; }
 interface DBTicket  { id:string; from:string; email:string; subject:string; message:string; priority:string; status:string; reply?:string|null; createdAt:string; }
 interface Analytics { monthly:{month:string;sessions:number;revenue:number}[]; topSubjects:{name:string;count:number;pct:number}[]; totalSessions:number; confirmedSessions:number; totalRevenue:number; totalParents:number; totalTutors:number; totalUsers:number; }
-interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; showPricing:string; }
+interface Settings  { siteName:string; contactEmail:string; phone:string; zoomEnabled:string; emailNotifications:string; autoApprove:string; maintenanceMode:string; showPricing:string; enrollmentModel:string; }
 interface DBResource  { id:string; title:string; type:string; subject:string; size:string; icon:string; url:string; status:string; }
 interface DBVideo    { id:string; title:string; subject:string; duration:string; thumbnail:string; videoUrl:string; views:number; status:string; }
 interface DBRecording { id:string; title:string; description:string; subject:string; studentName:string; tutorName:string; videoUrl:string; duration:string; fileSize:string; uploadedBy:string; uploadedByRole:string; visibility:string; createdAt:string; }
@@ -46,7 +46,7 @@ export default function AdminDashboard() {
   const [courses,   setCourses]   = useState<DBCourse[]>([]);
   const [tickets,   setTickets]   = useState<DBTicket[]>([]);
   const [analytics, setAnalytics] = useState<Analytics|null>(null);
-  const [dbSettings,setDbSettings]= useState<Settings>({ siteName:"", contactEmail:"", phone:"", zoomEnabled:"true", emailNotifications:"true", autoApprove:"false", maintenanceMode:"false", showPricing:"true" });
+  const [dbSettings,setDbSettings]= useState<Settings>({ siteName:"", contactEmail:"", phone:"", zoomEnabled:"true", emailNotifications:"true", autoApprove:"false", maintenanceMode:"false", showPricing:"true", enrollmentModel:"tutor-wise" });
   const [resources,    setResources]    = useState<DBResource[]>([]);
   const [videos,       setVideos]       = useState<DBVideo[]>([]);
   const [recordings,   setRecordings]   = useState<DBRecording[]>([]);
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
   const [newSubject,     setNewSubject]     = useState({ name:"", ageGroup:"", totalDuration:"", color:"" });
   const [addingSubject,  setAddingSubject]  = useState(false);
   const [editSubject,    setEditSubject]    = useState<DBSubject|null>(null);
-  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" });
+  const [newCourse,      setNewCourse]      = useState({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", pricePerSession:"0", privatePricePerSession:"0", pricePerSessionUSD:"0", privatePricePerSessionUSD:"0", sessionDurationMins:"60", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" });
   const [addingCourse,   setAddingCourse]   = useState(false);
   // Content management
   const [contentTab,     setContentTab]     = useState<"resources"|"videos"|"recordings">("resources");
@@ -454,12 +454,15 @@ export default function AdminDashboard() {
       rating:parseFloat(newCourse.rating)||0,
       price:parseInt(newCourse.price)||199, priceUSD:parseInt(newCourse.priceUSD)||15,
       originalPrice:parseInt(newCourse.originalPrice)||0, originalPriceUSD:parseInt(newCourse.originalPriceUSD)||0,
+      pricePerSession:parseInt(newCourse.pricePerSession)||0, privatePricePerSession:parseInt(newCourse.privatePricePerSession)||0,
+      pricePerSessionUSD:parseInt(newCourse.pricePerSessionUSD)||0, privatePricePerSessionUSD:parseInt(newCourse.privatePricePerSessionUSD)||0,
+      sessionDurationMins:parseInt(newCourse.sessionDurationMins)||60,
       durationValue:parseInt(newCourse.durationValue)||1, durationUnit:newCourse.durationUnit||"months",
       sessionsPerWeek:parseInt(newCourse.sessionsPerWeek)||1,
       sortOrder:parseInt(newCourse.sortOrder)||0,
     }) });
     const data = await res.json();
-    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" }); setAddingCourse(false); }
+    if (data.course) { setCourses(c=>[...c,data.course]); setNewCourse({ name:"", description:"", thumbnail:"", subjectId:"", ageRange:"", teacherName:"", showTeacher:false, rating:"0", price:"199", priceUSD:"15", originalPrice:"0", originalPriceUSD:"0", pricePerSession:"0", privatePricePerSession:"0", pricePerSessionUSD:"0", privatePricePerSessionUSD:"0", sessionDurationMins:"60", durationValue:"1", durationUnit:"months", sessionsPerWeek:"1", sortOrder:"0" }); setAddingCourse(false); }
     setLoad("addCourse", false);
   };
 
@@ -719,6 +722,9 @@ export default function AdminDashboard() {
           teacherName:editCourse.teacherName, showTeacher:editCourse.showTeacher, rating:editCourse.rating,
           price:editCourse.price, priceUSD:editCourse.priceUSD,
           originalPrice:editCourse.originalPrice??0, originalPriceUSD:editCourse.originalPriceUSD??0,
+          pricePerSession:editCourse.pricePerSession??0, privatePricePerSession:editCourse.privatePricePerSession??0,
+          pricePerSessionUSD:editCourse.pricePerSessionUSD??0, privatePricePerSessionUSD:editCourse.privatePricePerSessionUSD??0,
+          sessionDurationMins:editCourse.sessionDurationMins??60,
           durationValue:editCourse.durationValue, durationUnit:editCourse.durationUnit,
           sessionsPerWeek:editCourse.sessionsPerWeek, sortOrder:editCourse.sortOrder }) });
       const data = await res.json();
@@ -1126,6 +1132,40 @@ export default function AdminDashboard() {
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Original Price $ <span className="text-xs text-gray-400">— crossed-out (0 = hide)</span></label>
                   <input type="number" min="0" value={editCourse.originalPriceUSD??0} onChange={e=>setEditCourse(p=>p?{...p,originalPriceUSD:parseInt(e.target.value)||0}:null)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30"/>
+                </div>
+              </div>
+              {/* Course-wise pricing section */}
+              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+                <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Tag size={12}/> Course-wise Model Pricing (per session)
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Group Price ₹/session <span className="text-[10px] text-gray-400">(3–5 students)</span></label>
+                    <input type="number" min="0" value={editCourse.pricePerSession??0} onChange={e=>setEditCourse(p=>p?{...p,pricePerSession:parseInt(e.target.value)||0}:null)}
+                      className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">1-to-1 Price ₹/session</label>
+                    <input type="number" min="0" value={editCourse.privatePricePerSession??0} onChange={e=>setEditCourse(p=>p?{...p,privatePricePerSession:parseInt(e.target.value)||0}:null)}
+                      className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Group Price $/session</label>
+                    <input type="number" min="0" value={editCourse.pricePerSessionUSD??0} onChange={e=>setEditCourse(p=>p?{...p,pricePerSessionUSD:parseInt(e.target.value)||0}:null)}
+                      className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">1-to-1 Price $/session</label>
+                    <input type="number" min="0" value={editCourse.privatePricePerSessionUSD??0} onChange={e=>setEditCourse(p=>p?{...p,privatePricePerSessionUSD:parseInt(e.target.value)||0}:null)}
+                      className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Session Duration (mins)</label>
+                    <input type="number" min="30" step="15" value={editCourse.sessionDurationMins??60} onChange={e=>setEditCourse(p=>p?{...p,sessionDurationMins:parseInt(e.target.value)||60}:null)}
+                      className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                    <p className="text-[10px] text-gray-400 mt-1">e.g. 45, 60, 90 mins per class</p>
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1848,6 +1888,34 @@ export default function AdminDashboard() {
                       <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Sort Order</label>
                         <input type="number" min="0" value={newCourse.sortOrder} onChange={e=>setNewCourse(p=>({...p,sortOrder:e.target.value}))} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"/>
+                      </div>
+                    </div>
+                    {/* Course-wise per-session pricing */}
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-3">
+                      <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <Tag size={12}/> Course-wise Model Pricing (per session)
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Group ₹/session <span className="text-[10px] text-gray-400">(3–5 students)</span></label>
+                          <input type="number" min="0" value={newCourse.pricePerSession} onChange={e=>setNewCourse(p=>({...p,pricePerSession:e.target.value}))} placeholder="0" className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">1-to-1 ₹/session</label>
+                          <input type="number" min="0" value={newCourse.privatePricePerSession} onChange={e=>setNewCourse(p=>({...p,privatePricePerSession:e.target.value}))} placeholder="0" className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Session Duration (mins)</label>
+                          <input type="number" min="15" step="15" value={newCourse.sessionDurationMins} onChange={e=>setNewCourse(p=>({...p,sessionDurationMins:e.target.value}))} placeholder="60" className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">Group $/session <span className="text-[10px] text-gray-400">(USD)</span></label>
+                          <input type="number" min="0" value={newCourse.pricePerSessionUSD} onChange={e=>setNewCourse(p=>({...p,pricePerSessionUSD:e.target.value}))} placeholder="0" className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 mb-1 block">1-to-1 $/session <span className="text-[10px] text-gray-400">(USD)</span></label>
+                          <input type="number" min="0" value={newCourse.privatePricePerSessionUSD} onChange={e=>setNewCourse(p=>({...p,privatePricePerSessionUSD:e.target.value}))} placeholder="0" className="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"/>
+                        </div>
                       </div>
                     </div>
                     <div className="mb-3">
@@ -2726,6 +2794,53 @@ export default function AdminDashboard() {
                     : "bg-red-100 border-red-200 text-red-700"
                 }`}>
                   Toggle then click <strong>Save Settings</strong> below to apply.
+                </div>
+              </div>
+
+              {/* ══ ENROLLMENT MODEL ══ */}
+              <div className="rounded-2xl border-2 border-indigo-300 shadow-sm overflow-hidden">
+                <div className="bg-indigo-600 px-5 py-3 flex items-center gap-2">
+                  <Tag size={16} className="text-white shrink-0"/>
+                  <p className="text-white font-bold text-sm flex-1">Enrollment Model</p>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white text-indigo-700">
+                    {dbSettings.enrollmentModel === "course-wise" ? "Course-wise" : "Tutor-wise"}
+                  </span>
+                </div>
+                <div className="bg-indigo-50 p-5">
+                  <p className="text-sm text-indigo-800 mb-4">Choose how students enroll and how prices are calculated across the site.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Tutor-wise card */}
+                    <button onClick={()=>setDbSettings(p=>({...p,enrollmentModel:"tutor-wise"}))}
+                      className={`text-left p-4 rounded-2xl border-2 transition-all ${dbSettings.enrollmentModel==="tutor-wise"?"border-indigo-600 bg-white shadow-md":"border-gray-200 bg-white/60 hover:border-indigo-300"}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${dbSettings.enrollmentModel==="tutor-wise"?"border-indigo-600 bg-indigo-600":"border-gray-300"}`}>
+                          {dbSettings.enrollmentModel==="tutor-wise" && <div className="w-1.5 h-1.5 rounded-full bg-white"/>}
+                        </div>
+                        <p className="font-bold text-gray-900 text-sm">Tutor-wise Model</p>
+                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-semibold">Current</span>
+                      </div>
+                      <p className="text-xs text-gray-500 leading-relaxed">Fixed monthly subscription. Student books a tutor, admin assigns one. Price set per course.</p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {["Monthly price","Tutor assigned","Subscription"].map(t=><span key={t} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{t}</span>)}
+                      </div>
+                    </button>
+                    {/* Course-wise card */}
+                    <button onClick={()=>setDbSettings(p=>({...p,enrollmentModel:"course-wise"}))}
+                      className={`text-left p-4 rounded-2xl border-2 transition-all ${dbSettings.enrollmentModel==="course-wise"?"border-indigo-600 bg-white shadow-md":"border-gray-200 bg-white/60 hover:border-indigo-300"}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${dbSettings.enrollmentModel==="course-wise"?"border-indigo-600 bg-indigo-600":"border-gray-300"}`}>
+                          {dbSettings.enrollmentModel==="course-wise" && <div className="w-1.5 h-1.5 rounded-full bg-white"/>}
+                        </div>
+                        <p className="font-bold text-gray-900 text-sm">Course-wise Model</p>
+                        <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-semibold">New</span>
+                      </div>
+                      <p className="text-xs text-gray-500 leading-relaxed">Per-session pricing. Student picks day combo + time. Group (3–5 students) or 1-to-1 upgrade. Auto-calculated total.</p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {["Per session","Group class","1-to-1 upgrade","Auto price"].map(t=><span key={t} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{t}</span>)}
+                      </div>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-indigo-600 mt-3 font-medium">⚠ Toggle then click <strong>Save Settings</strong> below to apply site-wide.</p>
                 </div>
               </div>
 

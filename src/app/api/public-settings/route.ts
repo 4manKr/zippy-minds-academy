@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const PUBLIC_KEYS = ["showPricing", "contactEmail", "phone", "siteName"] as const;
+const PUBLIC_KEYS = ["showPricing", "contactEmail", "phone", "siteName", "enrollmentModel"] as const;
 
 const NO_CACHE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -23,10 +23,11 @@ const NO_CACHE_HEADERS = {
 };
 
 const DEFAULTS = {
-  showPricing:  "true",
-  contactEmail: "zippymindsacademy@gmail.com",
-  phone:        "+91 93114 83555",
-  siteName:     "Zippy Minds Academy",
+  showPricing:     "true",
+  contactEmail:    "zippymindsacademy@gmail.com",
+  phone:           "+91 93114 83555",
+  siteName:        "Zippy Minds Academy",
+  enrollmentModel: "tutor-wise",   // "tutor-wise" | "course-wise"
 };
 
 export async function GET() {
@@ -38,15 +39,15 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        showPricing:  settings["showPricing"]  ?? DEFAULTS.showPricing,
-        contactEmail: settings["contactEmail"] ?? DEFAULTS.contactEmail,
-        phone:        settings["phone"]        ?? DEFAULTS.phone,
-        siteName:     settings["siteName"]     ?? DEFAULTS.siteName,
+        showPricing:     settings["showPricing"]     ?? DEFAULTS.showPricing,
+        contactEmail:    settings["contactEmail"]    ?? DEFAULTS.contactEmail,
+        phone:           settings["phone"]           ?? DEFAULTS.phone,
+        siteName:        settings["siteName"]        ?? DEFAULTS.siteName,
+        enrollmentModel: settings["enrollmentModel"] ?? DEFAULTS.enrollmentModel,
       },
       { headers: NO_CACHE_HEADERS },
     );
   } catch {
-    // Fail open — return defaults if DB check fails
     return NextResponse.json(DEFAULTS, { headers: NO_CACHE_HEADERS });
   }
 }

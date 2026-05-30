@@ -62,6 +62,11 @@ interface Course {
   priceUSD:         number;
   originalPrice?:   number;
   originalPriceUSD?: number;
+  pricePerSession?:           number;
+  privatePricePerSession?:    number;
+  pricePerSessionUSD?:        number;
+  privatePricePerSessionUSD?: number;
+  sessionDurationMins?:       number;
   status:           string;
   durationValue?:   number;
   durationUnit?:    string;
@@ -88,7 +93,7 @@ function EnrollInner() {
   const [loading, setLoading]   = useState(true);
   const [isIndia, setIsIndia]   = useState<boolean | null>(null);
   const { showPricing }         = usePricingVisibility();
-  const { whatsappNumber, contactEmail } = useSiteSettings();
+  const { whatsappNumber, contactEmail, enrollmentModel } = useSiteSettings();
 
   useEffect(() => {
     Promise.all([
@@ -171,9 +176,11 @@ function EnrollInner() {
               const spw         = course.sessionsPerWeek ?? 5;
               const waLink      = `https://wa.me/${whatsappNumber}?text=${waMsg(course.name)}`;
 
-              // Build subscribe URL with sessionsPerWeek so the slot page
-              // can pre-select the correct number of days
-              const subscribeHref = `/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&priceUSD=${course.priceUSD ?? 15}&op=${course.originalPrice ?? 0}&opUSD=${course.originalPriceUSD ?? 0}&dv=${course.durationValue ?? 1}&du=${course.durationUnit ?? "months"}&spw=${spw}`;
+              // Build subscribe URL
+              const isCourseWise = enrollmentModel === "course-wise";
+              const subscribeHref = isCourseWise
+                ? `/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&model=course-wise&pps=${course.pricePerSession ?? 0}&ppps=${course.privatePricePerSession ?? 0}&ppsUSD=${course.pricePerSessionUSD ?? 0}&pppsUSD=${course.privatePricePerSessionUSD ?? 0}&sdm=${course.sessionDurationMins ?? 60}&dv=${course.durationValue ?? 1}&du=${course.durationUnit ?? "months"}`
+                : `/enroll/subscribe?course=${encodeURIComponent(course.name)}&courseId=${course.id}&price=${course.price}&priceUSD=${course.priceUSD ?? 15}&op=${course.originalPrice ?? 0}&opUSD=${course.originalPriceUSD ?? 0}&dv=${course.durationValue ?? 1}&du=${course.durationUnit ?? "months"}&spw=${spw}`;
 
               return (
                 <div key={course.id}
@@ -204,12 +211,40 @@ function EnrollInner() {
                   {/* Price + CTA */}
                   <div className="p-5 flex flex-col flex-1">
                     {showPricing ? (() => {
+                      const sym = isIndia !== false ? "₹" : "$";
+
+                      if (isCourseWise) {
+                        // Course-wise: show per-session starting price
+                        const groupPrice   = isIndia !== false ? (course.pricePerSession ?? 0)    : (course.pricePerSessionUSD ?? 0);
+                        const privatePrice = isIndia !== false ? (course.privatePricePerSession ?? 0) : (course.privatePricePerSessionUSD ?? 0);
+                        const durMins      = course.sessionDurationMins ?? 60;
+                        return (
+                          <>
+                            <div className="mb-2">
+                              <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide mb-1">Group class (3–5 students)</p>
+                              <div className="flex items-end gap-1">
+                                {isIndia !== false ? <IndianRupee size={18} className="text-primary mb-0.5"/> : <DollarSign size={18} className="text-primary mb-0.5"/>}
+                                <span className="font-display text-2xl font-extrabold text-primary">{groupPrice}</span>
+                                <span className="text-xs text-on-surface-variant mb-0.5">/session</span>
+                              </div>
+                              {privatePrice > 0 && (
+                                <p className="text-[10px] text-on-surface-variant mt-0.5">1-to-1: {sym}{privatePrice}/session</p>
+                              )}
+                            </div>
+                            <p className="text-xs text-on-surface-variant mb-1 flex items-center gap-1">
+                              <BookOpen size={11}/>
+                              {durMins} min · 3 days/week · {course.durationValue ?? 1} {course.durationUnit ?? "months"}
+                            </p>
+                            <p className="text-[10px] text-indigo-600 font-semibold mb-3">Price auto-calculated at checkout</p>
+                          </>
+                        );
+                      }
+
                       const offerPrice  = isIndia !== false ? course.price             : (course.priceUSD        ?? 15);
                       const origPrice   = isIndia !== false ? (course.originalPrice ?? 0) : (course.originalPriceUSD ?? 0);
                       const hasDiscount = origPrice > offerPrice && origPrice > 0;
                       const savingAmt   = hasDiscount ? origPrice - offerPrice : 0;
                       const savingPct   = hasDiscount ? Math.round((savingAmt / origPrice) * 100) : 0;
-                      const sym         = isIndia !== false ? "₹" : "$";
                       return (
                         <>
                           {/* Discount badge */}
@@ -255,7 +290,7 @@ function EnrollInner() {
                       <Link href={subscribeHref}
                         className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-white text-sm transition-all hover:opacity-90 active:scale-95 bg-primary">
                         <CreditCard size={16} />
-                        Pick Slot &amp; Subscribe
+                        {isCourseWise ? "Choose Days & Enroll" : "Pick Slot & Subscribe"}
                       </Link>
                       <a href={waLink} target="_blank" rel="noopener noreferrer"
                         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl font-semibold text-sm transition-all hover:opacity-90 border border-outline-variant text-on-surface-variant hover:text-on-surface">

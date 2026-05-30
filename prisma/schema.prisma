@@ -108,10 +108,16 @@ model Course {
   teacherName     String   @default("")
   showTeacher     Boolean  @default(false)
   rating          Float    @default(0)
-  price           Int      @default(199)       // INR  (offer / actual price)
-  priceUSD        Int      @default(15)        // USD  (offer / actual price)
-  originalPrice   Int      @default(0)         // INR  (crossed-out "before" price; 0 = no discount shown)
-  originalPriceUSD Int     @default(0)         // USD  (crossed-out "before" price; 0 = no discount shown)
+  price                  Int      @default(199)  // INR  — tutor-wise model total price
+  priceUSD               Int      @default(15)   // USD  — tutor-wise model total price
+  originalPrice          Int      @default(0)    // INR  crossed-out price (0 = no discount)
+  originalPriceUSD       Int      @default(0)    // USD  crossed-out price (0 = no discount)
+  // ── Course-wise model per-session pricing ──────────────────────────────────
+  pricePerSession        Int      @default(0)    // INR  group class per session
+  privatePricePerSession Int      @default(0)    // INR  1-to-1 class per session
+  pricePerSessionUSD     Int      @default(0)    // USD  group class per session
+  privatePricePerSessionUSD Int   @default(0)    // USD  1-to-1 class per session
+  sessionDurationMins    Int      @default(60)   // session length in minutes
   durationValue   Int      @default(1)
   durationUnit    String   @default("months")  // days | weeks | months
   sessionsPerWeek Int      @default(1)

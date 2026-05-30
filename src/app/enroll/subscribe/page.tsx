@@ -180,25 +180,52 @@ function SessionPreview({ dates, timeSlot, courseName, compact }: {
   );
 }
 
+// ── Course-wise day combos ────────────────────────────────────────────────────
+const COURSE_WISE_COMBOS = [
+  { label: "Mon · Tue · Wed", days: ["Mon","Tue","Wed"] as string[], icon: "🌅", desc: "Morning batch" },
+  { label: "Thu · Fri · Sat", days: ["Thu","Fri","Sat"] as string[], icon: "🌆", desc: "Afternoon batch" },
+];
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 function SubscribeInner() {
   const router      = useRouter();
   const params      = useSearchParams();
   const courseName        = params.get("course")    ?? "Subscription";
   const courseId          = params.get("courseId")  ?? "";
+  const enrollModel       = params.get("model") === "course-wise" ? "course-wise" : "tutor-wise";
+
+  // Tutor-wise params
   const priceINR          = parseInt(params.get("price")    ?? "199", 10) || 199;
   const priceUSD          = parseInt(params.get("priceUSD") ?? "15",  10) || 15;
   const origPriceINR      = parseInt(params.get("op")    ?? "0", 10) || 0;
   const origPriceUSD      = parseInt(params.get("opUSD") ?? "0", 10) || 0;
-  const durationValue     = parseInt(params.get("dv")  ?? "1", 10) || 1;
-  const durationUnit      = params.get("du") ?? "months";
   const sessionsPerWeek   = parseInt(params.get("spw") ?? "5", 10) || 5;
 
-  type Step = "slot"|"details"|"payment"|"done";
-  const [step, setStep] = useState<Step>("slot");
+  // Course-wise params
+  const cwPpsINR   = parseInt(params.get("pps")     ?? "0", 10);  // group ₹/session
+  const cwPppsINR  = parseInt(params.get("ppps")    ?? "0", 10);  // private ₹/session
+  const cwPpsUSD   = parseInt(params.get("ppsUSD")  ?? "0", 10);  // group $/session
+  const cwPppsUSD  = parseInt(params.get("pppsUSD") ?? "0", 10);  // private $/session
+  const cwDurMins  = parseInt(params.get("sdm")     ?? "60", 10) || 60;
 
-  // Slot — initialise days based on the course's sessionsPerWeek setting
-  const [selDays,    setSelDays]    = useState<string[]>(() => defaultDaysForSpw(sessionsPerWeek));
+  const durationValue     = parseInt(params.get("dv")  ?? "1", 10) || 1;
+  const durationUnit      = params.get("du") ?? "months";
+
+  type TutorStep   = "slot"|"details"|"payment"|"done";
+  type CourseStep  = "daytime"|"classtype"|"details"|"payment"|"done";
+  type Step = TutorStep | CourseStep;
+  const [step, setStep] = useState<Step>(enrollModel === "course-wise" ? "daytime" : "slot");
+
+  // Course-wise specific state
+  const [dayComboIdx, setDayComboIdx] = useState(0); // 0 = Mon-Tue-Wed, 1 = Thu-Fri-Sat
+  const [classType,   setClassType]   = useState<"group"|"private">("group");
+
+  // Slot — initialise days based on model
+  const [selDays,    setSelDays]    = useState<string[]>(() =>
+    enrollModel === "course-wise"
+      ? COURSE_WISE_COMBOS[0].days
+      : defaultDaysForSpw(sessionsPerWeek)
+  );
   const [selTime,    setSelTime]    = useState("");
   const [popularity, setPopularity] = useState<Record<string,number>>({});
 
@@ -237,10 +264,20 @@ function SubscribeInner() {
   const [couponLoading,   setCouponLoading]  = useState(false);
   const [couponError,     setCouponError]    = useState("");
 
+  // ── Computed pricing (must come before latestRef) ────────────────────────────
+  const priceSymbol_early    = isIndia !== false ? "₹" : "$";
+  const cwTotalWeeks_early   = durationUnit === "months" ? durationValue * 4 : durationUnit === "weeks" ? durationValue : Math.ceil(durationValue / 7);
+  const cwTotalSessions_early = 3 * cwTotalWeeks_early;
+  const cwGroupPrice_early   = isIndia !== false ? cwPpsINR  : cwPpsUSD;
+  const cwPrivatePrice_early = isIndia !== false ? cwPppsINR : cwPppsUSD;
+  const cwPerSession_early   = classType === "private" ? cwPrivatePrice_early : cwGroupPrice_early;
+  const cwTotalPrice_early   = cwTotalSessions_early * cwPerSession_early;
+  const chargeCurrency_early = isIndia !== false ? "INR" : "USD";
+
   // keep latest values accessible inside Razorpay callback
-  const latestRef = useRef({ selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied });
+  const latestRef = useRef({ selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied, enrollModel, cwTotalPrice: cwTotalPrice_early, classType, chargeCurrency: chargeCurrency_early });
   useEffect(() => {
-    latestRef.current = { selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied };
+    latestRef.current = { selDays, selTime, timezone, childName, childAge, grade, courseId, courseName, priceINR, priceUSD, isIndia, durationValue, durationUnit, sessionDates, couponApplied, enrollModel, cwTotalPrice: cwTotalPrice_early, classType, chargeCurrency: chargeCurrency_early };
   });
 
   useEffect(() => {
@@ -306,11 +343,20 @@ function SubscribeInner() {
   }, [availableTimeSlots, selTime]);
 
   // Geo-derived display values
-  const basePrice      = isIndia !== false ? priceINR : priceUSD;
-  const chargePrice    = couponApplied ? couponApplied.discountedPrice : basePrice;
-  const chargeCurrency = isIndia !== false ? "INR" : "USD";
   const priceSymbol    = isIndia !== false ? "₹" : "$";
   const daysLabel      = formatDays(selDays);
+
+  // Course-wise: compute total price
+  const cwTotalWeeks = durationUnit === "months" ? durationValue * 4 : durationUnit === "weeks" ? durationValue : Math.ceil(durationValue / 7);
+  const cwTotalSessions = 3 * cwTotalWeeks; // always 3 days/week
+  const cwGroupPrice   = isIndia !== false ? cwPpsINR  : cwPpsUSD;
+  const cwPrivatePrice = isIndia !== false ? cwPppsINR : cwPppsUSD;
+  const cwPerSession   = classType === "private" ? cwPrivatePrice : cwGroupPrice;
+  const cwTotalPrice   = cwTotalSessions * cwPerSession;
+
+  const basePrice      = enrollModel === "course-wise" ? cwTotalPrice : (isIndia !== false ? priceINR : priceUSD);
+  const chargePrice    = couponApplied ? couponApplied.discountedPrice : basePrice;
+  const chargeCurrency = isIndia !== false ? "INR" : "USD";
 
   const doCreateSubscription = async (paymentInfo: { gateway:string; gatewayId:string; amount:number; currency:string }) => {
     const v = latestRef.current;
@@ -341,7 +387,7 @@ function SubscribeInner() {
     setCouponError(""); setCouponLoading(true);
     try {
       const v = latestRef.current;
-      const originalPrice = v.isIndia !== false ? v.priceINR : v.priceUSD;
+      const originalPrice = v.enrollModel === "course-wise" ? v.cwTotalPrice : (v.isIndia !== false ? v.priceINR : v.priceUSD);
       const res  = await fetch("/api/coupons/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -378,9 +424,11 @@ function SubscribeInner() {
     setPayError(""); setPayLoading(true);
     try {
       const v = latestRef.current;
-      // India → Razorpay + INR price; International → Stripe/PayPal + USD price
-      const chargeAmount   = v.isIndia !== false ? v.priceINR : v.priceUSD;
-      const chargeCurrency = v.isIndia !== false ? "INR" : "USD";
+      // India → INR price; International → USD price
+      const chargeAmount   = v.enrollModel === "course-wise"
+        ? (v.couponApplied ? v.couponApplied.discountedPrice : v.cwTotalPrice)
+        : (v.couponApplied ? v.couponApplied.discountedPrice : (v.isIndia !== false ? v.priceINR : v.priceUSD));
+      const chargeCurrency = v.chargeCurrency;
 
       localStorage.setItem("pending_subscription", JSON.stringify({
         courseId, courseName, priceINR, priceUSD, selectedDays: selDays, timeSlot: selTime,
@@ -389,8 +437,8 @@ function SubscribeInner() {
       }));
 
       const coupon = v.couponApplied;
-      // Use discounted amount if coupon applied, otherwise full amount
-      const finalAmount = coupon ? coupon.discountedPrice : chargeAmount;
+      // chargeAmount is already discounted-aware for course-wise; for tutor-wise pass as-is
+      const finalAmount = chargeAmount;
 
       const res = await fetch("/api/payment/create-order", {
         method:"POST", headers:{"Content-Type":"application/json"},
@@ -451,11 +499,18 @@ function SubscribeInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const STEPS = [
-    { key:"slot",    label:"Schedule" },
-    { key:"details", label:"Details" },
-    { key:"payment", label:"Payment" },
-  ];
+  const STEPS = enrollModel === "course-wise"
+    ? [
+        { key:"daytime",   label:"Schedule" },
+        { key:"classtype", label:"Class Type" },
+        { key:"details",   label:"Details" },
+        { key:"payment",   label:"Payment" },
+      ]
+    : [
+        { key:"slot",    label:"Schedule" },
+        { key:"details", label:"Details" },
+        { key:"payment", label:"Payment" },
+      ];
   const stepIdx = STEPS.findIndex(s=>s.key===step);
 
   // Toggle a day on/off
@@ -478,9 +533,14 @@ function SubscribeInner() {
             <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-2 text-sm font-semibold text-primary mb-4">
               <Sparkles size={14}/> Enrolling in {courseName}
             </div>
-            <h1 className="font-display text-3xl font-extrabold text-on-surface">Book Your Sessions</h1>
+            <h1 className="font-display text-3xl font-extrabold text-on-surface">
+              {enrollModel === "course-wise" ? "Choose Your Schedule" : "Book Your Sessions"}
+            </h1>
             <p className="text-on-surface-variant text-sm mt-1">
-              {durationValue} {durationUnit} course · Choose your own schedule
+              {durationValue} {durationUnit} course ·{" "}
+              {enrollModel === "course-wise"
+                ? `3 sessions/week · ${cwTotalSessions} sessions total`
+                : "Choose your own schedule"}
             </p>
           </div>
 
@@ -501,7 +561,211 @@ function SubscribeInner() {
             </div>
           )}
 
-          {/* ── STEP 1: SCHEDULE ── */}
+          {/* ── COURSE-WISE STEP 1: DAY + TIME ── */}
+          {step === "daytime" && (
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 space-y-6">
+              {/* Day combo selector */}
+              <div>
+                <h2 className="font-bold text-on-surface text-lg mb-1 flex items-center gap-2">
+                  <Calendar size={20} className="text-primary"/> Choose Your Day Combination
+                </h2>
+                <p className="text-sm text-on-surface-variant mb-4">
+                  3 sessions per week · pick the batch that works best for you
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {COURSE_WISE_COMBOS.map((combo, idx) => {
+                    const isSelected = dayComboIdx === idx;
+                    return (
+                      <button key={idx} onClick={() => { setDayComboIdx(idx); setSelDays(combo.days); setSelTime(""); }}
+                        className={`flex items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all ${
+                          isSelected ? "border-primary bg-primary/5 shadow-sm" : "border-outline-variant hover:border-primary/40 bg-surface-container"
+                        }`}>
+                        <span className="text-2xl shrink-0 mt-0.5">{combo.icon}</span>
+                        <div className="flex-1">
+                          <p className={`font-bold text-base ${isSelected ? "text-primary" : "text-on-surface"}`}>{combo.label}</p>
+                          <p className="text-xs text-on-surface-variant mt-0.5">{combo.desc}</p>
+                          <div className="flex gap-1 mt-2">
+                            {combo.days.map(d => (
+                              <span key={d} className={`px-2 py-0.5 rounded-lg text-xs font-bold ${isSelected ? "bg-primary text-white" : "bg-surface-container-highest text-on-surface-variant"}`}>{d}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? "border-primary bg-primary" : "border-outline-variant"}`}>
+                          {isSelected && <div className="w-2 h-2 rounded-full bg-white"/>}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Time slot picker */}
+              <div>
+                <h3 className="font-bold text-on-surface text-base mb-1 flex items-center gap-2">
+                  <Clock size={18} className="text-primary"/> Choose Your Time Slot
+                </h3>
+                <p className="text-sm text-on-surface-variant mb-4">
+                  Sessions happen at this time on all 3 days
+                  {Object.keys(tutorAvailability).length > 0 && " · Filtered by tutor availability"}
+                </p>
+                {availableTimeSlots.length === 0 ? (
+                  <div className="text-center py-8 text-on-surface-variant text-sm">
+                    <p className="text-3xl mb-2">📅</p>
+                    <p className="font-semibold">No available slots for these days</p>
+                    <p className="text-xs mt-1">Try the other day combination or contact us</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {TIME_SLOTS.map(time => {
+                      const isAvail = availableTimeSlots.includes(time);
+                      const cnt     = popularity[time] ?? 0;
+                      return (
+                        <button key={time} onClick={() => isAvail && setSelTime(time)} disabled={!isAvail}
+                          className={`relative py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+                            !isAvail ? "border-outline-variant text-on-surface-variant/30 bg-surface-container cursor-not-allowed opacity-40"
+                            : selTime === time ? "border-primary bg-primary text-white"
+                            : "border-outline-variant hover:border-primary/40 text-on-surface"
+                          }`}>
+                          {time}
+                          {isAvail && cnt >= 3 && <span className="absolute -top-1.5 -right-1 text-[9px] bg-amber-400 text-white px-1 rounded-full">🔥</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Session dates preview */}
+              {sessionDates.length > 0 && selTime && (
+                <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-xl border border-primary/15 text-sm flex-wrap">
+                  <CheckCircle size={14} className="text-primary shrink-0"/>
+                  <span className="font-semibold text-on-surface">{cwTotalSessions} sessions</span>
+                  <span className="text-on-surface-variant">·</span>
+                  <span className="font-medium text-primary">{COURSE_WISE_COMBOS[dayComboIdx].label} at {selTime}</span>
+                  <span className="text-on-surface-variant">·</span>
+                  <span className="text-on-surface-variant">{durationValue} {durationUnit}</span>
+                </div>
+              )}
+
+              <button onClick={() => setStep("classtype")} disabled={!selTime}
+                className="w-full flex items-center justify-center gap-2 bg-primary text-white font-bold py-3.5 rounded-2xl hover:opacity-90 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                Continue <ChevronRight size={18}/>
+              </button>
+            </div>
+          )}
+
+          {/* ── COURSE-WISE STEP 2: CLASS TYPE ── */}
+          {step === "classtype" && (
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 space-y-5">
+              <div>
+                <h2 className="font-bold text-on-surface text-lg mb-1 flex items-center gap-2">
+                  <User size={20} className="text-primary"/> Choose Your Class Type
+                </h2>
+                <p className="text-sm text-on-surface-variant mb-4">
+                  Select how you'd like to learn
+                </p>
+
+                {/* Selected schedule summary */}
+                <div className="flex items-center gap-2 bg-primary/5 border border-primary/15 rounded-2xl px-4 py-3 mb-5 text-sm">
+                  <CheckCircle size={14} className="text-primary shrink-0"/>
+                  <span className="font-semibold text-on-surface">{COURSE_WISE_COMBOS[dayComboIdx].label}</span>
+                  <span className="text-on-surface-variant">·</span>
+                  <span className="text-primary font-medium">{selTime}</span>
+                  <span className="text-on-surface-variant">·</span>
+                  <span className="text-on-surface-variant">{cwDurMins} min/session</span>
+                </div>
+
+                {/* Class type cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Group class */}
+                  <button onClick={() => setClassType("group")}
+                    className={`flex flex-col p-5 rounded-2xl border-2 text-left transition-all ${
+                      classType === "group" ? "border-primary bg-primary/5 shadow-sm" : "border-outline-variant hover:border-primary/40"
+                    }`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-2xl">👥</span>
+                      <span className="text-[10px] font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full uppercase">Most Popular</span>
+                    </div>
+                    <p className={`font-bold text-base mb-1 ${classType === "group" ? "text-primary" : "text-on-surface"}`}>Group Class</p>
+                    <p className="text-xs text-on-surface-variant mb-3">3–5 students per session · collaborative learning</p>
+                    {showPricing && cwGroupPrice > 0 && (
+                      <div>
+                        <div className="flex items-end gap-1">
+                          <span className="font-display text-2xl font-extrabold text-primary">{priceSymbol}{cwGroupPrice}</span>
+                          <span className="text-xs text-on-surface-variant mb-0.5">/session</span>
+                        </div>
+                        <p className="text-xs font-bold text-indigo-600 mt-0.5">Total: {priceSymbol}{cwGroupPrice * cwTotalSessions}</p>
+                        <p className="text-[10px] text-on-surface-variant">{cwTotalSessions} sessions × {priceSymbol}{cwGroupPrice}</p>
+                      </div>
+                    )}
+                  </button>
+
+                  {/* 1-to-1 class */}
+                  <button onClick={() => setClassType("private")}
+                    className={`flex flex-col p-5 rounded-2xl border-2 text-left transition-all ${
+                      classType === "private" ? "border-indigo-500 bg-indigo-50 shadow-sm" : "border-outline-variant hover:border-indigo-400/60"
+                    }`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-2xl">🎯</span>
+                      <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase">Premium</span>
+                    </div>
+                    <p className={`font-bold text-base mb-1 ${classType === "private" ? "text-indigo-600" : "text-on-surface"}`}>1-to-1 Private</p>
+                    <p className="text-xs text-on-surface-variant mb-3">Dedicated tutor · fully personalised attention</p>
+                    {showPricing && cwPrivatePrice > 0 && (
+                      <div>
+                        <div className="flex items-end gap-1">
+                          <span className={`font-display text-2xl font-extrabold ${classType === "private" ? "text-indigo-600" : "text-on-surface"}`}>{priceSymbol}{cwPrivatePrice}</span>
+                          <span className="text-xs text-on-surface-variant mb-0.5">/session</span>
+                        </div>
+                        <p className="text-xs font-bold text-indigo-600 mt-0.5">Total: {priceSymbol}{cwPrivatePrice * cwTotalSessions}</p>
+                        <p className="text-[10px] text-on-surface-variant">{cwTotalSessions} sessions × {priceSymbol}{cwPrivatePrice}</p>
+                      </div>
+                    )}
+                  </button>
+                </div>
+
+                {/* Upgrade note */}
+                {classType === "group" && (
+                  <div className="mt-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
+                    <span className="shrink-0">💡</span>
+                    <span>You can upgrade to 1-to-1 at any time. Group classes still include personal feedback and Q&A time.</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Total price summary */}
+              {showPricing && cwPerSession > 0 && (
+                <div className="bg-gradient-to-br from-primary/5 to-indigo-50 border border-primary/20 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-2">Your Order Summary</p>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-on-surface">{cwTotalSessions} sessions × {priceSymbol}{cwPerSession}</span>
+                    <span className="font-bold text-on-surface">{priceSymbol}{cwTotalPrice}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-on-surface-variant">
+                    <span>{COURSE_WISE_COMBOS[dayComboIdx].label} · {selTime} · {durationValue} {durationUnit}</span>
+                    <span>{classType === "private" ? "1-to-1" : "Group"}</span>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-primary/15 flex items-center justify-between">
+                    <span className="font-bold text-on-surface">Total</span>
+                    <span className="font-display text-2xl font-extrabold text-primary">{priceSymbol}{cwTotalPrice}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep("daytime")}
+                  className="flex items-center gap-1 px-4 py-3 rounded-2xl border border-outline-variant text-on-surface-variant text-sm font-semibold hover:bg-surface-container transition-all">
+                  <ChevronLeft size={16}/> Back
+                </button>
+                <button onClick={() => setStep("details")} disabled={cwPerSession === 0}
+                  className="flex-1 flex items-center justify-center gap-2 bg-primary text-white font-bold py-3 rounded-2xl hover:opacity-90 transition-all disabled:opacity-40">
+                  Continue to Details <ChevronRight size={18}/>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP 1: SCHEDULE (tutor-wise) ── */}
           {step === "slot" && (
             <div className="bg-surface-container-lowest border border-outline-variant rounded-3xl p-6 space-y-6">
 
@@ -672,9 +936,16 @@ function SubscribeInner() {
               <div className="bg-primary/5 border border-primary/15 rounded-2xl p-4 mb-5">
                 <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide mb-1">Selected Schedule</p>
                 <p className="font-bold text-on-surface">{daysLabel} at {selTime}</p>
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  {selDays.length} day{selDays.length > 1 ? "s" : ""}/week · {sessionDates.length} sessions over {durationValue} {durationUnit}
-                </p>
+                {enrollModel === "course-wise" ? (
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    3 days/week · {cwTotalSessions} sessions · {classType === "private" ? "1-to-1 private" : "Group class (3–5 students)"} · {durationValue} {durationUnit}
+                    {showPricing && cwPerSession > 0 && ` · Total: ${priceSymbol}${cwTotalPrice}`}
+                  </p>
+                ) : (
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    {selDays.length} day{selDays.length > 1 ? "s" : ""}/week · {sessionDates.length} sessions over {durationValue} {durationUnit}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-4 mb-5">
@@ -702,7 +973,7 @@ function SubscribeInner() {
               )}
 
               <div className="flex gap-3">
-                <button onClick={()=>setStep("slot")}
+                <button onClick={() => setStep(enrollModel === "course-wise" ? "classtype" : "slot")}
                   className="flex items-center gap-1 px-4 py-3 rounded-2xl border border-outline-variant text-on-surface-variant text-sm font-semibold hover:bg-surface-container transition-all">
                   <ChevronLeft size={16}/> Back
                 </button>
@@ -728,11 +999,17 @@ function SubscribeInner() {
                 )}
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wide mb-0.5">Subscribing to</p>
+                    <p className="text-xs text-on-surface-variant font-medium uppercase tracking-wide mb-0.5">Enrolling in</p>
                     <p className="font-bold text-on-surface text-lg">{courseName}</p>
-                    <p className="text-xs text-on-surface-variant mt-0.5">
-                      {daysLabel} at {selTime} · {sessionDates.length} sessions · {durationValue} {durationUnit} course
-                    </p>
+                    {enrollModel === "course-wise" ? (
+                      <p className="text-xs text-on-surface-variant mt-0.5">
+                        {daysLabel} at {selTime} · {cwTotalSessions} sessions · {classType === "private" ? "1-to-1" : "Group"} · {durationValue} {durationUnit}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-on-surface-variant mt-0.5">
+                        {daysLabel} at {selTime} · {sessionDates.length} sessions · {durationValue} {durationUnit} course
+                      </p>
+                    )}
                   </div>
                   <div className="text-right shrink-0">
                     {showPricing ? (
@@ -740,7 +1017,7 @@ function SubscribeInner() {
                         {isIndia === null
                           ? <div className="w-20 h-8 bg-primary/10 rounded animate-pulse"/>
                           : (() => {
-                            const origCoursePrice = isIndia !== false ? origPriceINR : origPriceUSD;
+                            const origCoursePrice = enrollModel === "course-wise" ? 0 : (isIndia !== false ? origPriceINR : origPriceUSD);
                             const hasCourseDisc   = origCoursePrice > basePrice && origCoursePrice > 0;
                             const totalSaved      = (hasCourseDisc ? origCoursePrice - basePrice : 0) + (couponApplied?.discountAmount ?? 0);
                             const strikePrice     = couponApplied ? basePrice : (hasCourseDisc ? origCoursePrice : 0);
@@ -754,6 +1031,9 @@ function SubscribeInner() {
                                 <span className={`font-display text-3xl font-extrabold ${totalSaved > 0 ? "text-green-600" : "text-primary"}`}>
                                   {priceSymbol}{chargePrice}
                                 </span>
+                                {enrollModel === "course-wise" && cwPerSession > 0 && !couponApplied && (
+                                  <p className="text-[10px] text-on-surface-variant mt-0.5">{cwTotalSessions} × {priceSymbol}{cwPerSession}</p>
+                                )}
                                 {totalSaved > 0 && (
                                   <p className="text-[10px] font-bold text-green-600 mt-0.5">
                                     🎉 Saved {priceSymbol}{totalSaved}!
@@ -906,6 +1186,7 @@ function SubscribeInner() {
                         `Hi! I'd like to enroll in *${courseName}*.\n\n` +
                         `📅 Days: ${daysLabel}\n` +
                         `🕐 Time: ${selTime}\n` +
+                        (enrollModel === "course-wise" ? `📋 Class type: ${classType === "private" ? "1-to-1 private" : "Group class"}\n` : "") +
                         `👦 Child: ${childName || "—"}\n` +
                         `📚 Duration: ${durationValue} ${durationUnit}\n\n` +
                         `Please share the payment details and confirm my sessions.`
@@ -933,8 +1214,9 @@ function SubscribeInner() {
               </div>
               <h2 className="font-display text-2xl font-extrabold text-on-surface mb-2">All Booked! 🎉</h2>
               <p className="text-on-surface-variant text-sm mb-6">
-                {sessionDates.length} sessions scheduled ({daysLabel}) over {durationValue} {durationUnit}.
-                Zoom links sent to your email. You&apos;ll get a 30-min reminder before each session.
+                {enrollModel === "course-wise" ? cwTotalSessions : sessionDates.length} sessions scheduled ({daysLabel}) over {durationValue} {durationUnit}.
+                {enrollModel === "course-wise" && ` ${classType === "private" ? "1-to-1 private" : "Group class (3–5 students)."}`}
+                {" "}Zoom links sent to your email. You&apos;ll get a 30-min reminder before each session.
               </p>
               <div className="space-y-2 mb-6">
                 {(createdSessions.length ? createdSessions : sessionDates.map(d=>({date:d,zoomLink:null}))).slice(0,8).map((s,i)=>(
